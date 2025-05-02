@@ -6,6 +6,8 @@ import {
   Post, InsertPost, posts,
   Activity, InsertActivity, activities
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, sql, lt, gt, isNull } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -44,6 +46,198 @@ export interface IStorage {
   // Activity operations
   getActivities(userId: number, limit?: number): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
+}
+
+// Database storage implementation
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  // Facebook account operations
+  async getFacebookAccounts(userId: number): Promise<FacebookAccount[]> {
+    return db.select().from(facebookAccounts).where(eq(facebookAccounts.userId, userId));
+  }
+
+  async getFacebookAccount(id: number): Promise<FacebookAccount | undefined> {
+    const [account] = await db.select().from(facebookAccounts).where(eq(facebookAccounts.id, id));
+    return account;
+  }
+
+  async createFacebookAccount(account: InsertFacebookAccount): Promise<FacebookAccount> {
+    const [newAccount] = await db.insert(facebookAccounts).values(account).returning();
+    return newAccount;
+  }
+
+  async updateFacebookAccount(id: number, data: Partial<FacebookAccount>): Promise<FacebookAccount | undefined> {
+    const [updatedAccount] = await db
+      .update(facebookAccounts)
+      .set(data)
+      .where(eq(facebookAccounts.id, id))
+      .returning();
+    return updatedAccount;
+  }
+
+  async deleteFacebookAccount(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(facebookAccounts)
+      .where(eq(facebookAccounts.id, id))
+      .returning({ id: facebookAccounts.id });
+    return !!deleted;
+  }
+
+  // Asana integration operations
+  async getAsanaIntegration(userId: number): Promise<AsanaIntegration | undefined> {
+    const [integration] = await db
+      .select()
+      .from(asanaIntegrations)
+      .where(eq(asanaIntegrations.userId, userId));
+    return integration;
+  }
+
+  async createAsanaIntegration(integration: InsertAsanaIntegration): Promise<AsanaIntegration> {
+    const [newIntegration] = await db
+      .insert(asanaIntegrations)
+      .values(integration)
+      .returning();
+    return newIntegration;
+  }
+
+  async updateAsanaIntegration(userId: number, data: Partial<AsanaIntegration>): Promise<AsanaIntegration | undefined> {
+    const [updatedIntegration] = await db
+      .update(asanaIntegrations)
+      .set(data)
+      .where(eq(asanaIntegrations.userId, userId))
+      .returning();
+    return updatedIntegration;
+  }
+
+  // Custom label operations
+  async getCustomLabels(userId: number): Promise<CustomLabel[]> {
+    return db
+      .select()
+      .from(customLabels)
+      .where(eq(customLabels.userId, userId));
+  }
+
+  async getCustomLabel(id: number): Promise<CustomLabel | undefined> {
+    const [label] = await db
+      .select()
+      .from(customLabels)
+      .where(eq(customLabels.id, id));
+    return label;
+  }
+
+  async createCustomLabel(label: InsertCustomLabel): Promise<CustomLabel> {
+    const [newLabel] = await db
+      .insert(customLabels)
+      .values(label)
+      .returning();
+    return newLabel;
+  }
+
+  async updateCustomLabel(id: number, data: Partial<CustomLabel>): Promise<CustomLabel | undefined> {
+    const [updatedLabel] = await db
+      .update(customLabels)
+      .set(data)
+      .where(eq(customLabels.id, id))
+      .returning();
+    return updatedLabel;
+  }
+
+  async deleteCustomLabel(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(customLabels)
+      .where(eq(customLabels.id, id))
+      .returning({ id: customLabels.id });
+    return !!deleted;
+  }
+
+  // Post operations
+  async getPosts(userId: number): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .where(eq(posts.userId, userId))
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async getUpcomingPosts(userId: number): Promise<Post[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(posts)
+      .where(and(
+        eq(posts.userId, userId),
+        eq(posts.status, 'scheduled'),
+        gt(posts.scheduledFor, now)
+      ))
+      .orderBy(posts.scheduledFor)
+      .limit(10);
+  }
+
+  async getPost(id: number): Promise<Post | undefined> {
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.id, id));
+    return post;
+  }
+
+  async createPost(post: InsertPost): Promise<Post> {
+    const [newPost] = await db
+      .insert(posts)
+      .values(post)
+      .returning();
+    return newPost;
+  }
+
+  async updatePost(id: number, data: Partial<Post>): Promise<Post | undefined> {
+    const [updatedPost] = await db
+      .update(posts)
+      .set(data)
+      .where(eq(posts.id, id))
+      .returning();
+    return updatedPost;
+  }
+
+  async deletePost(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(posts)
+      .where(eq(posts.id, id))
+      .returning({ id: posts.id });
+    return !!deleted;
+  }
+
+  // Activity operations
+  async getActivities(userId: number, limit: number = 10): Promise<Activity[]> {
+    return db
+      .select()
+      .from(activities)
+      .where(eq(activities.userId, userId))
+      .orderBy(desc(activities.createdAt))
+      .limit(limit);
+  }
+
+  async createActivity(activity: InsertActivity): Promise<Activity> {
+    const [newActivity] = await db
+      .insert(activities)
+      .values(activity)
+      .returning();
+    return newActivity;
+  }
 }
 
 // Memory storage implementation

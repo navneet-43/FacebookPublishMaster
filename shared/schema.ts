@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { relations } from "drizzle-orm";
 import { z } from "zod";
 
 // User model
@@ -121,6 +122,55 @@ export const insertActivitySchema = createInsertSchema(activities).pick({
   description: true,
   metadata: true,
 });
+
+// Define relations
+export const usersRelations = relations(users, ({ many }) => ({
+  facebookAccounts: many(facebookAccounts),
+  asanaIntegrations: many(asanaIntegrations),
+  customLabels: many(customLabels),
+  posts: many(posts),
+  activities: many(activities),
+}));
+
+export const facebookAccountsRelations = relations(facebookAccounts, ({ one, many }) => ({
+  user: one(users, {
+    fields: [facebookAccounts.userId],
+    references: [users.id],
+  }),
+  posts: many(posts),
+}));
+
+export const asanaIntegrationsRelations = relations(asanaIntegrations, ({ one }) => ({
+  user: one(users, {
+    fields: [asanaIntegrations.userId],
+    references: [users.id],
+  }),
+}));
+
+export const customLabelsRelations = relations(customLabels, ({ one }) => ({
+  user: one(users, {
+    fields: [customLabels.userId],
+    references: [users.id],
+  }),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  user: one(users, {
+    fields: [posts.userId],
+    references: [users.id],
+  }),
+  facebookAccount: one(facebookAccounts, {
+    fields: [posts.accountId],
+    references: [facebookAccounts.id],
+  }),
+}));
+
+export const activitiesRelations = relations(activities, ({ one }) => ({
+  user: one(users, {
+    fields: [activities.userId],
+    references: [users.id],
+  }),
+}));
 
 // Export all types
 export type User = typeof users.$inferSelect;
