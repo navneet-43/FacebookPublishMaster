@@ -102,6 +102,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/facebook-accounts/:id", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req, res);
+      if (!user) return;
+      
+      const id = parseInt(req.params.id);
+      const account = await storage.getFacebookAccount(id);
+      
+      if (!account) {
+        return res.status(404).json({ message: "Account not found" });
+      }
+      
+      if (account.userId !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this account" });
+      }
+      
+      // Only allow updating specific fields
+      const allowedFields = ['isActive'];
+      const updates: Partial<FacebookAccount> = {};
+      
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field as keyof FacebookAccount] = req.body[field];
+        }
+      }
+      
+      const updatedAccount = await storage.updateFacebookAccount(id, updates);
+      
+      // Log activity for status change
+      if (updates.isActive !== undefined && updatedAccount) {
+        await storage.createActivity({
+          userId: user.id,
+          type: updates.isActive ? "account_activated" : "account_deactivated",
+          description: `Facebook account "${account.name}" ${updates.isActive ? "activated" : "deactivated"}`,
+          metadata: { accountId: id }
+        });
+      }
+      
+      res.json(updatedAccount);
+    } catch (error) {
+      console.error("Error updating Facebook account:", error);
+      res.status(500).json({ message: "Failed to update Facebook account" });
+    }
+  });
+
   app.delete("/api/facebook-accounts/:id", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req, res);

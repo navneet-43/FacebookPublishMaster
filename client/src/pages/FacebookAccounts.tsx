@@ -1,31 +1,284 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import DashboardHeader from "@/components/common/DashboardHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { FacebookAccount } from "@/types";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Trash2, Facebook } from "lucide-react";
 
 export default function FacebookAccounts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newAccount, setNewAccount] = useState({
+    name: "",
+    accountId: "",
+    pageId: "",
+    accessToken: ""
+  });
+
+  const { data: accounts = [], isLoading } = useQuery<FacebookAccount[]>({
+    queryKey: ['/api/facebook-accounts'],
+    staleTime: 60000
+  });
+
+  const addAccountMutation = useMutation({
+    mutationFn: (newAccount: Omit<FacebookAccount, 'id' | 'userId' | 'createdAt' | 'isActive'>) => {
+      return apiRequest('/api/facebook-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAccount)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/facebook-accounts'] });
+      toast({
+        title: "Account connected",
+        description: "Your Facebook account has been successfully connected."
+      });
+      setIsAddDialogOpen(false);
+      setNewAccount({ name: "", accountId: "", pageId: "", accessToken: "" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error connecting account",
+        description: (error as Error).message || "There was an error connecting your Facebook account.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: (id: number) => {
+      return apiRequest(`/api/facebook-accounts/${id}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/facebook-accounts'] });
+      toast({
+        title: "Account removed",
+        description: "The Facebook account has been successfully disconnected."
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error removing account",
+        description: (error as Error).message || "There was an error removing the Facebook account.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const toggleAccountMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: number, isActive: boolean }) => {
+      return apiRequest(`/api/facebook-accounts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/facebook-accounts'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error updating account",
+        description: (error as Error).message || "There was an error updating the Facebook account status.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    addAccountMutation.mutate(newAccount);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setNewAccount(prev => ({ ...prev, [name]: value }));
+  };
+
   return (
     <>
       <DashboardHeader 
         title="Facebook Accounts" 
         subtitle="Manage your connected Facebook pages" 
         importLabel="Connect Account"
+        showImport={true}
+        onImport={() => setIsAddDialogOpen(true)}
       />
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Connected Accounts</CardTitle>
+            <CardDescription>
+              Manage your Facebook business accounts for automated posting
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-96 flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <i className="fa-brands fa-facebook text-5xl mb-4"></i>
-                <p>Facebook account management will be implemented in a future update.</p>
-                <p className="text-sm mt-2">This page would allow you to connect and manage Facebook business accounts.</p>
+            {isLoading ? (
+              <div className="h-60 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            </div>
+            ) : accounts.length === 0 ? (
+              <div className="h-60 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <Facebook className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+                  <p>No Facebook accounts connected yet</p>
+                  <p className="text-sm mt-2">Click "Connect Account" to add a Facebook business account</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setIsAddDialogOpen(true)}
+                  >
+                    Connect Account
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {accounts.map((account: FacebookAccount) => (
+                  <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <Facebook className="h-6 w-6 text-blue-600" />
+                      <div>
+                        <p className="font-medium">{account.name}</p>
+                        <p className="text-sm text-gray-500">Page ID: {account.pageId}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <Switch 
+                          checked={account.isActive}
+                          onCheckedChange={(checked) => 
+                            toggleAccountMutation.mutate({ id: account.id, isActive: checked })
+                          }
+                        />
+                        <span className={account.isActive ? "text-green-600" : "text-gray-500"}>
+                          {account.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="icon">
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will disconnect this Facebook account and all scheduled posts for this account will be canceled.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => deleteAccountMutation.mutate(account.id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Account Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect Facebook Account</DialogTitle>
+            <DialogDescription>
+              Enter your Facebook page details to connect it to the application.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="name">Account Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder="My Business Page"
+                  value={newAccount.name}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountId">Account ID</Label>
+                <Input
+                  id="accountId"
+                  name="accountId"
+                  placeholder="1234567890"
+                  value={newAccount.accountId}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pageId">Page ID</Label>
+                <Input
+                  id="pageId"
+                  name="pageId"
+                  placeholder="1234567890"
+                  value={newAccount.pageId}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accessToken">Access Token</Label>
+                <Input
+                  id="accessToken"
+                  name="accessToken"
+                  type="password"
+                  placeholder="Facebook Page Access Token"
+                  value={newAccount.accessToken}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsAddDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                disabled={addAccountMutation.isPending}
+              >
+                {addAccountMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Connect Account
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
