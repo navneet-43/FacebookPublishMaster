@@ -91,6 +91,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteFacebookAccount(id: number): Promise<boolean> {
+    // First delete all posts associated with this account
+    await db
+      .delete(posts)
+      .where(eq(posts.accountId, id));
+      
+    // Then delete the account
     const [deleted] = await db
       .delete(facebookAccounts)
       .where(eq(facebookAccounts.id, id))
