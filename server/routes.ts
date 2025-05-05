@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -11,6 +11,8 @@ import {
   insertActivitySchema
 } from "../shared/schema";
 import schedule from "node-schedule";
+import multer from "multer";
+import { uploadImage } from "./utils/cloudinary";
 
 const authenticateUser = async (req: Request, res: Response) => {
   // For simplicity, we'll use a demo user for now
@@ -646,6 +648,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error importing from Excel:", error);
       return res.status(500).json({ 
         message: "Failed to import from Excel", 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  // Configure multer for memory storage
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (_req, file, cb) => {
+      // Accept only image files
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    }
+  });
+
+  // Media Upload route
+  app.post("/api/media/upload", upload.single('media'), async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req, res);
+      if (!user) return;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Upload the file to Cloudinary
+      const mediaUrl = await uploadImage(req.file.buffer);
+      
+      // Log activity
+      await storage.createActivity({
+        userId: user.id,
+        type: "media_uploaded",
+        description: "Media file uploaded",
+        metadata: JSON.stringify({ 
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          fileType: req.file.mimetype 
+        })
+      });
+      
+      // Return the URL of the uploaded image
+      return res.status(200).json({ 
+        success: true, 
+        mediaUrl,
+        message: "Media uploaded successfully" 
+      });
+    } catch (error) {
+      console.error("Error uploading media:", error);
+      return res.status(500).json({ 
+        message: "Failed to upload media", 
         error: (error as Error).message 
       });
     }
