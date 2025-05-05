@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import DashboardHeader from "@/components/common/DashboardHeader";
+import MediaUpload from "@/components/common/MediaUpload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Image } from "lucide-react";
 import { format } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -207,18 +208,19 @@ export default function PublishingCalendar() {
                 )}
               />
               
-              {/* Media URL */}
+              {/* Media Upload */}
               <FormField
                 control={form.control}
                 name="mediaUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Media URL (Optional)</FormLabel>
+                    <FormLabel>Media Upload (Optional)</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="https://example.com/image.jpg"
-                        {...field}
-                        value={field.value || ""}
+                      <MediaUpload 
+                        existingUrl={field.value || ""} 
+                        onMediaUploaded={(url) => {
+                          field.onChange(url);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
