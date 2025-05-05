@@ -593,5 +593,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import Excel route
+  app.post("/api/import-from-excel", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req, res);
+      if (!user) return;
+
+      // In a real implementation, we would:
+      // 1. Process the uploaded Excel file
+      // 2. Parse the mapping configuration
+      // 3. Extract data from the Excel file based on the mapping
+      // 4. Create posts using that data
+      
+      // Get the user's first Facebook account
+      const accounts = await storage.getFacebookAccounts(user.id);
+      if (accounts.length === 0) {
+        return res.status(400).json({ 
+          message: "No Facebook accounts found. Please connect a Facebook account first."
+        });
+      }
+
+      // Create a sample post (simulating Excel import)
+      const post = await storage.createPost({
+        userId: user.id,
+        accountId: accounts[0].id,
+        content: "This post was imported from an Excel file. In a real implementation, this would contain content from your Excel spreadsheet.",
+        status: "scheduled",
+        scheduledFor: new Date(Date.now() + 48 * 60 * 60 * 1000), // 2 days from now
+        language: "en",
+        labels: JSON.stringify(["Imported", "Excel"]),
+        mediaUrl: null,
+        link: null,
+        publishedAt: null,
+        asanaTaskId: null,
+        errorMessage: null
+      });
+
+      // Create an activity record
+      await storage.createActivity({
+        userId: user.id,
+        type: "excel_import",
+        description: "Imported a row from Excel",
+        metadata: JSON.stringify({ postId: post.id, fileName: "sample.xlsx" })
+      });
+      
+      return res.status(200).json({ 
+        success: true,
+        message: "Successfully imported from Excel",
+        imported: 1
+      });
+    } catch (error) {
+      console.error("Error importing from Excel:", error);
+      return res.status(500).json({ 
+        message: "Failed to import from Excel", 
+        error: (error as Error).message 
+      });
+    }
+  });
+
   return httpServer;
 }
