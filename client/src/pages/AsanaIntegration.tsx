@@ -382,9 +382,9 @@ export default function AsanaIntegration() {
                             </SelectTrigger>
                             <SelectContent>
                               {isLoadingProjects ? (
-                                <SelectItem value="" disabled>Loading projects...</SelectItem>
+                                <SelectItem value="loading" disabled>Loading projects...</SelectItem>
                               ) : asanaProjects.length === 0 ? (
-                                <SelectItem value="" disabled>No projects found</SelectItem>
+                                <SelectItem value="none" disabled>No projects found</SelectItem>
                               ) : (
                                 asanaProjects.map((project) => (
                                   <SelectItem key={project.id} value={project.id}>
@@ -733,7 +733,7 @@ export default function AsanaIntegration() {
                       <SelectContent>
                         <SelectItem value="tags">Tags</SelectItem>
                         <SelectItem value="custom_labels">Custom Field: Labels</SelectItem>
-                        <SelectItem value="">Don't import labels</SelectItem>
+                        <SelectItem value="none">Don't import labels</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -755,7 +755,7 @@ export default function AsanaIntegration() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="custom_language">Custom Field: Language</SelectItem>
-                        <SelectItem value="">Use default (English)</SelectItem>
+                        <SelectItem value="default">Use default (English)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
