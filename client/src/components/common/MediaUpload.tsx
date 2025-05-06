@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { FileImage, UploadCloud, X, Loader2 } from "lucide-react";
+import { FileImage, Video, UploadCloud, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -24,20 +24,23 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
     const file = files[0];
     
     // Basic file validation
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       toast({
         title: "Invalid file",
-        description: "Please select an image file (JPEG, PNG, GIF, etc.)",
+        description: "Please select an image or video file",
         variant: "destructive"
       });
       return;
     }
 
-    // Size validation (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
+    // Size validation (100MB max for videos, 10MB max for images)
+    const maxSize = file.type.startsWith('video/') ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
       toast({
         title: "File too large",
-        description: "Please select an image smaller than 10MB",
+        description: file.type.startsWith('video/') 
+          ? "Please select a video smaller than 100MB" 
+          : "Please select an image smaller than 10MB",
         variant: "destructive"
       });
       return;
@@ -66,7 +69,9 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
         onMediaUploaded(response.mediaUrl);
         toast({
           title: "Upload successful",
-          description: "Your image has been uploaded successfully",
+          description: file.type.startsWith('video/') 
+            ? "Your video has been uploaded successfully" 
+            : "Your image has been uploaded successfully",
         });
       } else {
         throw new Error("No media URL in response");
@@ -101,7 +106,7 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
       <input
         type="file"
         ref={fileInputRef}
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileChange}
         className="hidden"
       />
@@ -129,20 +134,29 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
               ) : (
                 <>
                   <FileImage className="mr-2 h-4 w-4" />
-                  Upload image
+                  <Video className="mr-2 h-4 w-4" />
+                  Upload media
                 </>
               )}
             </Button>
           </div>
-          <p className="text-xs text-gray-500 mt-2">PNG, JPG, GIF up to 10MB</p>
+          <p className="text-xs text-gray-500 mt-2">Images (PNG, JPG, GIF) up to 10MB or Videos (MP4, WebM) up to 100MB</p>
         </div>
       ) : (
         <div className="relative">
-          <img 
-            src={preview} 
-            alt="Preview" 
-            className="w-full h-48 object-cover rounded-md"
-          />
+          {preview?.startsWith('data:video/') || preview?.includes('.mp4') || preview?.includes('.webm') ? (
+            <video 
+              src={preview} 
+              controls
+              className="w-full h-48 object-cover rounded-md"
+            />
+          ) : (
+            <img 
+              src={preview} 
+              alt="Preview" 
+              className="w-full h-48 object-cover rounded-md"
+            />
+          )}
           <Button
             variant="destructive"
             size="icon"

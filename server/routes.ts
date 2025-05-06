@@ -657,14 +657,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB limit
+      fileSize: 100 * 1024 * 1024, // 100MB limit for videos
     },
     fileFilter: (_req, file, cb) => {
-      // Accept only image files
-      if (file.mimetype.startsWith('image/')) {
+      // Accept both image and video files
+      if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
         cb(null, true);
       } else {
-        cb(new Error('Only image files are allowed'));
+        cb(new Error('Only image and video files are allowed'));
       }
     }
   });
@@ -679,8 +679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      // Upload the file to Cloudinary
-      const mediaUrl = await uploadImage(req.file.buffer);
+      // Upload the file to Cloudinary with the correct mime type
+      const mediaUrl = await uploadImage(req.file.buffer, req.file.mimetype);
       
       // Log activity
       await storage.createActivity({

@@ -10,27 +10,41 @@ cloudinary.config({
 
 export default cloudinary;
 
-export const uploadImage = async (fileBuffer: Buffer, folder: string = 'social_posts'): Promise<string> => {
+export const uploadImage = async (fileBuffer: Buffer, mimeType: string = 'image/jpeg', folder: string = 'social_posts'): Promise<string> => {
   try {
-    // Convert buffer to base64 format
-    const base64Data = `data:image/jpeg;base64,${fileBuffer.toString('base64')}`;
+    // Determine if it's a video or image
+    const isVideo = mimeType.startsWith('video/');
+    const resourceType = isVideo ? 'video' : 'image';
     
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(base64Data, {
+    // Convert buffer to base64 format
+    const base64Data = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+    
+    let uploadOptions: any = {
       folder,
-      resource_type: 'auto',
-      // Add any transformations if needed
-      transformation: [
+      resource_type: resourceType,
+    };
+    
+    // Add transformations only for images
+    if (!isVideo) {
+      uploadOptions.transformation = [
         { quality: 'auto:good' },
         { fetch_format: 'auto' }
-      ]
-    });
+      ];
+    } else {
+      // Add video-specific options if needed
+      uploadOptions.eager = [
+        { quality: 'auto:good', format: 'mp4' }
+      ];
+    }
+    
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(base64Data, uploadOptions);
 
-    // Return the secure URL of the uploaded image
+    // Return the secure URL of the uploaded media
     return result.secure_url;
   } catch (error) {
     console.error('Error uploading to Cloudinary:', error);
-    throw new Error('Failed to upload image to storage service');
+    throw new Error('Failed to upload media to storage service');
   }
 };
 
