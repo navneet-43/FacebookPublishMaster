@@ -151,10 +151,30 @@ export default function PublishingCalendar() {
     
     // If we have a date and time, combine them
     if (values.scheduledFor && values.scheduledTime) {
-      const [hours, minutes] = values.scheduledTime.split(':').map(Number);
-      const date = new Date(values.scheduledFor);
-      date.setHours(hours, minutes, 0, 0);
-      processedValues.scheduledFor = date;
+      try {
+        const [hours, minutes] = values.scheduledTime.split(':').map(Number);
+        const date = new Date(values.scheduledFor);
+        date.setHours(hours, minutes, 0, 0);
+        
+        // Format as ISO string for the backend
+        processedValues.scheduledFor = date.toISOString();
+        console.log("Scheduled date:", processedValues.scheduledFor);
+      } catch (error) {
+        console.error("Error formatting date:", error);
+        toast({
+          title: "Date formatting error",
+          description: "Could not format the scheduled date and time correctly",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else if (values.status === 'scheduled' && !values.scheduledFor) {
+      toast({
+        title: "Scheduling required",
+        description: "Please select a date when scheduling a post",
+        variant: "destructive"
+      });
+      return;
     }
     
     // Handle crossposting
@@ -162,6 +182,7 @@ export default function PublishingCalendar() {
       processedValues.crosspostTo = [];
     }
     
+    console.log("Submitting post data:", processedValues);
     createPostMutation.mutate(processedValues);
   }
 
