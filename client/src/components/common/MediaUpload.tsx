@@ -60,12 +60,16 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
       const formData = new FormData();
       formData.append('media', file);
       
+      console.log("Uploading media file:", file.name, file.type, file.size);
       const response = await apiRequest('/api/media/upload', {
         method: 'POST',
         body: formData,
       }) as { success: boolean; mediaUrl: string; message: string };
       
+      console.log("Upload response:", response);
+      
       if (response.mediaUrl) {
+        console.log("Media URL received:", response.mediaUrl);
         onMediaUploaded(response.mediaUrl);
         toast({
           title: "Upload successful",
@@ -74,14 +78,25 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
             : "Your image has been uploaded successfully",
         });
       } else {
+        console.error("No media URL in response:", response);
         throw new Error("No media URL in response");
       }
     } catch (error) {
+      console.error("Media upload error:", error);
+      
+      // More detailed error display
+      let errorMessage = "An error occurred while uploading";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        console.error("Error details:", error.stack);
+      }
+      
       toast({
         title: "Upload failed",
-        description: error instanceof Error ? error.message : "An error occurred while uploading",
+        description: errorMessage,
         variant: "destructive"
       });
+      
       // Reset preview on error
       setPreview(existingUrl || null);
     } finally {
