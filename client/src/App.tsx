@@ -20,6 +20,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/calendar" component={PublishingCalendar} />
+      <Route path="/publishing-calendar" component={PublishingCalendar} />
       <Route path="/history" component={PublishingHistory} />
       <Route path="/facebook-accounts" component={FacebookAccounts} />
       <Route path="/asana-integration" component={AsanaIntegration} />

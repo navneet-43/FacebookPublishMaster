@@ -381,7 +381,7 @@ export default function PublishingCalendar() {
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
-                    {field.value?.length > 0 && (
+                    {Array.isArray(field.value) && field.value.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {field.value.map((labelId) => {
                           const label = customLabels.find((l) => l.id.toString() === labelId);
@@ -398,7 +398,9 @@ export default function PublishingCalendar() {
                                 className="h-4 w-4 p-0 ml-1"
                                 onClick={() => {
                                   field.onChange(
-                                    field.value?.filter((id) => id !== labelId) || []
+                                    Array.isArray(field.value) 
+                                      ? field.value.filter((id) => id !== labelId) 
+                                      : []
                                   );
                                 }}
                               >
