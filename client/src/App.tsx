@@ -37,7 +37,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex min-h-screen">
           <Sidebar />
           
           <MobileMenu 

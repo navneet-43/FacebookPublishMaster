@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import DashboardHeader from "@/components/common/DashboardHeader";
@@ -48,6 +48,17 @@ export default function PublishingCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labelSearchTerm, setLabelSearchTerm] = useState('');
+  
+  // Ensure page is scrollable
+  useEffect(() => {
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
 
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
