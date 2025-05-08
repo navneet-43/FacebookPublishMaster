@@ -10,15 +10,18 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Image } from "lucide-react";
-import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { CalendarIcon, Loader2, Image, Clock, X, Check, ChevronsUpDown } from "lucide-react";
+import { format, addHours, setHours, setMinutes } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
-import { FacebookAccount, Post } from "@/types";
+import { FacebookAccount, Post, CustomLabel } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 // Define the form schema
@@ -30,6 +33,9 @@ const formSchema = z.object({
   language: z.string().min(1, "Language is required"),
   labels: z.array(z.string()).optional(),
   scheduledFor: z.date().optional(),
+  scheduledTime: z.string().optional(),
+  crosspost: z.boolean().default(false),
+  crosspostTo: z.array(z.string()).optional(),
   status: z.enum(["draft", "scheduled", "publish"]),
 });
 
@@ -40,6 +46,8 @@ export default function PublishingCalendar() {
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [labelSearchTerm, setLabelSearchTerm] = useState('');
 
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
@@ -53,6 +61,22 @@ export default function PublishingCalendar() {
     staleTime: 60000,
   });
 
+  // Fetch custom labels
+  const { data: customLabels = [] } = useQuery<CustomLabel[]>({
+    queryKey: ['/api/custom-labels'],
+    staleTime: 60000,
+  });
+
+  // Default date with time at current hour
+  const defaultDate = new Date();
+  defaultDate.setMinutes(0);
+  defaultDate.setSeconds(0);
+  
+  // Format time in HH:MM format
+  const formatTimeForInput = (date: Date) => {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  };
+
   // Form definition
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -63,6 +87,10 @@ export default function PublishingCalendar() {
       link: "",
       language: "en",
       labels: [],
+      scheduledFor: undefined,
+      scheduledTime: formatTimeForInput(defaultDate),
+      crosspost: false,
+      crosspostTo: [],
       status: "draft",
     },
   });
@@ -107,7 +135,23 @@ export default function PublishingCalendar() {
   });
 
   function onSubmit(values: FormValues) {
-    createPostMutation.mutate(values);
+    // Process the form data before submission
+    const processedValues = { ...values };
+    
+    // If we have a date and time, combine them
+    if (values.scheduledFor && values.scheduledTime) {
+      const [hours, minutes] = values.scheduledTime.split(':').map(Number);
+      const date = new Date(values.scheduledFor);
+      date.setHours(hours, minutes, 0, 0);
+      processedValues.scheduledFor = date;
+    }
+    
+    // Handle crossposting
+    if (!values.crosspost) {
+      processedValues.crosspostTo = [];
+    }
+    
+    createPostMutation.mutate(processedValues);
   }
 
   return (
@@ -277,6 +321,98 @@ export default function PublishingCalendar() {
                 )}
               />
               
+              {/* Custom Labels */}
+              <FormField
+                control={form.control}
+                name="labels"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Custom Labels</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value?.length && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value?.length
+                              ? `${field.value.length} label${field.value.length > 1 ? "s" : ""} selected`
+                              : "Select labels"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0">
+                        <Command>
+                          <CommandInput placeholder="Search labels..." />
+                          <CommandEmpty>No labels found.</CommandEmpty>
+                          <CommandGroup>
+                            {customLabels.map((label) => (
+                              <CommandItem
+                                key={label.id}
+                                value={label.name}
+                                onSelect={() => {
+                                  const labelId = label.id.toString();
+                                  const selectedLabels = field.value || [];
+                                  const newLabels = selectedLabels.includes(labelId)
+                                    ? selectedLabels.filter((id) => id !== labelId)
+                                    : [...selectedLabels, labelId];
+                                  field.onChange(newLabels);
+                                }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Badge style={{ backgroundColor: label.color }} className="h-4 w-4 rounded-full p-0" />
+                                  {label.name}
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "ml-auto h-4 w-4",
+                                    field.value?.includes(label.id.toString()) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                    {field.value?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {field.value.map((labelId) => {
+                          const label = customLabels.find((l) => l.id.toString() === labelId);
+                          return label ? (
+                            <Badge
+                              key={label.id}
+                              style={{ backgroundColor: label.color }}
+                              className="px-2 py-1 text-white"
+                            >
+                              {label.name}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-4 w-4 p-0 ml-1"
+                                onClick={() => {
+                                  field.onChange(
+                                    field.value?.filter((id) => id !== labelId) || []
+                                  );
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </FormItem>
+                )}
+              />
+            
               {/* Schedule Date */}
               <FormField
                 control={form.control}
@@ -308,11 +444,6 @@ export default function PublishingCalendar() {
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => {
-                            if (date) {
-                              // Set time to current time
-                              const now = new Date();
-                              date.setHours(now.getHours(), now.getMinutes());
-                            }
                             field.onChange(date);
                             // Set status to scheduled if date is selected
                             if (date) {
@@ -328,6 +459,92 @@ export default function PublishingCalendar() {
                   </FormItem>
                 )}
               />
+              
+              {/* Schedule Time */}
+              <FormField
+                control={form.control}
+                name="scheduledTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Schedule Time</FormLabel>
+                    <div className="flex items-center space-x-2">
+                      <FormControl>
+                        <Input
+                          type="time"
+                          {...field}
+                          className="w-full"
+                        />
+                      </FormControl>
+                      <Clock className="h-4 w-4 opacity-50" />
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Crosspost option */}
+              <FormField
+                control={form.control}
+                name="crosspost"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Crosspost to other pages
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Post the same content to multiple Facebook pages
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              {/* Crosspost account selection */}
+              {form.watch("crosspost") && (
+                <FormField
+                  control={form.control}
+                  name="crosspostTo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Select Pages for Crossposting</FormLabel>
+                      <div className="space-y-2">
+                        {accounts
+                          .filter(account => account.id.toString() !== form.watch("accountId") && account.isActive)
+                          .map(account => (
+                            <div key={account.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`crosspost-${account.id}`}
+                                checked={field.value?.includes(account.id.toString())}
+                                onCheckedChange={(checked) => {
+                                  const accountId = account.id.toString();
+                                  const currentValues = field.value || [];
+                                  const newValues = checked
+                                    ? [...currentValues, accountId]
+                                    : currentValues.filter(id => id !== accountId);
+                                  field.onChange(newValues);
+                                }}
+                              />
+                              <label
+                                htmlFor={`crosspost-${account.id}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                {account.name}
+                              </label>
+                            </div>
+                          ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               
               {/* Status */}
               <FormField
