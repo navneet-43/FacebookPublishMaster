@@ -64,13 +64,20 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
       const response = await apiRequest('/api/media/upload', {
         method: 'POST',
         body: formData,
-      }) as { success: boolean; mediaUrl: string; message: string };
+      });
       
-      console.log("Upload response:", response);
+      // Get JSON data from the response
+      const responseData = await response.json() as { 
+        success: boolean; 
+        mediaUrl: string; 
+        message: string 
+      };
       
-      if (response.mediaUrl) {
-        console.log("Media URL received:", response.mediaUrl);
-        onMediaUploaded(response.mediaUrl);
+      console.log("Upload response:", responseData);
+      
+      if (responseData.mediaUrl) {
+        console.log("Media URL received:", responseData.mediaUrl);
+        onMediaUploaded(responseData.mediaUrl);
         toast({
           title: "Upload successful",
           description: file.type.startsWith('video/') 
@@ -78,7 +85,7 @@ export default function MediaUpload({ onMediaUploaded, existingUrl, className }:
             : "Your image has been uploaded successfully",
         });
       } else {
-        console.error("No media URL in response:", response);
+        console.error("No media URL in response:", responseData);
         throw new Error("No media URL in response");
       }
     } catch (error) {
