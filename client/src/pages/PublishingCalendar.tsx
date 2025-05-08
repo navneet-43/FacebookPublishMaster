@@ -190,7 +190,7 @@ export default function PublishingCalendar() {
 
       {/* Create Post Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create a New Post</DialogTitle>
             <DialogDescription>
