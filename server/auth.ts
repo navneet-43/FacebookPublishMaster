@@ -86,14 +86,14 @@ interface FacebookPagesResponse {
 }
 
 // Function to fetch user's Facebook pages
-export async function fetchUserPages(userId: number, accessToken: string) {
+export async function fetchUserPages(userId: number, accessToken: string): Promise<FacebookPageData[]> {
   try {
     const response = await fetch(`https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}`);
     const data = await response.json() as FacebookPagesResponse;
     
     if (data.error) {
       console.error('Error fetching Facebook pages:', data.error);
-      return;
+      return [];
     }
     
     if (data.data && Array.isArray(data.data)) {
@@ -119,9 +119,15 @@ export async function fetchUserPages(userId: number, accessToken: string) {
           });
         }
       }
+      
+      // Return the pages data
+      return data.data;
     }
+    
+    return [];
   } catch (error) {
     console.error('Error processing Facebook pages:', error);
+    return [];
   }
 }
 

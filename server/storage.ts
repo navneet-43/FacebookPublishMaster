@@ -319,6 +319,21 @@ export class MemStorage implements IStorage {
       (user) => user.username === username,
     );
   }
+  
+  async getUserByFacebookId(facebookId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.facebookId === facebookId
+    );
+  }
+  
+  async updateUser(id: number, data: Partial<User>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    
+    const updatedUser = { ...user, ...data };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentIds.users++;
@@ -337,6 +352,12 @@ export class MemStorage implements IStorage {
 
   async getFacebookAccount(id: number): Promise<FacebookAccount | undefined> {
     return this.facebookAccounts.get(id);
+  }
+  
+  async getFacebookAccountByPageId(pageId: string): Promise<FacebookAccount | undefined> {
+    return Array.from(this.facebookAccounts.values()).find(
+      (account) => account.pageId === pageId
+    );
   }
 
   async createFacebookAccount(account: InsertFacebookAccount): Promise<FacebookAccount> {
