@@ -7,9 +7,11 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"),
   email: text("email").notNull(),
   fullName: text("full_name"),
+  facebookId: text("facebook_id").unique(),
+  facebookToken: text("facebook_token"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -18,6 +20,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   email: true,
   fullName: true,
+  facebookId: true,
+  facebookToken: true,
 });
 
 // Facebook accounts model
@@ -25,8 +29,7 @@ export const facebookAccounts = pgTable("facebook_accounts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
-  accountId: text("account_id").notNull(),
-  pageId: text("page_id").notNull(),
+  pageId: text("page_id").notNull().unique(),
   accessToken: text("access_token").notNull(),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -35,7 +38,6 @@ export const facebookAccounts = pgTable("facebook_accounts", {
 export const insertFacebookAccountSchema = createInsertSchema(facebookAccounts).pick({
   userId: true,
   name: true, 
-  accountId: true,
   pageId: true,
   accessToken: true,
   isActive: true,

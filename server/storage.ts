@@ -14,7 +14,9 @@ export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByFacebookId(facebookId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, data: Partial<User>): Promise<User | undefined>;
 
   // Facebook account operations
   getFacebookAccounts(userId: number): Promise<FacebookAccount[]>;
