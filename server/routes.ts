@@ -14,7 +14,7 @@ import schedule from "node-schedule";
 import multer from "multer";
 import { uploadImage } from "./utils/cloudinary";
 import passport from "passport";
-import { isAuthenticated } from "./auth";
+import { isAuthenticated, fetchUserPages } from "./auth";
 
 const authenticateUser = async (req: Request, res: Response) => {
   // First check if user is authenticated via Passport
@@ -72,6 +72,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ success: true });
     });
+  });
+  
+  // Facebook pages sync endpoint - automatically fetch and save user's Facebook pages
+  app.get('/api/facebook-pages/sync', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      if (!user.facebookToken) {
+        return res.status(400).json({ message: "No Facebook token found" });
+      }
+      
+      // Fetch pages from Facebook
+      const pages = await fetchUserPages(user.id, user.facebookToken);
+      
+      // Create activity log
+      await storage.createActivity({
+        userId: user.id,
+        type: "facebook_pages_synced",
+        description: `Synchronized ${pages.length} Facebook pages`,
+        metadata: { pagesCount: pages.length }
+      });
+      
+      // Redirect back to Facebook accounts page
+      res.redirect('/facebook-accounts');
+    } catch (error) {
+      console.error("Error syncing Facebook pages:", error);
+      res.status(500).json({ message: "Error syncing Facebook pages" });
+    }
   });
 
   // API routes

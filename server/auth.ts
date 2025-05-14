@@ -86,7 +86,7 @@ interface FacebookPagesResponse {
 }
 
 // Function to fetch user's Facebook pages
-async function fetchUserPages(userId: number, accessToken: string) {
+export async function fetchUserPages(userId: number, accessToken: string) {
   try {
     const response = await fetch(`https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}`);
     const data = await response.json() as FacebookPagesResponse;
