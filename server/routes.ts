@@ -17,7 +17,12 @@ import passport from "passport";
 import { isAuthenticated } from "./auth";
 
 const authenticateUser = async (req: Request, res: Response) => {
-  // For simplicity, we'll use a demo user for now
+  // First check if user is authenticated via Passport
+  if (req.isAuthenticated() && req.user) {
+    return req.user as any;
+  }
+  
+  // Fallback to demo user for development
   const user = await storage.getUserByUsername("demo");
   if (!user) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -27,6 +32,47 @@ const authenticateUser = async (req: Request, res: Response) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
+  
+  // Facebook authentication routes
+  app.get('/auth/facebook', 
+    passport.authenticate('facebook', { 
+      scope: ['email', 'pages_show_list', 'pages_manage_posts', 'pages_read_engagement']
+    })
+  );
+  
+  app.get('/auth/facebook/callback', 
+    passport.authenticate('facebook', { 
+      failureRedirect: '/login-error',
+      successRedirect: '/facebook-accounts'
+    })
+  );
+  
+  // Login status endpoint
+  app.get('/api/auth/status', (req: Request, res: Response) => {
+    if (req.isAuthenticated()) {
+      const user = req.user as any;
+      res.json({ 
+        isLoggedIn: true, 
+        user: {
+          id: user.id,
+          username: user.username, 
+          email: user.email
+        }
+      });
+    } else {
+      res.json({ isLoggedIn: false });
+    }
+  });
+  
+  // Logout endpoint
+  app.get('/api/auth/logout', (req: Request, res: Response) => {
+    req.logout((err) => {
+      if (err) { 
+        return res.status(500).json({ message: 'Error logging out' }); 
+      }
+      res.json({ success: true });
+    });
+  });
 
   // API routes
   app.get("/api/stats", async (req: Request, res: Response) => {
