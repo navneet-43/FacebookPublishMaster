@@ -10,7 +10,7 @@ export const users = pgTable("users", {
   password: text("password"),
   email: text("email").notNull(),
   fullName: text("full_name"),
-  facebookId: text("facebook_id").unique(),
+  facebookId: text("facebook_id"),
   facebookToken: text("facebook_token"),
   createdAt: timestamp("created_at").defaultNow(),
 });

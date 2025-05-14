@@ -62,10 +62,24 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
+  
+  async getUserByFacebookId(facebookId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.facebookId, facebookId));
+    return user;
+  }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+  
+  async updateUser(id: number, data: Partial<User>): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
   }
 
   // Facebook account operations
@@ -75,6 +89,11 @@ export class DatabaseStorage implements IStorage {
 
   async getFacebookAccount(id: number): Promise<FacebookAccount | undefined> {
     const [account] = await db.select().from(facebookAccounts).where(eq(facebookAccounts.id, id));
+    return account;
+  }
+  
+  async getFacebookAccountByPageId(pageId: string): Promise<FacebookAccount | undefined> {
+    const [account] = await db.select().from(facebookAccounts).where(eq(facebookAccounts.pageId, pageId));
     return account;
   }
 
