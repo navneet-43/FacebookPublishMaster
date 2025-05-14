@@ -13,6 +13,8 @@ import {
 import schedule from "node-schedule";
 import multer from "multer";
 import { uploadImage } from "./utils/cloudinary";
+import passport from "passport";
+import { isAuthenticated } from "./auth";
 
 const authenticateUser = async (req: Request, res: Response) => {
   // For simplicity, we'll use a demo user for now

@@ -4,6 +4,12 @@ import { Request, Response, NextFunction } from 'express';
 import { storage } from './storage';
 import { User } from '@shared/schema';
 
+interface FacebookProfile {
+  id: string;
+  displayName: string;
+  emails?: Array<{value: string}>;
+}
+
 // Set up Facebook authentication strategy
 export function setupAuth() {
   passport.use(new FacebookStrategy({
@@ -11,9 +17,8 @@ export function setupAuth() {
     clientSecret: process.env.FACEBOOK_APP_SECRET || '',
     callbackURL: '/auth/facebook/callback',
     profileFields: ['id', 'displayName', 'email'],
-    // Request additional permissions for page access
-    scope: ['email', 'pages_show_list', 'pages_manage_posts', 'pages_read_engagement']
-  }, async (accessToken, refreshToken, profile, done) => {
+    // Permissions are set in the Facebook Developer Portal, not here
+  }, async (accessToken: string, refreshToken: string, profile: FacebookProfile, done: Function) => {
     try {
       // Check if user exists in database
       let user = await storage.getUserByFacebookId(profile.id);
@@ -22,8 +27,7 @@ export function setupAuth() {
         // Create a new user with Facebook profile info
         user = await storage.createUser({
           username: profile.displayName || `fb_${profile.id}`,
-          email: profile.emails?.[0]?.value || '',
-          password: '', // No password for OAuth users
+          email: profile.emails?.[0]?.value || `${profile.id}@facebook.com`,
           facebookId: profile.id,
           facebookToken: accessToken
         });
@@ -66,11 +70,26 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
   res.status(401).json({ message: 'Unauthorized' });
 }
 
+interface FacebookPageData {
+  id: string;
+  name: string;
+  access_token: string;
+}
+
+interface FacebookPagesResponse {
+  data?: FacebookPageData[];
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+  };
+}
+
 // Function to fetch user's Facebook pages
 async function fetchUserPages(userId: number, accessToken: string) {
   try {
     const response = await fetch(`https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}`);
-    const data = await response.json();
+    const data = await response.json() as FacebookPagesResponse;
     
     if (data.error) {
       console.error('Error fetching Facebook pages:', data.error);
@@ -107,7 +126,7 @@ async function fetchUserPages(userId: number, accessToken: string) {
 }
 
 // Function to get user's Facebook pages (can be used by API routes)
-export async function getUserPages(userId: number): Promise<any[]> {
+export async function getUserPages(userId: number) {
   try {
     const accounts = await storage.getFacebookAccounts(userId);
     return accounts;

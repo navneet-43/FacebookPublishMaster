@@ -1,10 +1,38 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import session from "express-session";
+import MemoryStore from "memorystore";
+import passport from "passport";
+import { setupAuth } from "./auth";
 
+const MemoryStoreSession = MemoryStore(session);
 const app = express();
+
+// Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Session configuration 
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'social_media_automation_secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  },
+  store: new MemoryStoreSession({
+    checkPeriod: 86400000 // prune expired entries every 24h
+  })
+}));
+
+// Initialize Passport and restore authentication state from session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Setup Facebook authentication
+setupAuth();
 
 app.use((req, res, next) => {
   const start = Date.now();
