@@ -94,5 +94,16 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Log Facebook OAuth callback URL for configuration
+    if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+      const callbackUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/auth/facebook/callback`;
+      const baseUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      console.log('\n=== FACEBOOK OAUTH CONFIGURATION ===');
+      console.log(`App Domain: ${process.env.REPL_OWNER}.repl.co`);
+      console.log(`Site URL: ${baseUrl}`);
+      console.log(`Valid OAuth Redirect URI: ${callbackUrl}`);
+      console.log('====================================\n');
+    }
   });
 })();

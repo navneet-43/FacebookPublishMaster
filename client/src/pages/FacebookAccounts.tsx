@@ -13,6 +13,7 @@ import { FacebookAccount } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Facebook } from "lucide-react";
 import LoginButton from "@/components/common/LoginButton";
+import FacebookOAuthInstructions from "@/components/common/FacebookOAuthInstructions";
 
 export default function FacebookAccounts() {
   const queryClient = useQueryClient();
