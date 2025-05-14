@@ -20,9 +20,14 @@ export default function FacebookAccounts() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newAccount, setNewAccount] = useState({
     name: "",
-    accountId: "",
     pageId: "",
     accessToken: ""
+  });
+  
+  // Check authentication status
+  const { data: authStatus } = useQuery({
+    queryKey: ['/api/auth/status'],
+    refetchOnWindowFocus: true
   });
 
   const { data: accounts = [], isLoading } = useQuery<FacebookAccount[]>({
@@ -45,7 +50,7 @@ export default function FacebookAccounts() {
         description: "Your Facebook account has been successfully connected."
       });
       setIsAddDialogOpen(false);
-      setNewAccount({ name: "", accountId: "", pageId: "", accessToken: "" });
+      setNewAccount({ name: "", pageId: "", accessToken: "" });
     },
     onError: (error) => {
       toast({
@@ -108,17 +113,37 @@ export default function FacebookAccounts() {
     setNewAccount(prev => ({ ...prev, [name]: value }));
   };
 
+  const isLoggedIn = authStatus?.isLoggedIn;
+
   return (
     <>
       <DashboardHeader 
         title="Facebook Accounts" 
         subtitle="Manage your connected Facebook pages" 
-        importLabel="Connect Account"
+        importLabel={isLoggedIn ? "Connect Account Manually" : "Connect Account"}
         showImport={true}
         onImport={() => setIsAddDialogOpen(true)}
       />
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {!isLoggedIn && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Connect with Facebook</CardTitle>
+              <CardDescription>
+                Login with Facebook to automatically connect your accessible pages
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <div className="text-center max-w-md">
+                <Facebook className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+                <p className="mb-4">Connect your Facebook account to easily manage and schedule posts to your business pages.</p>
+                <LoginButton size="lg" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Connected Accounts</CardTitle>
@@ -136,14 +161,31 @@ export default function FacebookAccounts() {
                 <div className="text-center">
                   <Facebook className="h-12 w-12 mx-auto mb-4 text-blue-600" />
                   <p>No Facebook accounts connected yet</p>
-                  <p className="text-sm mt-2">Click "Connect Account" to add a Facebook business account</p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-4"
-                    onClick={() => setIsAddDialogOpen(true)}
-                  >
-                    Connect Account
-                  </Button>
+                  <p className="text-sm mt-2">Connect your Facebook account to get started</p>
+                  {isLoggedIn ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm">Your Facebook account is connected, but no pages have been imported yet.</p>
+                      <Button 
+                        variant="default" 
+                        className="mt-2"
+                        onClick={() => window.location.href = '/api/facebook-pages/sync'}
+                      >
+                        Import My Pages
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <LoginButton />
+                      <p className="text-sm mt-4">or</p>
+                      <Button 
+                        variant="outline" 
+                        className="mt-2"
+                        onClick={() => setIsAddDialogOpen(true)}
+                      >
+                        Connect Account Manually
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -199,14 +241,24 @@ export default function FacebookAccounts() {
               </div>
             )}
           </CardContent>
+          {accounts.length > 0 && isLoggedIn && (
+            <CardFooter>
+              <Button 
+                variant="outline"
+                onClick={() => window.location.href = '/api/facebook-pages/sync'}
+              >
+                Refresh Pages from Facebook
+              </Button>
+            </CardFooter>
+          )}
         </Card>
       </div>
 
-      {/* Add Account Dialog */}
+      {/* Add Account Dialog (Manual Connection) */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Connect Facebook Account</DialogTitle>
+            <DialogTitle>Connect Facebook Account Manually</DialogTitle>
             <DialogDescription>
               Enter your Facebook page details to connect it to the application.
             </DialogDescription>
@@ -224,17 +276,7 @@ export default function FacebookAccounts() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="accountId">Account ID</Label>
-                <Input
-                  id="accountId"
-                  name="accountId"
-                  placeholder="1234567890"
-                  value={newAccount.accountId}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="pageId">Page ID</Label>
                 <Input
