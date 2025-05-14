@@ -128,21 +128,25 @@ export default function FacebookAccounts() {
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {!isLoggedIn && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Connect with Facebook</CardTitle>
-              <CardDescription>
-                Login with Facebook to automatically connect your accessible pages
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4">
-              <div className="text-center max-w-md">
-                <Facebook className="h-12 w-12 mx-auto mb-4 text-blue-600" />
-                <p className="mb-4">Connect your Facebook account to easily manage and schedule posts to your business pages.</p>
-                <LoginButton size="lg" />
-              </div>
-            </CardContent>
-          </Card>
+          <>
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Connect with Facebook</CardTitle>
+                <CardDescription>
+                  Login with Facebook to automatically connect your accessible pages
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4">
+                <div className="text-center max-w-md">
+                  <Facebook className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+                  <p className="mb-4">Connect your Facebook account to easily manage and schedule posts to your business pages.</p>
+                  <LoginButton size="lg" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <FacebookOAuthInstructions />
+          </>
         )}
 
         <Card className="mb-6">
