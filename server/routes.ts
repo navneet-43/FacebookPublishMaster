@@ -334,8 +334,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Custom Labels
   app.get("/api/custom-labels", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const labels = await storage.getCustomLabels(user.id);
       res.json(labels);
@@ -347,8 +349,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/custom-labels", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const result = insertCustomLabelSchema.safeParse(req.body);
       if (!result.success) {
@@ -369,8 +373,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/custom-labels/:id", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const id = parseInt(req.params.id);
       const label = await storage.getCustomLabel(id);
@@ -394,8 +400,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Posts
   app.get("/api/posts", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const posts = await storage.getPosts(user.id);
       res.json(posts);
@@ -407,8 +415,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/posts/upcoming", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const posts = await storage.getUpcomingPosts(user.id);
       res.json(posts);
@@ -420,8 +430,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const result = insertPostSchema.safeParse(req.body);
       if (!result.success) {
@@ -493,8 +505,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/posts/:id", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const id = parseInt(req.params.id);
       const post = await storage.getPost(id);
@@ -526,8 +540,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/posts/:id", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const id = parseInt(req.params.id);
       const post = await storage.getPost(id);
