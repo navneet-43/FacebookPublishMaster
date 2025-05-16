@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { isAuthenticated } from '../auth';
-import { postService } from '../services/postService';
-import { insertPostSchema } from '../../shared/schema';
 import { z } from 'zod';
+import { insertPostSchema } from '@shared/schema';
+import { isAuthenticated } from '../auth';
+import * as postService from '../services/postService';
 
 const router = Router();
 
@@ -11,16 +11,16 @@ const router = Router();
  */
 router.get('/', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
     const posts = await req.storage.getPosts(userId);
     res.json(posts);
   } catch (error) {
-    console.error('Error fetching posts:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching posts', 
-      error: (error as Error).message 
-    });
+    console.error('Error getting posts:', error);
+    res.status(500).json({ error: 'Failed to retrieve posts' });
   }
 });
 
@@ -29,17 +29,16 @@ router.get('/', isAuthenticated, async (req: Request, res: Response) => {
  */
 router.get('/upcoming', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
-    const days = req.query.days ? parseInt(req.query.days as string) : 7;
-    const upcomingPosts = await postService.getUpcomingPosts(userId, days);
-    res.json(upcomingPosts);
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    const posts = await req.storage.getUpcomingPosts(userId);
+    res.json(posts);
   } catch (error) {
-    console.error('Error fetching upcoming posts:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching upcoming posts', 
-      error: (error as Error).message 
-    });
+    console.error('Error getting upcoming posts:', error);
+    res.status(500).json({ error: 'Failed to retrieve upcoming posts' });
   }
 });
 
@@ -48,32 +47,25 @@ router.get('/upcoming', isAuthenticated, async (req: Request, res: Response) => 
  */
 router.get('/:id', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
     const postId = parseInt(req.params.id);
-    
     if (isNaN(postId)) {
-      return res.status(400).json({ success: false, message: 'Invalid post ID' });
+      return res.status(400).json({ error: 'Invalid post ID' });
     }
     
     const post = await req.storage.getPost(postId);
-    
     if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
+      return res.status(404).json({ error: 'Post not found' });
     }
     
-    // Check authorization
-    if (post.userId !== userId) {
-      return res.status(403).json({ success: false, message: 'Not authorized to access this post' });
+    // Verify user has access to this post
+    if (post.userId !== req.user?.id) {
+      return res.status(403).json({ error: 'Not authorized to access this post' });
     }
     
     res.json(post);
   } catch (error) {
-    console.error('Error fetching post:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching post', 
-      error: (error as Error).message 
-    });
+    console.error('Error getting post:', error);
+    res.status(500).json({ error: 'Failed to retrieve post' });
   }
 });
 
@@ -82,40 +74,50 @@ router.get('/:id', isAuthenticated, async (req: Request, res: Response) => {
  */
 router.post('/', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
-    
-    // Parse and validate input
-    const postData = {
-      ...req.body,
-      userId
-    };
-    
-    // Validate with Zod
-    try {
-      insertPostSchema.parse(postData);
-    } catch (validationError) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Validation error', 
-        error: (validationError as z.ZodError).format() 
-      });
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
     }
     
-    // Create post using service
-    const newPost = await postService.createPost(postData);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Post created successfully', 
-      post: newPost 
+    // Validate post data
+    const postSchema = insertPostSchema.extend({
+      accountId: z.number().positive().or(z.null()).optional(),
+      scheduledFor: z.string().optional().transform(date => date ? new Date(date) : undefined),
+      labels: z.array(z.string()).or(z.string().transform(str => JSON.parse(str))).optional(),
     });
+    
+    const validatedData = postSchema.parse(req.body);
+    
+    // Create post with default values
+    const postData = {
+      ...validatedData,
+      userId,
+      status: validatedData.scheduledFor ? 'scheduled' : 'draft',
+      labels: Array.isArray(validatedData.labels) ? validatedData.labels : [],
+    };
+    
+    const post = await req.storage.createPost(postData);
+    
+    // If post is scheduled, set up scheduling
+    if (post.status === 'scheduled' && post.scheduledFor) {
+      await postService.schedulePostPublication(post);
+    }
+    
+    // Log activity
+    await req.storage.createActivity({
+      userId,
+      type: 'post_created',
+      description: `Created a new ${post.status} post`,
+      metadata: { postId: post.id }
+    });
+    
+    res.status(201).json(post);
   } catch (error) {
     console.error('Error creating post:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error creating post', 
-      error: (error as Error).message 
-    });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid post data', details: error.errors });
+    }
+    res.status(500).json({ error: 'Failed to create post' });
   }
 });
 
@@ -124,44 +126,81 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
  */
 router.put('/:id', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
     const postId = parseInt(req.params.id);
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
     
     if (isNaN(postId)) {
-      return res.status(400).json({ success: false, message: 'Invalid post ID' });
+      return res.status(400).json({ error: 'Invalid post ID' });
     }
     
-    // Update post using service
-    const updatedPost = await postService.updatePost(postId, userId, req.body);
+    // Check if post exists and belongs to the user
+    const existingPost = await req.storage.getPost(postId);
+    if (!existingPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
     
-    res.json({ 
-      success: true, 
-      message: 'Post updated successfully', 
-      post: updatedPost 
+    if (existingPost.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to update this post' });
+    }
+    
+    // Validate update data
+    const updateSchema = z.object({
+      content: z.string().optional(),
+      accountId: z.number().positive().or(z.null()).optional(),
+      mediaUrl: z.string().url().or(z.null()).optional(),
+      link: z.string().url().or(z.null()).optional(),
+      status: z.enum(['draft', 'scheduled', 'published', 'failed']).optional(),
+      labels: z.array(z.string()).or(z.string().transform(str => JSON.parse(str))).optional(),
+      language: z.string().optional(),
+      scheduledFor: z.string().optional().transform(date => date ? new Date(date) : undefined),
     });
+    
+    const validatedData = updateSchema.parse(req.body);
+    
+    // Handle scheduling changes
+    let wasScheduled = existingPost.status === 'scheduled';
+    let isNowScheduled = validatedData.status === 'scheduled' || 
+      (existingPost.status === 'scheduled' && validatedData.status === undefined);
+    
+    // Prepare update data
+    const updateData: any = { ...validatedData };
+    
+    // Handle labels specifically to ensure correct format
+    if (validatedData.labels) {
+      updateData.labels = Array.isArray(validatedData.labels) ? validatedData.labels : [];
+    }
+    
+    // Update post
+    const updatedPost = await req.storage.updatePost(postId, updateData);
+    if (!updatedPost) {
+      return res.status(404).json({ error: 'Post not found after update' });
+    }
+    
+    // If scheduling changed, handle scheduling
+    if (!wasScheduled && isNowScheduled && updatedPost.scheduledFor) {
+      // Post newly scheduled
+      await postService.schedulePostPublication(updatedPost);
+    }
+    
+    // Log activity
+    await req.storage.createActivity({
+      userId,
+      type: 'post_updated',
+      description: `Updated ${updatedPost.status} post`,
+      metadata: { postId: updatedPost.id }
+    });
+    
+    res.json(updatedPost);
   } catch (error) {
     console.error('Error updating post:', error);
-    
-    // Handle specific errors with appropriate status codes
-    if ((error as Error).message === 'Post not found') {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Post not found' 
-      });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid post data', details: error.errors });
     }
-    
-    if ((error as Error).message === 'Not authorized to update this post') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Not authorized to update this post' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error updating post', 
-      error: (error as Error).message 
-    });
+    res.status(500).json({ error: 'Failed to update post' });
   }
 });
 
@@ -170,43 +209,50 @@ router.put('/:id', isAuthenticated, async (req: Request, res: Response) => {
  */
 router.delete('/:id', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
     const postId = parseInt(req.params.id);
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
     
     if (isNaN(postId)) {
-      return res.status(400).json({ success: false, message: 'Invalid post ID' });
+      return res.status(400).json({ error: 'Invalid post ID' });
     }
     
-    // Delete post using service
-    await postService.deletePost(postId, userId);
+    // Check if post exists and belongs to the user
+    const existingPost = await req.storage.getPost(postId);
+    if (!existingPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
     
-    res.json({ 
-      success: true, 
-      message: 'Post deleted successfully' 
+    if (existingPost.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to delete this post' });
+    }
+    
+    // Cancel scheduling if post is scheduled
+    if (existingPost.status === 'scheduled') {
+      await postService.cancelScheduledPost(postId);
+    }
+    
+    // Delete the post
+    const success = await req.storage.deletePost(postId);
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to delete post' });
+    }
+    
+    // Log activity
+    await req.storage.createActivity({
+      userId,
+      type: 'post_deleted',
+      description: `Deleted ${existingPost.status} post`,
+      metadata: { postContent: existingPost.content.substring(0, 50) }
     });
+    
+    res.json({ success: true });
   } catch (error) {
     console.error('Error deleting post:', error);
-    
-    // Handle specific errors with appropriate status codes
-    if ((error as Error).message === 'Post not found') {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Post not found' 
-      });
-    }
-    
-    if ((error as Error).message === 'Not authorized to delete this post') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Not authorized to delete this post' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error deleting post', 
-      error: (error as Error).message 
-    });
+    res.status(500).json({ error: 'Failed to delete post' });
   }
 });
 
@@ -215,46 +261,81 @@ router.delete('/:id', isAuthenticated, async (req: Request, res: Response) => {
  */
 router.post('/:id/publish', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any).id;
     const postId = parseInt(req.params.id);
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
     
     if (isNaN(postId)) {
-      return res.status(400).json({ success: false, message: 'Invalid post ID' });
+      return res.status(400).json({ error: 'Invalid post ID' });
     }
     
-    // Get the post
-    const post = await req.storage.getPost(postId);
-    
-    if (!post) {
-      return res.status(404).json({ success: false, message: 'Post not found' });
+    // Check if post exists and belongs to the user
+    const existingPost = await req.storage.getPost(postId);
+    if (!existingPost) {
+      return res.status(404).json({ error: 'Post not found' });
     }
     
-    // Check authorization
-    if (post.userId !== userId) {
-      return res.status(403).json({ success: false, message: 'Not authorized to publish this post' });
+    if (existingPost.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to publish this post' });
+    }
+    
+    // Don't allow publishing already published posts
+    if (existingPost.status === 'published') {
+      return res.status(400).json({ error: 'Post is already published' });
     }
     
     // Publish the post
-    const success = await postService.publishPostToFacebook(post);
+    const result = await postService.publishPostToFacebook(existingPost);
     
-    if (success) {
+    if (result.success) {
+      // Update post status
+      const updatedPost = await req.storage.updatePost(postId, {
+        status: 'published',
+        publishedAt: new Date()
+      });
+      
+      // Log activity
+      await req.storage.createActivity({
+        userId,
+        type: 'post_published',
+        description: 'Published post immediately',
+        metadata: { postId: existingPost.id }
+      });
+      
       res.json({ 
         success: true, 
-        message: 'Post published successfully' 
+        post: updatedPost,
+        publishResult: result.data
       });
     } else {
+      // Handle publication failure
+      await req.storage.updatePost(postId, {
+        status: 'failed',
+        errorMessage: result.error || 'Unknown error occurred during publication'
+      });
+      
+      // Log activity
+      await req.storage.createActivity({
+        userId,
+        type: 'post_failed',
+        description: 'Failed to publish post',
+        metadata: { 
+          postId: existingPost.id,
+          error: result.error
+        }
+      });
+      
       res.status(500).json({ 
         success: false, 
-        message: 'Failed to publish post' 
+        error: result.error
       });
     }
   } catch (error) {
     console.error('Error publishing post:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error publishing post', 
-      error: (error as Error).message 
-    });
+    res.status(500).json({ error: 'Failed to publish post' });
   }
 });
 
@@ -263,18 +344,80 @@ router.post('/:id/publish', isAuthenticated, async (req: Request, res: Response)
  */
 router.post('/retry-failed', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    await postService.retryFailedPosts();
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // Get all failed posts for this user
+    const failedPosts = await req.storage.getPosts(userId).then(posts => 
+      posts.filter(post => post.status === 'failed')
+    );
+    
+    if (failedPosts.length === 0) {
+      return res.json({ message: 'No failed posts to retry', retriedCount: 0 });
+    }
+    
+    let successCount = 0;
+    const results = [];
+    
+    // Try to publish each failed post
+    for (const post of failedPosts) {
+      try {
+        const result = await postService.publishPostToFacebook(post);
+        
+        if (result.success) {
+          // Update post status
+          await req.storage.updatePost(post.id, {
+            status: 'published',
+            publishedAt: new Date(),
+            errorMessage: null
+          });
+          
+          successCount++;
+          results.push({ 
+            postId: post.id, 
+            success: true 
+          });
+        } else {
+          // Update error message
+          await req.storage.updatePost(post.id, {
+            errorMessage: result.error || 'Unknown error occurred during publication'
+          });
+          
+          results.push({ 
+            postId: post.id, 
+            success: false, 
+            error: result.error 
+          });
+        }
+      } catch (error) {
+        console.error(`Error retrying post ${post.id}:`, error);
+        results.push({ 
+          postId: post.id, 
+          success: false, 
+          error: 'Internal server error during retry' 
+        });
+      }
+    }
+    
+    // Log activity
+    await req.storage.createActivity({
+      userId,
+      type: 'posts_retried',
+      description: `Retried ${failedPosts.length} failed posts, ${successCount} succeeded`,
+      metadata: { results }
+    });
+    
     res.json({ 
-      success: true, 
-      message: 'Retry process initiated for failed posts' 
+      message: `Retried ${failedPosts.length} posts, ${successCount} succeeded`,
+      retriedCount: failedPosts.length,
+      successCount,
+      results
     });
   } catch (error) {
     console.error('Error retrying failed posts:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error retrying failed posts', 
-      error: (error as Error).message 
-    });
+    res.status(500).json({ error: 'Failed to retry posts' });
   }
 });
 

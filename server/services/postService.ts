@@ -314,14 +314,9 @@ function schedulePostPublication(post: Post): void {
  */
 export async function initializeScheduledPosts(): Promise<void> {
   try {
-    // Since we don't have a getUsers function, we'll look for scheduled posts directly
-    const posts = await storage.getAllPosts();
+    // Get all scheduled posts
+    const scheduledPosts = await storage.getScheduledPosts();
     let scheduledCount = 0;
-    
-    // Filter scheduled posts
-    const scheduledPosts = posts.filter(post => 
-      post.status === "scheduled" && post.scheduledFor && new Date(post.scheduledFor) > new Date()
-    );
     
     // Schedule each post
     for (const post of scheduledPosts) {
@@ -341,12 +336,9 @@ export async function initializeScheduledPosts(): Promise<void> {
  */
 export async function retryFailedPosts(): Promise<void> {
   try {
-    // Get all posts
-    const posts = await storage.getAllPosts();
+    // Get all failed posts directly
+    const failedPosts = await storage.getFailedPosts();
     let retriedCount = 0;
-    
-    // Filter for failed posts
-    const failedPosts = posts.filter(post => post.status === "failed");
     
     // Retry each failed post
     for (const post of failedPosts) {

@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import apiRoutes from "./routes/index";
 import { z } from "zod";
 import {
   insertUserSchema,
@@ -32,6 +33,15 @@ const authenticateUser = async (req: Request, res: Response) => {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
+  
+  // Add storage to request object
+  app.use((req: any, res, next) => {
+    req.storage = storage;
+    next();
+  });
+  
+  // Add API routes
+  app.use('/api', apiRoutes);
   
   // Facebook authentication routes
   app.get('/auth/facebook', 

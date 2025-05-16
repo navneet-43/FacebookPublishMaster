@@ -5,6 +5,9 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import passport from "passport";
 import { setupAuth } from "./auth";
+import { storage } from "./storage";
+import { postService } from "./services/postService";
+import schedule from "node-schedule";
 
 const MemoryStoreSession = MemoryStore(session);
 const app = express();
@@ -92,7 +95,7 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
     
     // Log Facebook OAuth callback URL for configuration
@@ -104,6 +107,26 @@ app.use((req, res, next) => {
       console.log(`Site URL: ${baseUrl}`);
       console.log(`Valid OAuth Redirect URI: ${callbackUrl}`);
       console.log('====================================\n');
+    }
+    
+    try {
+      // Initialize scheduled posts
+      await postService.initializeScheduledPosts();
+      log('Scheduled posts initialized');
+      
+      // Set up a daily job to retry failed posts
+      const retryJob = schedule.scheduleJob('0 */4 * * *', async () => { // Every 4 hours
+        try {
+          await postService.retryFailedPosts();
+          log('Failed posts retry complete');
+        } catch (error) {
+          console.error('Error retrying failed posts:', error);
+        }
+      });
+      
+      log('Post management system initialized');
+    } catch (error) {
+      console.error('Error initializing post management system:', error);
     }
   });
 })();

@@ -218,6 +218,41 @@ export class DatabaseStorage implements IStorage {
       .orderBy(posts.scheduledFor)
       .limit(10);
   }
+  
+  async getAllPosts(): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .orderBy(desc(posts.createdAt));
+  }
+  
+  async getScheduledPosts(): Promise<Post[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(posts)
+      .where(and(
+        eq(posts.status, 'scheduled'),
+        gt(posts.scheduledFor, now)
+      ))
+      .orderBy(posts.scheduledFor);
+  }
+  
+  async getFailedPosts(): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .where(eq(posts.status, 'failed'))
+      .orderBy(desc(posts.createdAt));
+  }
+  
+  async getPostsByStatus(status: string): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .where(eq(posts.status, status))
+      .orderBy(desc(posts.createdAt));
+  }
 
   async getPost(id: number): Promise<Post | undefined> {
     const [post] = await db
