@@ -42,9 +42,9 @@ export default function Sidebar() {
           <i className="fa-brands fa-facebook w-5"></i>
           <span className="ml-3">Facebook Accounts</span>
         </Link>
-        <Link href="/asana-integration" className={`flex items-center px-4 py-3 ${isActive('/asana-integration') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
-          <i className="fa-brands fa-asana w-5"></i>
-          <span className="ml-3">Asana Integration</span>
+        <Link href="/google-sheets-integration" className={`flex items-center px-4 py-3 ${isActive('/google-sheets-integration') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
+          <i className="fa-solid fa-table w-5"></i>
+          <span className="ml-3">Google Sheets Integration</span>
         </Link>
         <Link href="/custom-labels" className={`flex items-center px-4 py-3 ${isActive('/custom-labels') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
           <i className="fa-solid fa-tag w-5"></i>

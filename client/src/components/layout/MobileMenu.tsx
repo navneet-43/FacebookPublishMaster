@@ -61,11 +61,9 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
               <span className="ml-3">Facebook Accounts</span>
             </a>
           </Link>
-          <Link href="/asana-integration">
-            <a className={`flex items-center px-4 py-3 ${isActive('/asana-integration') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`} onClick={onClose}>
-              <i className="fa-brands fa-asana w-5"></i>
-              <span className="ml-3">Asana Integration</span>
-            </a>
+          <Link href="/google-sheets-integration" onClick={onClose} className={`flex items-center px-4 py-3 ${isActive('/google-sheets-integration') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
+              <i className="fa-solid fa-table w-5"></i>
+              <span className="ml-3">Google Sheets Integration</span>
           </Link>
           <Link href="/custom-labels">
             <a className={`flex items-center px-4 py-3 ${isActive('/custom-labels') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`} onClick={onClose}>

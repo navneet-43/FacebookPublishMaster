@@ -269,37 +269,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Asana Integration
-  app.get("/api/asana-integration", async (req: Request, res: Response) => {
+  // Google Sheets Integration
+  app.get("/api/google-sheets-integration", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req, res);
       if (!user) return;
       
-      const integration = await storage.getAsanaIntegration(user.id);
+      const integration = await storage.getGoogleSheetsIntegration(user.id);
       res.json(integration || { connected: false });
     } catch (error) {
-      console.error("Error fetching Asana integration:", error);
-      res.status(500).json({ message: "Failed to fetch Asana integration" });
+      console.error("Error fetching Google Sheets integration:", error);
+      res.status(500).json({ message: "Failed to fetch Google Sheets integration" });
     }
   });
 
-  app.post("/api/asana-integration", async (req: Request, res: Response) => {
+  app.post("/api/google-sheets-integration", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req, res);
       if (!user) return;
       
-      const result = insertAsanaIntegrationSchema.safeParse(req.body);
+      const result = insertGoogleSheetsIntegrationSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ message: "Invalid integration data", errors: result.error.format() });
       }
       
-      const existingIntegration = await storage.getAsanaIntegration(user.id);
+      const existingIntegration = await storage.getGoogleSheetsIntegration(user.id);
       let integration;
       
       if (existingIntegration) {
-        integration = await storage.updateAsanaIntegration(user.id, result.data);
+        integration = await storage.updateGoogleSheetsIntegration(user.id, result.data);
       } else {
-        integration = await storage.createAsanaIntegration({
+        integration = await storage.createGoogleSheetsIntegration({
           ...result.data,
           userId: user.id
         });
@@ -308,8 +308,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log activity
       await storage.createActivity({
         userId: user.id,
-        type: "asana_connected",
-        description: "Asana integration connected",
+        type: "google_sheets_connected",
+        description: "Google Sheets integration connected",
         metadata: { integrationId: integration?.id }
       });
       
