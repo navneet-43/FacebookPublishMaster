@@ -1,209 +1,361 @@
-import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle } from 'lucide-react';
-import { Info, Check, X, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 
-type GoogleSheetsIntegration = {
-  id: number;
-  accessToken: string;
-  refreshToken: string | null;
-  folderId: string | null;
-  spreadsheetId: string | null;
-};
+import DashboardHeader from "@/components/common/DashboardHeader";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, Check, RefreshCw } from "lucide-react";
+
+const integrationSchema = z.object({
+  spreadsheetId: z.string().min(1, "Please select a spreadsheet"),
+  mappings: z.object({
+    content: z.string().min(1, "Required"),
+    scheduledFor: z.string().optional(),
+    labels: z.string().optional(),
+    language: z.string().optional(),
+    link: z.string().optional(),
+  }),
+});
 
 export default function GoogleSheetsIntegration() {
-  const [authCode, setAuthCode] = useState('');
-  const [spreadsheetId, setSpreadsheetId] = useState('');
   const { toast } = useToast();
+  const [connected, setConnected] = useState(false);
+  const [authUrl, setAuthUrl] = useState("");
 
-  // Define a response type that includes both connected and disconnected states
-  type GoogleSheetsResponse = GoogleSheetsIntegration | { connected: false };
-  
-  const { data: integration, isLoading, isError, error } = useQuery<GoogleSheetsResponse>({
-    queryKey: ['/api/google-sheets-integration'],
-    retry: false,
+  // Get the Google Sheets integration status
+  const { data: integration, isLoading: isLoadingIntegration } = useQuery({
+    queryKey: ["/api/google-sheets-integration"],
+    onSuccess: (data) => {
+      if (data && data.accessToken) {
+        setConnected(true);
+      }
+    },
+    onError: () => {
+      setConnected(false);
+    },
   });
 
-  const connectMutation = useMutation({
-    mutationFn: async (data: { authCode?: string; spreadsheetId?: string }) => {
-      return fetch('/api/google-sheets-integration', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }).then(res => {
-        if (!res.ok) throw new Error('Failed to connect to Google Sheets');
-        return res.json();
+  // Get the auth URL for Google connection
+  const getAuthUrl = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("GET", "/api/google-sheets/auth");
+      return response;
+    },
+    onSuccess: (data) => {
+      if (data && data.authUrl) {
+        setAuthUrl(data.authUrl);
+        window.open(data.authUrl, "_blank");
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to get authentication URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+        variant: "destructive",
       });
+    },
+  });
+
+  // Initialize the form
+  const form = useForm({
+    resolver: zodResolver(integrationSchema),
+    defaultValues: {
+      spreadsheetId: integration?.spreadsheetId || "",
+      mappings: {
+        content: "Content",
+        scheduledFor: "ScheduleDate",
+        labels: "Labels",
+        language: "Language",
+        link: "Link",
+      },
+    },
+  });
+
+  // Update the integration settings
+  const updateIntegration = useMutation({
+    mutationFn: async (values: z.infer<typeof integrationSchema>) => {
+      return apiRequest("POST", "/api/google-sheets-integration", values);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/google-sheets-integration'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/google-sheets-integration"] });
       toast({
-        title: "Success",
-        description: "Google Sheets connected successfully!",
-        variant: "default",
+        title: "Settings saved",
+        description: "Your Google Sheets integration settings have been updated.",
       });
-      setAuthCode('');
     },
-    onError: (err) => {
+    onError: (error) => {
       toast({
         title: "Error",
-        description: err.message || "Failed to connect Google Sheets",
+        description: `Failed to save integration settings: ${error instanceof Error ? error.message : "Unknown error"}`,
         variant: "destructive",
       });
-    }
+    },
   });
 
+  const onSubmit = (values: z.infer<typeof integrationSchema>) => {
+    updateIntegration.mutate(values);
+  };
+
   const handleConnect = () => {
-    if (!authCode) {
-      toast({
-        title: "Error",
-        description: "Please enter an authorization code",
-        variant: "destructive",
-      });
-      return;
-    }
-    connectMutation.mutate({ authCode });
+    getAuthUrl.mutate();
   };
 
-  const handleUpdateSpreadsheet = () => {
-    if (!spreadsheetId) {
-      toast({
-        title: "Error",
-        description: "Please enter a spreadsheet ID",
-        variant: "destructive",
-      });
-      return;
-    }
-    connectMutation.mutate({ spreadsheetId });
-  };
-
-  const authUrl = "https://accounts.google.com/o/oauth2/v2/auth" +
-    "?client_id=YOUR_GOOGLE_CLIENT_ID" +
-    "&redirect_uri=YOUR_REDIRECT_URI" +
-    "&response_type=code" +
-    "&scope=https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file" +
-    "&access_type=offline" +
-    "&prompt=consent";
+  // Show a loading state while fetching the integration status
+  if (isLoadingIntegration) {
+    return (
+      <>
+        <DashboardHeader title="Google Sheets Integration" />
+        <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center h-64">
+            <RefreshCw className="h-8 w-8 animate-spin text-fb-blue" />
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="container mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Google Sheets Integration</h1>
-      
-      <div className="space-y-6">
-        {!integration ? (
+    <>
+      <DashboardHeader title="Google Sheets Integration" />
+      <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {!connected ? (
           <Card>
             <CardHeader>
               <CardTitle>Connect to Google Sheets</CardTitle>
-              <CardDescription>Import content directly from Google Sheets to create social media posts</CardDescription>
+              <CardDescription>
+                Connect your Google account to import content from Google Sheets
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>Authentication Required</AlertTitle>
-                <AlertDescription>
-                  To connect to Google Sheets, you'll need to authenticate with your Google account and grant permission to access your spreadsheets.
-                </AlertDescription>
-              </Alert>
-              
-              <div>
-                <p className="mb-2 text-sm text-muted-foreground">1. Click the button below to authorize access to Google Sheets</p>
-                <Button variant="outline" className="mb-4" asChild>
-                  <a href={authUrl} target="_blank" rel="noopener noreferrer">Authorize Google Sheets</a>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Connecting to Google Sheets allows you to import content directly
+                  from your spreadsheets to create Facebook posts.
+                </p>
+                <Button
+                  onClick={handleConnect}
+                  disabled={getAuthUrl.isPending}
+                  className="bg-fb-blue hover:bg-blue-700"
+                >
+                  {getAuthUrl.isPending ? "Connecting..." : "Connect to Google Sheets"}
                 </Button>
-                
-                <p className="mb-2 text-sm text-muted-foreground">2. Copy the authorization code from the redirect page</p>
-                <div className="flex gap-2">
-                  <Input 
-                    value={authCode}
-                    onChange={(e) => setAuthCode(e.target.value)}
-                    placeholder="Paste authorization code here"
-                    className="max-w-lg"
-                  />
-                  <Button 
-                    onClick={handleConnect} 
-                    disabled={connectMutation.isPending || !authCode}
-                  >
-                    {connectMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Connect
-                  </Button>
-                </div>
+                {authUrl && (
+                  <Alert className="mt-4 bg-amber-50 border-amber-200">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertTitle>Authentication Required</AlertTitle>
+                    <AlertDescription>
+                      Please complete the authentication process in the new tab that opened.
+                      If no tab opened, <a href={authUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">click here</a>.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Check className="h-5 w-5 text-green-500 mr-2" />
-                Connected to Google Sheets
-              </CardTitle>
-              <CardDescription>Your Google Sheets integration is active and ready to use</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-md bg-muted p-4">
-                <p className="text-sm font-medium mb-1">Integration Details:</p>
-                <p className="text-sm text-muted-foreground">Spreadsheet ID: {integration && 'spreadsheetId' in integration ? integration.spreadsheetId || 'Not selected' : 'Not selected'}</p>
-              </div>
-              
-              <div>
-                <p className="mb-2 text-sm font-medium">Configure Spreadsheet</p>
-                <div className="flex gap-2">
-                  <Input 
-                    value={spreadsheetId}
-                    onChange={(e) => setSpreadsheetId(e.target.value)}
-                    placeholder={integration && 'spreadsheetId' in integration ? integration.spreadsheetId || "Enter spreadsheet ID" : "Enter spreadsheet ID"}
-                    className="max-w-lg"
-                  />
-                  <Button 
-                    onClick={handleUpdateSpreadsheet} 
-                    disabled={connectMutation.isPending || !spreadsheetId}
-                    variant="outline"
-                  >
-                    {connectMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Update
-                  </Button>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  The spreadsheet ID is found in the URL of your Google Sheet: https://docs.google.com/spreadsheets/d/<span className="font-medium">SPREADSHEET_ID</span>/edit
-                </p>
-              </div>
-              
-              <Alert className="mt-4">
-                <Info className="h-4 w-4" />
-                <AlertTitle>How to format your spreadsheet</AlertTitle>
-                <AlertDescription>
-                  Your spreadsheet should have these columns: Content, Scheduled Date, Labels, Facebook Account, Media URL, Link (optional)
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                className="mt-2"
-                onClick={() => window.location.href = "/"}
-              >
-                Import Posts from Spreadsheet
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-        
-        {isError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>
-              {error instanceof Error ? error.message : "Failed to load Google Sheets integration"}
-            </AlertDescription>
-          </Alert>
+          <Tabs defaultValue="settings">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="settings">Integration Settings</TabsTrigger>
+              <TabsTrigger value="field-mapping">Field Mapping</TabsTrigger>
+            </TabsList>
+            
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <TabsContent value="settings">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <div className="flex-1">Integration Settings</div>
+                        {connected && (
+                          <div className="flex items-center text-sm text-green-600 font-medium">
+                            <Check className="h-5 w-5 mr-1" />
+                            Connected
+                          </div>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        Configure your Google Sheets integration settings
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="spreadsheetId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Google Spreadsheet</FormLabel>
+                            <FormControl>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a spreadsheet" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="1VD8H2MjeXzUPfnDcX04UJwH7zVRTQUJIerGL9Mm_YPQ">
+                                    Marketing Calendar Q3
+                                  </SelectItem>
+                                  <SelectItem value="1lJUmJGZ-UQjxodSj8-hQh8nzVhmXYv4z1XtPpLi40lM">
+                                    Social Media Content
+                                  </SelectItem>
+                                  <SelectItem value="1KZ8R-YLImFJnDlTPxag6f3pqAqFjRXQHVZHGshHu_5s">
+                                    Brand Campaign 2023
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <div className="flex justify-end">
+                        <Button
+                          type="submit"
+                          disabled={updateIntegration.isPending}
+                          className="bg-fb-blue hover:bg-blue-700"
+                        >
+                          {updateIntegration.isPending ? "Saving..." : "Save Settings"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="field-mapping">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Field Mapping</CardTitle>
+                      <CardDescription>
+                        Map Google Sheets columns to Facebook post fields
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="mappings.content"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Post Content</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Content" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="mappings.scheduledFor"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Schedule Date</FormLabel>
+                              <FormControl>
+                                <Input placeholder="ScheduleDate" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="mappings.labels"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Labels</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Labels" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="mappings.language"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Language</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Language" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name="mappings.link"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Link</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Link" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <div className="flex justify-end">
+                        <Button
+                          type="submit"
+                          disabled={updateIntegration.isPending}
+                          className="bg-fb-blue hover:bg-blue-700"
+                        >
+                          {updateIntegration.isPending ? "Saving..." : "Save Mapping"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </form>
+            </Form>
+          </Tabs>
         )}
       </div>
-    </div>
+    </>
   );
 }
