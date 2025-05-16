@@ -111,8 +111,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API routes
   app.get("/api/stats", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
       // Get all accounts
       const accounts = await storage.getFacebookAccounts(user.id);
@@ -145,8 +147,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Facebook Accounts
   app.get("/api/facebook-accounts", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const accounts = await storage.getFacebookAccounts(user.id);
       res.json(accounts);
@@ -158,8 +162,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/facebook-accounts", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const result = insertFacebookAccountSchema.safeParse(req.body);
       if (!result.success) {
@@ -188,8 +194,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/facebook-accounts/:id", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const id = parseInt(req.params.id);
       const account = await storage.getFacebookAccount(id);
@@ -233,8 +241,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/facebook-accounts/:id", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const id = parseInt(req.params.id);
       const account = await storage.getFacebookAccount(id);
@@ -269,8 +279,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google Sheets Integration
   app.get("/api/google-sheets-integration", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const integration = await storage.getGoogleSheetsIntegration(user.id);
       res.json(integration || { connected: false });
@@ -282,8 +294,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/google-sheets-integration", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const result = insertGoogleSheetsIntegrationSchema.safeParse(req.body);
       if (!result.success) {
@@ -758,8 +772,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Media Upload route
   app.post("/api/media/upload", upload.single('media'), async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
