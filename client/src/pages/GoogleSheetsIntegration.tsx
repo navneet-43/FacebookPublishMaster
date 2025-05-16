@@ -22,7 +22,10 @@ export default function GoogleSheetsIntegration() {
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const { toast } = useToast();
 
-  const { data: integration, isLoading, isError, error } = useQuery({
+  // Define a response type that includes both connected and disconnected states
+  type GoogleSheetsResponse = GoogleSheetsIntegration | { connected: false };
+  
+  const { data: integration, isLoading, isError, error } = useQuery<GoogleSheetsResponse>({
     queryKey: ['/api/google-sheets-integration'],
     retry: false,
   });
@@ -145,7 +148,7 @@ export default function GoogleSheetsIntegration() {
             <CardContent className="space-y-4">
               <div className="rounded-md bg-muted p-4">
                 <p className="text-sm font-medium mb-1">Integration Details:</p>
-                <p className="text-sm text-muted-foreground">Spreadsheet ID: {integration.spreadsheetId || 'Not selected'}</p>
+                <p className="text-sm text-muted-foreground">Spreadsheet ID: {integration && 'spreadsheetId' in integration ? integration.spreadsheetId || 'Not selected' : 'Not selected'}</p>
               </div>
               
               <div>
@@ -154,7 +157,7 @@ export default function GoogleSheetsIntegration() {
                   <Input 
                     value={spreadsheetId}
                     onChange={(e) => setSpreadsheetId(e.target.value)}
-                    placeholder={integration.spreadsheetId || "Enter spreadsheet ID"}
+                    placeholder={integration && 'spreadsheetId' in integration ? integration.spreadsheetId || "Enter spreadsheet ID" : "Enter spreadsheet ID"}
                     className="max-w-lg"
                   />
                   <Button 
