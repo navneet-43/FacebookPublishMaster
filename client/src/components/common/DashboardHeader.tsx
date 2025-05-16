@@ -20,7 +20,7 @@ export default function DashboardHeader({
   onImport,
   showExport = true,
   showImport = true,
-  importLabel = "Import from Asana",
+  importLabel = "Import from Google Sheets",
   exportLabel = "Export"
 }: DashboardHeaderProps) {
   return (

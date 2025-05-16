@@ -2,7 +2,7 @@ import { useState } from "react";
 import DashboardHeader from "@/components/common/DashboardHeader";
 import StatsCards from "@/components/dashboard/StatsCards";
 import UpcomingPostsCard from "@/components/dashboard/UpcomingPostsCard";
-import AsanaImportCard from "@/components/dashboard/AsanaImportCard";
+import GoogleSheetsImportCard from "@/components/dashboard/GoogleSheetsImportCard";
 import RecentActivityCard from "@/components/dashboard/RecentActivityCard";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,7 +38,7 @@ export default function Dashboard() {
           <UpcomingPostsCard />
           
           <div className="space-y-6">
-            <AsanaImportCard />
+            <GoogleSheetsImportCard />
             <RecentActivityCard />
           </div>
         </div>
@@ -47,9 +47,9 @@ export default function Dashboard() {
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Import from Asana</DialogTitle>
+            <DialogTitle>Import from Google Sheets</DialogTitle>
           </DialogHeader>
-          <AsanaImportCard />
+          <GoogleSheetsImportCard />
         </DialogContent>
       </Dialog>
     </>

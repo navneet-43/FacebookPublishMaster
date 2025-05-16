@@ -26,21 +26,20 @@ export default function GoogleSheetsImportCard() {
   const [dateRange, setDateRange] = useState("7days");
 
   const importMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => {
       return apiRequest('POST', '/api/import-from-google-sheets', { 
         spreadsheetId, 
         sheetName: "Sheet1",
-        dateRange,
-        dataSource
+        dateRange
       });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
       queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       toast({
         title: "Import successful",
-        description: `Successfully imported ${data.count || 'multiple'} posts from Google Sheets.`,
+        description: `Successfully imported ${data?.count || 'multiple'} posts from Google Sheets.`,
       });
     },
     onError: (error) => {
@@ -132,17 +131,7 @@ export default function GoogleSheetsImportCard() {
           onClick={handleImport}
           disabled={importMutation.isPending}
         >
-          {importMutation.isPending ? (
-            <>
-              <i className="fa-solid fa-spinner fa-spin mr-2"></i>
-              Importing...
-            </>
-          ) : (
-            <>
-              <i className="fa-solid fa-file-import mr-2"></i>
-              Import Content
-            </>
-          )}
+          {importMutation.isPending ? "Importing..." : "Import Content"}
         </Button>
       </CardContent>
     </Card>
