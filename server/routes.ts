@@ -17,7 +17,7 @@ import { uploadImage } from "./utils/cloudinary";
 import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
 
-const authenticateUser = async (req: Request, res: Response) => {
+const authenticateUser = async (req: Request) => {
   // First check if user is authenticated via Passport
   if (req.isAuthenticated() && req.user) {
     return req.user as any;
@@ -25,10 +25,7 @@ const authenticateUser = async (req: Request, res: Response) => {
   
   // Fallback to demo user for development
   const user = await storage.getUserByUsername("demo");
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  return user;
+  return user || null;
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -668,8 +665,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Activities
   app.get("/api/activities", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const activities = await storage.getActivities(user.id, limit);
@@ -683,8 +682,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Import Excel route
   app.post("/api/import-from-excel", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
       // In a real implementation, we would:
       // 1. Process the uploaded Excel file
