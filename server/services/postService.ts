@@ -1,309 +1,209 @@
-import { storage } from "../storage";
-import { InsertPost, Post } from "../../shared/schema";
-import { z } from "zod";
-import schedule from "node-schedule";
-import fetch from "node-fetch";
-import { User } from "../../shared/schema";
+import schedule from 'node-schedule';
+import { storage } from '../storage';
+import { Post } from '@shared/schema';
+import fetch from 'node-fetch';
 
-// Keep track of scheduled jobs
-const scheduledJobs = new Map<string, schedule.Job>();
-
-// Post validation schema
-export const postValidationSchema = z.object({
-  userId: z.number().positive(),
-  accountId: z.number().positive(),
-  content: z.string().min(1, "Content is required").max(5000, "Content cannot exceed 5000 characters"),
-  mediaUrl: z.string().nullable().optional(),
-  link: z.string().url("Please enter a valid URL").nullable().optional(),
-  labels: z.array(z.string()).nullable().optional(),
-  language: z.string().optional(),
-  scheduledFor: z.string().transform(str => new Date(str)).optional(),
-  status: z.enum(["draft", "scheduled", "published", "failed"]).default("draft"),
-  asanaTaskId: z.string().nullable().optional(),
-});
+// Store active job schedules by post ID
+const activeJobs: Record<number, schedule.Job> = {};
 
 /**
- * Creates a new post with validation
+ * Publish a post to Facebook
+ * @param post The post to publish
+ * @returns Result of the operation
  */
-export async function createPost(postData: InsertPost): Promise<Post> {
-  // Validate post data
-  const validatedData = postValidationSchema.parse(postData);
-  
-  // Check if the Facebook account exists and is active
-  const account = await storage.getFacebookAccount(validatedData.accountId as number);
-  if (!account) {
-    throw new Error("Facebook account not found");
-  }
-  
-  if (!account.isActive) {
-    throw new Error("Facebook account is not active");
-  }
-  
-  // If status is scheduled, make sure scheduledFor is in the future
-  if (validatedData.status === "scheduled" && validatedData.scheduledFor) {
-    const scheduledDate = new Date(validatedData.scheduledFor);
-    const now = new Date();
-    
-    if (scheduledDate <= now) {
-      throw new Error("Scheduled date must be in the future");
-    }
-  }
-  
-  // Create the post in the database
-  const post = await storage.createPost(validatedData as InsertPost);
-  
-  // If status is scheduled, schedule the job
-  if (post.status === "scheduled" && post.scheduledFor) {
-    schedulePostPublication(post);
-  }
-  
-  // Create activity log
-  await storage.createActivity({
-    userId: post.userId as number,
-    type: "post_created",
-    description: post.status === "scheduled" ? "Post scheduled" : "Post created",
-    metadata: { postId: post.id }
-  });
-  
-  return post;
-}
-
-/**
- * Updates an existing post
- */
-export async function updatePost(id: number, userId: number, updateData: Partial<Post>): Promise<Post | undefined> {
-  // Get existing post
-  const existingPost = await storage.getPost(id);
-  if (!existingPost) {
-    throw new Error("Post not found");
-  }
-  
-  // Check authorization
-  if (existingPost.userId !== userId) {
-    throw new Error("Not authorized to update this post");
-  }
-  
-  // Validate update data
-  const validatedData = postValidationSchema.partial().parse(updateData);
-  
-  // Handle scheduling changes
-  if (validatedData.scheduledFor || validatedData.status) {
-    const newStatus = validatedData.status || existingPost.status;
-    const newScheduledFor = validatedData.scheduledFor 
-      ? new Date(validatedData.scheduledFor) 
-      : existingPost.scheduledFor;
-    
-    // Cancel existing scheduled job if it exists
-    if (scheduledJobs.has(id.toString())) {
-      const job = scheduledJobs.get(id.toString());
-      job?.cancel();
-      scheduledJobs.delete(id.toString());
-    }
-    
-    // If post is still scheduled, create new job
-    if (newStatus === "scheduled" && newScheduledFor) {
-      const now = new Date();
-      if (newScheduledFor <= now) {
-        throw new Error("Scheduled date must be in the future");
-      }
-      
-      // We'll schedule the job after updating the post
-    }
-  }
-  
-  // Update the post in the database
-  const updatedPost = await storage.updatePost(id, validatedData as Partial<Post>);
-  
-  // Schedule new job if needed
-  if (updatedPost && updatedPost.status === "scheduled" && updatedPost.scheduledFor) {
-    schedulePostPublication(updatedPost);
-  }
-  
-  // Create activity log
-  if (updatedPost) {
-    await storage.createActivity({
-      userId,
-      type: "post_updated",
-      description: "Post updated",
-      metadata: { postId: id }
-    });
-  }
-  
-  return updatedPost;
-}
-
-/**
- * Deletes a post and cancels any scheduled publication
- */
-export async function deletePost(id: number, userId: number): Promise<boolean> {
-  // Get existing post
-  const existingPost = await storage.getPost(id);
-  if (!existingPost) {
-    throw new Error("Post not found");
-  }
-  
-  // Check authorization
-  if (existingPost.userId !== userId) {
-    throw new Error("Not authorized to delete this post");
-  }
-  
-  // Cancel scheduled job if it exists
-  if (scheduledJobs.has(id.toString())) {
-    const job = scheduledJobs.get(id.toString());
-    job?.cancel();
-    scheduledJobs.delete(id.toString());
-  }
-  
-  // Delete the post
-  const result = await storage.deletePost(id);
-  
-  // Create activity log if successful
-  if (result) {
-    await storage.createActivity({
-      userId,
-      type: "post_deleted",
-      description: "Post deleted",
-      metadata: { postId: id }
-    });
-  }
-  
-  return result;
-}
-
-/**
- * Publishes a post to Facebook
- */
-export async function publishPostToFacebook(post: Post): Promise<boolean> {
+export async function publishPostToFacebook(post: Post): Promise<{success: boolean, data?: any, error?: string}> {
   try {
-    // Get the Facebook account
-    const account = await storage.getFacebookAccount(post.accountId as number);
-    if (!account || !account.isActive) {
-      throw new Error("Facebook account not found or inactive");
+    // Verify post has all required data
+    if (!post.accountId) {
+      return { success: false, error: 'No Facebook account selected for this post' };
     }
     
-    // Prepare post data
-    const postData: any = {
-      message: post.content,
-    };
+    if (!post.content && !post.mediaUrl) {
+      return { success: false, error: 'Post must have content or media' };
+    }
     
-    // Add link if provided
+    // Get the Facebook account
+    const account = await storage.getFacebookAccount(post.accountId);
+    if (!account) {
+      return { success: false, error: 'Facebook account not found' };
+    }
+    
+    if (!account.accessToken) {
+      return { success: false, error: 'Facebook account is not properly authenticated' };
+    }
+    
+    // Prepare post data for Facebook API
+    const postData: Record<string, any> = {};
+    
+    // Add post message
+    if (post.content) {
+      postData.message = post.content;
+    }
+    
+    // Add media if present
+    if (post.mediaUrl) {
+      // Check file type to determine post type
+      const isVideo = post.mediaUrl.match(/\.(mp4|mov|avi|wmv|flv|webm)$/i);
+      
+      if (isVideo) {
+        // Video post
+        postData.description = post.content || '';
+        postData.file_url = post.mediaUrl;
+      } else {
+        // Photo post
+        postData.url = post.mediaUrl;
+        postData.caption = post.content || '';
+      }
+    }
+    
+    // Add link if present
     if (post.link) {
       postData.link = post.link;
     }
     
-    // Different endpoints based on media type
-    let endpoint = `https://graph.facebook.com/v18.0/${account.pageId}/feed`;
-    let result;
+    // Determine endpoint based on media type
+    let endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/feed`;
     
-    // If there's media, handle it differently
     if (post.mediaUrl) {
-      if (post.mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i)) {
-        // It's an image
-        endpoint = `https://graph.facebook.com/v18.0/${account.pageId}/photos`;
-        postData.url = post.mediaUrl;
-      } else if (post.mediaUrl.match(/\.(mp4|mov|wmv|avi)$/i)) {
-        // It's a video
-        endpoint = `https://graph.facebook.com/v18.0/${account.pageId}/videos`;
-        postData.file_url = post.mediaUrl;
+      const isVideo = post.mediaUrl.match(/\.(mp4|mov|avi|wmv|flv|webm)$/i);
+      if (isVideo) {
+        endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/videos`;
+      } else {
+        endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/photos`;
       }
     }
     
-    // Make the API request to Facebook
-    const response = await fetch(endpoint, {
+    // Make API request to Facebook
+    const response = await fetch(`${endpoint}?access_token=${account.accessToken}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        ...postData,
-        access_token: account.accessToken,
-      }),
+      body: JSON.stringify(postData)
     });
     
     const data = await response.json();
     
-    if (!response.ok) {
-      throw new Error(`Facebook API error: ${data.error?.message || 'Unknown error'}`);
+    if (!response.ok || data.error) {
+      console.error('Facebook API error:', data);
+      return { 
+        success: false, 
+        error: data.error?.message || 'Failed to publish to Facebook',
+        data: data
+      };
     }
     
-    // Update post status to published
-    await storage.updatePost(post.id, {
-      status: "published",
-      publishedAt: new Date(),
-    });
-    
-    // Create activity log
+    // Log activity for successful publication
     await storage.createActivity({
-      userId: post.userId as number,
-      type: "post_published",
-      description: `Post published to ${account.name}`,
-      metadata: { postId: post.id, facebookPostId: data.id }
+      userId: post.userId || null,
+      type: 'post_published',
+      description: 'Post published to Facebook',
+      metadata: { 
+        postId: post.id,
+        facebookResponse: data
+      }
     });
     
-    return true;
+    return { success: true, data };
   } catch (error) {
-    console.error(`Error publishing post ${post.id}:`, error);
-    
-    // Update post with error
-    await storage.updatePost(post.id, { 
-      status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Failed to publish post"
-    });
-    
-    // Log activity
-    await storage.createActivity({
-      userId: post.userId as number,
-      type: "post_failed",
-      description: "Failed to publish post",
-      metadata: { postId: post.id, error: error instanceof Error ? error.message : "Unknown error" }
-    });
-    
-    return false;
+    console.error('Error publishing to Facebook:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }
 
 /**
- * Schedule a post for publication
+ * Schedule a post for future publication
+ * @param post The post to schedule
  */
-function schedulePostPublication(post: Post): void {
-  if (!post.scheduledFor || post.status !== "scheduled") {
+export function schedulePostPublication(post: Post): void {
+  if (!post.scheduledFor || post.status !== 'scheduled') {
+    console.warn(`Post ${post.id} is not scheduled or has no scheduled date`);
     return;
   }
   
-  // Calculate the scheduled time
+  // Cancel any existing job for this post
+  if (activeJobs[post.id]) {
+    activeJobs[post.id].cancel();
+    delete activeJobs[post.id];
+  }
+  
   const scheduledTime = new Date(post.scheduledFor);
-  const now = new Date();
-  
-  // Ensure the scheduled time is in the future
-  if (scheduledTime <= now) {
-    console.warn(`Post ${post.id} scheduled time is in the past, publishing immediately`);
-    // Publish immediately
-    publishPostToFacebook(post);
+  if (scheduledTime <= new Date()) {
+    console.warn(`Post ${post.id} scheduled time is in the past`);
     return;
   }
   
-  // Schedule the job
-  const job = schedule.scheduleJob(scheduledTime, async () => {
+  // Schedule new job
+  activeJobs[post.id] = schedule.scheduleJob(scheduledTime, async () => {
     try {
-      // Get the latest post data to ensure it hasn't been canceled or changed
-      const latestPost = await storage.getPost(post.id);
-      if (!latestPost || latestPost.status !== "scheduled") {
-        // Post has been deleted or status changed
+      console.log(`Executing scheduled post ${post.id}`);
+      
+      // Get latest post data
+      const currentPost = await storage.getPost(post.id);
+      if (!currentPost || currentPost.status !== 'scheduled') {
+        console.warn(`Post ${post.id} no longer exists or is not scheduled`);
         return;
       }
       
-      // Publish the post
-      await publishPostToFacebook(latestPost);
+      // Publish to Facebook
+      const result = await publishPostToFacebook(currentPost);
+      
+      if (result.success) {
+        // Update post status
+        await storage.updatePost(post.id, {
+          status: 'published',
+          publishedAt: new Date()
+        });
+        
+        // Log activity
+        await storage.createActivity({
+          userId: currentPost.userId || null,
+          type: 'post_published',
+          description: 'Scheduled post published',
+          metadata: { postId: currentPost.id }
+        });
+        
+        console.log(`Successfully published scheduled post ${post.id}`);
+      } else {
+        // Handle failure
+        await storage.updatePost(post.id, {
+          status: 'failed',
+          errorMessage: result.error || 'Unknown error during scheduled publication'
+        });
+        
+        // Log activity
+        await storage.createActivity({
+          userId: currentPost.userId || null,
+          type: 'post_failed',
+          description: 'Scheduled post failed to publish',
+          metadata: { 
+            postId: currentPost.id,
+            error: result.error
+          }
+        });
+        
+        console.error(`Failed to publish scheduled post ${post.id}:`, result.error);
+      }
     } catch (error) {
-      console.error(`Error publishing scheduled post ${post.id}:`, error);
+      console.error(`Error executing scheduled post ${post.id}:`, error);
+      
+      try {
+        // Update post status to failed
+        await storage.updatePost(post.id, {
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error during scheduled publication'
+        });
+      } catch (updateError) {
+        console.error(`Error updating post ${post.id} status:`, updateError);
+      }
     } finally {
-      // Remove the job from the map
-      scheduledJobs.delete(post.id.toString());
+      // Remove the job from active jobs
+      delete activeJobs[post.id];
     }
   });
-  
-  // Store the job in the map
-  scheduledJobs.set(post.id.toString(), job);
   
   console.log(`Post ${post.id} scheduled for publication at ${scheduledTime.toISOString()}`);
 }
@@ -366,40 +266,52 @@ export async function retryFailedPosts(): Promise<void> {
 }
 
 /**
- * Get upcoming posts for the next N days
+ * Cancel a scheduled post
  */
-export async function getUpcomingPosts(userId: number, days: number = 7): Promise<Post[]> {
+export async function cancelScheduledPost(postId: number): Promise<boolean> {
   try {
-    const posts = await storage.getPosts(userId);
-    const now = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + days);
-    
-    return posts.filter(post => 
-      post.status === "scheduled" && 
-      post.scheduledFor && 
-      new Date(post.scheduledFor) >= now &&
-      new Date(post.scheduledFor) <= endDate
-    ).sort((a, b) => {
-      const aDate = a.scheduledFor ? new Date(a.scheduledFor) : new Date(0);
-      const bDate = b.scheduledFor ? new Date(b.scheduledFor) : new Date(0);
-      return aDate.getTime() - bDate.getTime();
-    });
+    if (activeJobs[postId]) {
+      activeJobs[postId].cancel();
+      delete activeJobs[postId];
+      console.log(`Cancelled scheduled post ${postId}`);
+      return true;
+    }
+    return false;
   } catch (error) {
-    console.error("Error getting upcoming posts:", error);
-    return [];
+    console.error(`Error cancelling scheduled post ${postId}:`, error);
+    return false;
   }
 }
 
 /**
- * Add all available methods to make them importable
+ * Get upcoming posts for the next N days
  */
+export async function getUpcomingPostsForDays(userId: number, days: number = 7): Promise<Post[]> {
+  const now = new Date();
+  const endDate = new Date();
+  endDate.setDate(now.getDate() + days);
+  
+  const allPosts = await storage.getPosts(userId);
+  
+  return allPosts.filter(post => {
+    // Only include scheduled posts
+    if (post.status !== 'scheduled') return false;
+    
+    // Check if post has a scheduled date
+    if (!post.scheduledFor) return false;
+    
+    // Check if post is scheduled within the date range
+    const scheduledDate = new Date(post.scheduledFor);
+    return scheduledDate >= now && scheduledDate <= endDate;
+  });
+}
+
+// Export as a service object for use in other modules
 export const postService = {
-  createPost,
-  updatePost,
-  deletePost,
   publishPostToFacebook,
+  schedulePostPublication,
   initializeScheduledPosts,
   retryFailedPosts,
-  getUpcomingPosts
+  cancelScheduledPost,
+  getUpcomingPostsForDays
 };
