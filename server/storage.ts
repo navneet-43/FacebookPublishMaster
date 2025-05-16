@@ -1,7 +1,7 @@
 import {
   User, InsertUser, users,
   FacebookAccount, InsertFacebookAccount, facebookAccounts,
-  AsanaIntegration, InsertAsanaIntegration, asanaIntegrations,
+  GoogleSheetsIntegration, InsertGoogleSheetsIntegration, googleSheetsIntegrations,
   CustomLabel, InsertCustomLabel, customLabels,
   Post, InsertPost, posts,
   Activity, InsertActivity, activities
@@ -25,10 +25,10 @@ export interface IStorage {
   updateFacebookAccount(id: number, data: Partial<FacebookAccount>): Promise<FacebookAccount | undefined>;
   deleteFacebookAccount(id: number): Promise<boolean>;
 
-  // Asana integration operations
-  getAsanaIntegration(userId: number): Promise<AsanaIntegration | undefined>;
-  createAsanaIntegration(integration: InsertAsanaIntegration): Promise<AsanaIntegration>;
-  updateAsanaIntegration(userId: number, data: Partial<AsanaIntegration>): Promise<AsanaIntegration | undefined>;
+  // Google Sheets integration operations
+  getGoogleSheetsIntegration(userId: number): Promise<GoogleSheetsIntegration | undefined>;
+  createGoogleSheetsIntegration(integration: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration>;
+  updateGoogleSheetsIntegration(userId: number, data: Partial<GoogleSheetsIntegration>): Promise<GoogleSheetsIntegration | undefined>;
 
   // Custom label operations
   getCustomLabels(userId: number): Promise<CustomLabel[]>;
@@ -129,28 +129,28 @@ export class DatabaseStorage implements IStorage {
     return !!deleted;
   }
 
-  // Asana integration operations
-  async getAsanaIntegration(userId: number): Promise<AsanaIntegration | undefined> {
+  // Google Sheets integration operations
+  async getGoogleSheetsIntegration(userId: number): Promise<GoogleSheetsIntegration | undefined> {
     const [integration] = await db
       .select()
-      .from(asanaIntegrations)
-      .where(eq(asanaIntegrations.userId, userId));
+      .from(googleSheetsIntegrations)
+      .where(eq(googleSheetsIntegrations.userId, userId));
     return integration;
   }
 
-  async createAsanaIntegration(integration: InsertAsanaIntegration): Promise<AsanaIntegration> {
+  async createGoogleSheetsIntegration(integration: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration> {
     const [newIntegration] = await db
-      .insert(asanaIntegrations)
+      .insert(googleSheetsIntegrations)
       .values(integration)
       .returning();
     return newIntegration;
   }
 
-  async updateAsanaIntegration(userId: number, data: Partial<AsanaIntegration>): Promise<AsanaIntegration | undefined> {
+  async updateGoogleSheetsIntegration(userId: number, data: Partial<GoogleSheetsIntegration>): Promise<GoogleSheetsIntegration | undefined> {
     const [updatedIntegration] = await db
-      .update(asanaIntegrations)
+      .update(googleSheetsIntegrations)
       .set(data)
-      .where(eq(asanaIntegrations.userId, userId))
+      .where(eq(googleSheetsIntegrations.userId, userId))
       .returning();
     return updatedIntegration;
   }
@@ -310,14 +310,14 @@ export class DatabaseStorage implements IStorage {
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private facebookAccounts: Map<number, FacebookAccount>;
-  private asanaIntegrations: Map<number, AsanaIntegration>;
+  private googleSheetsIntegrations: Map<number, GoogleSheetsIntegration>;
   private customLabels: Map<number, CustomLabel>;
   private posts: Map<number, Post>;
   private activities: Map<number, Activity>;
   private currentIds: {
     users: number;
     facebookAccounts: number;
-    asanaIntegrations: number;
+    googleSheetsIntegrations: number;
     customLabels: number;
     posts: number;
     activities: number;
@@ -326,14 +326,14 @@ export class MemStorage implements IStorage {
   constructor() {
     this.users = new Map();
     this.facebookAccounts = new Map();
-    this.asanaIntegrations = new Map();
+    this.googleSheetsIntegrations = new Map();
     this.customLabels = new Map();
     this.posts = new Map();
     this.activities = new Map();
     this.currentIds = {
       users: 1,
       facebookAccounts: 1,
-      asanaIntegrations: 1,
+      googleSheetsIntegrations: 1,
       customLabels: 1,
       posts: 1,
       activities: 1
@@ -421,29 +421,29 @@ export class MemStorage implements IStorage {
   }
 
   // Asana integration operations
-  async getAsanaIntegration(userId: number): Promise<AsanaIntegration | undefined> {
-    return Array.from(this.asanaIntegrations.values()).find(
+  async getGoogleSheetsIntegration(userId: number): Promise<GoogleSheetsIntegration | undefined> {
+    return Array.from(this.googleSheetsIntegrations.values()).find(
       (integration) => integration.userId === userId
     );
   }
 
-  async createAsanaIntegration(integration: InsertAsanaIntegration): Promise<AsanaIntegration> {
-    const id = this.currentIds.asanaIntegrations++;
+  async createGoogleSheetsIntegration(integration: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration> {
+    const id = this.currentIds.googleSheetsIntegrations++;
     const now = new Date();
-    const newIntegration: AsanaIntegration = { ...integration, id, createdAt: now };
-    this.asanaIntegrations.set(id, newIntegration);
+    const newIntegration: GoogleSheetsIntegration = { ...integration, id, createdAt: now };
+    this.googleSheetsIntegrations.set(id, newIntegration);
     return newIntegration;
   }
 
-  async updateAsanaIntegration(userId: number, data: Partial<AsanaIntegration>): Promise<AsanaIntegration | undefined> {
-    const integration = Array.from(this.asanaIntegrations.values()).find(
+  async updateGoogleSheetsIntegration(userId: number, data: Partial<GoogleSheetsIntegration>): Promise<GoogleSheetsIntegration | undefined> {
+    const integration = Array.from(this.googleSheetsIntegrations.values()).find(
       (integration) => integration.userId === userId
     );
     
     if (!integration) return undefined;
     
     const updatedIntegration = { ...integration, ...data };
-    this.asanaIntegrations.set(integration.id, updatedIntegration);
+    this.googleSheetsIntegrations.set(integration.id, updatedIntegration);
     return updatedIntegration;
   }
 

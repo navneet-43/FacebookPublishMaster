@@ -8,7 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import PublishingCalendar from "@/pages/PublishingCalendar";
 import PublishingHistory from "@/pages/PublishingHistory";
 import FacebookAccounts from "@/pages/FacebookAccounts";
-import AsanaIntegration from "@/pages/AsanaIntegration";
+import GoogleSheetsIntegration from "@/pages/GoogleSheetsIntegration";
 import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
 import Sidebar from "@/components/layout/Sidebar";
@@ -23,7 +23,7 @@ function Router() {
       <Route path="/publishing-calendar" component={PublishingCalendar} />
       <Route path="/history" component={PublishingHistory} />
       <Route path="/facebook-accounts" component={FacebookAccounts} />
-      <Route path="/asana-integration" component={AsanaIntegration} />
+      <Route path="/google-sheets-integration" component={GoogleSheetsIntegration} />
       <Route path="/custom-labels" component={CustomLabels} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

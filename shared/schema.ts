@@ -105,7 +105,7 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   language: true,
   scheduledFor: true,
   status: true,
-  asanaTaskId: true,
+  sheetRowId: true,
 });
 
 // Activities model
@@ -181,8 +181,8 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type FacebookAccount = typeof facebookAccounts.$inferSelect;
 export type InsertFacebookAccount = z.infer<typeof insertFacebookAccountSchema>;
 
-export type AsanaIntegration = typeof asanaIntegrations.$inferSelect;
-export type InsertAsanaIntegration = z.infer<typeof insertAsanaIntegrationSchema>;
+export type GoogleSheetsIntegration = typeof googleSheetsIntegrations.$inferSelect;
+export type InsertGoogleSheetsIntegration = z.infer<typeof insertGoogleSheetsIntegrationSchema>;
 
 export type CustomLabel = typeof customLabels.$inferSelect;
 export type InsertCustomLabel = z.infer<typeof insertCustomLabelSchema>;

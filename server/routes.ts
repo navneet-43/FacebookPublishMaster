@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   insertUserSchema,
   insertFacebookAccountSchema,
-  insertAsanaIntegrationSchema,
+  insertGoogleSheetsIntegrationSchema,
   insertCustomLabelSchema,
   insertPostSchema,
   insertActivitySchema
