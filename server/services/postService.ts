@@ -3,6 +3,7 @@ import { InsertPost, Post } from "../../shared/schema";
 import { z } from "zod";
 import schedule from "node-schedule";
 import fetch from "node-fetch";
+import { User } from "../../shared/schema";
 
 // Keep track of scheduled jobs
 const scheduledJobs = new Map<string, schedule.Job>();
@@ -313,21 +314,19 @@ function schedulePostPublication(post: Post): void {
  */
 export async function initializeScheduledPosts(): Promise<void> {
   try {
-    // Get all scheduled posts
-    const allUsers = await storage.getUsers();
+    // Since we don't have a getUsers function, we'll look for scheduled posts directly
+    const posts = await storage.getAllPosts();
     let scheduledCount = 0;
     
-    for (const user of allUsers) {
-      const posts = await storage.getPosts(user.id);
-      const scheduledPosts = posts.filter(post => 
-        post.status === "scheduled" && post.scheduledFor && new Date(post.scheduledFor) > new Date()
-      );
-      
-      // Schedule each post
-      for (const post of scheduledPosts) {
-        schedulePostPublication(post);
-        scheduledCount++;
-      }
+    // Filter scheduled posts
+    const scheduledPosts = posts.filter(post => 
+      post.status === "scheduled" && post.scheduledFor && new Date(post.scheduledFor) > new Date()
+    );
+    
+    // Schedule each post
+    for (const post of scheduledPosts) {
+      schedulePostPublication(post);
+      scheduledCount++;
     }
     
     console.log(`Initialized ${scheduledCount} scheduled posts`);
@@ -342,29 +341,29 @@ export async function initializeScheduledPosts(): Promise<void> {
  */
 export async function retryFailedPosts(): Promise<void> {
   try {
-    // Get all users
-    const allUsers = await storage.getUsers();
+    // Get all posts
+    const posts = await storage.getAllPosts();
     let retriedCount = 0;
     
-    for (const user of allUsers) {
-      const posts = await storage.getPosts(user.id);
-      const failedPosts = posts.filter(post => post.status === "failed");
-      
-      // Retry each failed post
-      for (const post of failedPosts) {
-        try {
-          // Only retry posts that failed within the last 24 hours
-          const failedAt = post.publishedAt || post.createdAt;
-          const timeSinceFailed = Date.now() - new Date(failedAt as Date).getTime();
-          const hoursSinceFailed = timeSinceFailed / (1000 * 60 * 60);
-          
-          if (hoursSinceFailed <= 24) {
-            await publishPostToFacebook(post);
-            retriedCount++;
-          }
-        } catch (error) {
-          console.error(`Error retrying failed post ${post.id}:`, error);
+    // Filter for failed posts
+    const failedPosts = posts.filter(post => post.status === "failed");
+    
+    // Retry each failed post
+    for (const post of failedPosts) {
+      try {
+        // Only retry posts that failed within the last 24 hours
+        const failedAt = post.publishedAt || post.createdAt;
+        if (!failedAt) continue; // Skip if no timestamp available
+        
+        const timeSinceFailed = Date.now() - new Date(failedAt).getTime();
+        const hoursSinceFailed = timeSinceFailed / (1000 * 60 * 60);
+        
+        if (hoursSinceFailed <= 24) {
+          await publishPostToFacebook(post);
+          retriedCount++;
         }
+      } catch (error) {
+        console.error(`Error retrying failed post ${post.id}:`, error);
       }
     }
     

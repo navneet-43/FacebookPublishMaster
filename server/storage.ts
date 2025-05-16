@@ -40,6 +40,10 @@ export interface IStorage {
   // Post operations
   getPosts(userId: number): Promise<Post[]>;
   getUpcomingPosts(userId: number): Promise<Post[]>;
+  getAllPosts(): Promise<Post[]>; // Get all posts across all users
+  getScheduledPosts(): Promise<Post[]>; // Get all scheduled posts
+  getFailedPosts(): Promise<Post[]>; // Get all failed posts
+  getPostsByStatus(status: string): Promise<Post[]>; // Get posts by status
   getPost(id: number): Promise<Post | undefined>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: number, data: Partial<Post>): Promise<Post | undefined>;
@@ -458,6 +462,34 @@ export class MemStorage implements IStorage {
       if (!a.scheduledFor || !b.scheduledFor) return 0;
       return a.scheduledFor.getTime() - b.scheduledFor.getTime();
     });
+  }
+  
+  async getAllPosts(): Promise<Post[]> {
+    return Array.from(this.posts.values());
+  }
+  
+  async getScheduledPosts(): Promise<Post[]> {
+    const now = new Date();
+    return Array.from(this.posts.values()).filter(
+      (post) => post.status === 'scheduled' && 
+                post.scheduledFor && 
+                post.scheduledFor > now
+    ).sort((a, b) => {
+      if (!a.scheduledFor || !b.scheduledFor) return 0;
+      return a.scheduledFor.getTime() - b.scheduledFor.getTime();
+    });
+  }
+  
+  async getFailedPosts(): Promise<Post[]> {
+    return Array.from(this.posts.values()).filter(
+      (post) => post.status === 'failed'
+    );
+  }
+  
+  async getPostsByStatus(status: string): Promise<Post[]> {
+    return Array.from(this.posts.values()).filter(
+      (post) => post.status === status
+    );
   }
 
   async getPost(id: number): Promise<Post | undefined> {
