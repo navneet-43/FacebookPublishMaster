@@ -43,23 +43,23 @@ export const insertFacebookAccountSchema = createInsertSchema(facebookAccounts).
   isActive: true,
 });
 
-// Asana integration model
-export const asanaIntegrations = pgTable("asana_integrations", {
+// Google Sheets integration model
+export const googleSheetsIntegrations = pgTable("google_sheets_integrations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
-  workspaceId: text("workspace_id"),
-  projectId: text("project_id"),
+  folderId: text("folder_id"),
+  spreadsheetId: text("spreadsheet_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertAsanaIntegrationSchema = createInsertSchema(asanaIntegrations).pick({
+export const insertGoogleSheetsIntegrationSchema = createInsertSchema(googleSheetsIntegrations).pick({
   userId: true,
   accessToken: true,
   refreshToken: true,
-  workspaceId: true,
-  projectId: true,
+  folderId: true,
+  spreadsheetId: true,
 });
 
 // Custom labels model
@@ -90,7 +90,7 @@ export const posts = pgTable("posts", {
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
   status: text("status").notNull().default("draft"),
-  asanaTaskId: text("asana_task_id"),
+  sheetRowId: text("sheet_row_id"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -128,7 +128,7 @@ export const insertActivitySchema = createInsertSchema(activities).pick({
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   facebookAccounts: many(facebookAccounts),
-  asanaIntegrations: many(asanaIntegrations),
+  googleSheetsIntegrations: many(googleSheetsIntegrations),
   customLabels: many(customLabels),
   posts: many(posts),
   activities: many(activities),
@@ -142,9 +142,9 @@ export const facebookAccountsRelations = relations(facebookAccounts, ({ one, man
   posts: many(posts),
 }));
 
-export const asanaIntegrationsRelations = relations(asanaIntegrations, ({ one }) => ({
+export const googleSheetsIntegrationsRelations = relations(googleSheetsIntegrations, ({ one }) => ({
   user: one(users, {
-    fields: [asanaIntegrations.userId],
+    fields: [googleSheetsIntegrations.userId],
     references: [users.id],
   }),
 }));
