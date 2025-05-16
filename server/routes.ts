@@ -578,8 +578,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Import from Asana
   app.post("/api/import-from-asana", async (req: Request, res: Response) => {
     try {
-      const user = await authenticateUser(req, res);
-      if (!user) return;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
       
       const { projectId, dateRange } = req.body;
       
