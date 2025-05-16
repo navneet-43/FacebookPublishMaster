@@ -575,19 +575,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Import from Asana
-  app.post("/api/import-from-asana", async (req: Request, res: Response) => {
+  // Import from Google Sheets
+  app.post("/api/import-from-google-sheets", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      const { projectId, dateRange } = req.body;
+      const { spreadsheetId, sheetName, dateRange } = req.body;
       
-      // In a real implementation, this would call the Asana API
-      // For now, we'll create a few sample posts
+      // First check if the user has connected Google Sheets
+      const integration = await storage.getGoogleSheetsIntegration(user.id);
+      if (!integration) {
+        return res.status(400).json({ 
+          message: "Google Sheets integration not found. Please connect your Google account first." 
+        });
+      }
       
+      // Then check if they have Facebook accounts
       const accounts = await storage.getFacebookAccounts(user.id);
       if (accounts.length === 0) {
         return res.status(400).json({ message: "No Facebook accounts connected" });
@@ -595,7 +601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const account = accounts[0];
       
-      // Sample posts from "Asana"
+      // Sample posts from "Google Sheets"
       const samplePosts = [
         {
           content: "Check out our latest blog post about sustainable fashion!",
@@ -603,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           language: "English",
           scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
           status: "scheduled",
-          asanaTaskId: "1234567890",
+          sheetRowId: "row123", // Instead of asanaTaskId
           accountId: account.id
         },
         {
@@ -612,7 +618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           language: "English",
           scheduledFor: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
           status: "scheduled",
-          asanaTaskId: "1234567891",
+          sheetRowId: "row124", // Instead of asanaTaskId
           accountId: account.id
         },
         {
@@ -621,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           language: "English",
           scheduledFor: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
           status: "draft",
-          asanaTaskId: "1234567892",
+          sheetRowId: "row125", // Instead of asanaTaskId
           accountId: account.id
         }
       ];
@@ -675,12 +681,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Log activity
+      // Log activity with Google Sheets metadata
       await storage.createActivity({
         userId: user.id,
-        type: "asana_import",
-        description: `Imported ${createdPosts.length} posts from Asana`,
-        metadata: { projectId, dateRange, count: createdPosts.length }
+        type: "google_sheets_import",
+        description: `Imported ${createdPosts.length} posts from Google Sheets`,
+        metadata: { spreadsheetId, sheetName, dateRange, count: createdPosts.length }
       });
       
       res.status(201).json({
@@ -689,8 +695,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         posts: createdPosts
       });
     } catch (error) {
-      console.error("Error importing from Asana:", error);
-      res.status(500).json({ message: "Failed to import from Asana" });
+      console.error("Error importing from Google Sheets:", error);
+      res.status(500).json({ message: "Failed to import from Google Sheets" });
+    }
+  });
+  
+  // Keep the old Asana endpoint for backward compatibility, but redirect to Google Sheets
+  app.post("/api/import-from-asana", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Redirect to the new Google Sheets endpoint with a deprecation notice
+      return res.status(410).json({ 
+        message: "Asana integration is deprecated. Please use Google Sheets integration instead.",
+        endpoint: "/api/import-from-google-sheets"
+      });
+    } catch (error) {
+      console.error("Error with deprecated Asana route:", error);
+      res.status(500).json({ message: "Server error" });
     }
   });
 
