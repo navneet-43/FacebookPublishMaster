@@ -163,9 +163,13 @@ export default function Login() {
                           <div className="relative">
                             <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                             <Input 
+                              type="text"
                               placeholder="Enter your full name" 
                               className="pl-10" 
-                              {...field} 
+                              value={field.value || ""}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
                             />
                           </div>
                         </FormControl>
@@ -184,9 +188,13 @@ export default function Login() {
                           <div className="relative">
                             <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                             <Input 
+                              type="text"
                               placeholder="Choose a username" 
                               className="pl-10" 
-                              {...field} 
+                              value={field.value || ""}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
                             />
                           </div>
                         </FormControl>
