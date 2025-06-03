@@ -297,23 +297,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Facebook token refresh endpoint
+  // Facebook token refresh endpoint using Hootsuite approach
   app.post('/api/facebook-tokens/refresh', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
-      const { userToken } = req.body;
       
-      if (!userToken) {
-        return res.status(400).json({ message: "User token required" });
+      if (!user.facebookToken) {
+        return res.status(400).json({ message: "No Facebook token found. Please reconnect your Facebook account." });
       }
       
-      const { refreshUserFacebookTokens } = await import('./services/facebookTokenService');
-      await refreshUserFacebookTokens(user.id, userToken);
+      const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
+      await HootsuiteStyleFacebookService.refreshUserPageTokens(user.id, user.facebookToken);
       
-      res.json({ success: true, message: "Tokens refreshed successfully" });
+      res.json({ success: true, message: "Facebook page tokens refreshed successfully" });
     } catch (error) {
       console.error("Error refreshing Facebook tokens:", error);
-      res.status(500).json({ message: "Failed to refresh tokens" });
+      res.status(500).json({ message: "Failed to refresh Facebook tokens" });
     }
   });
 

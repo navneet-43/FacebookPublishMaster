@@ -7,12 +7,15 @@ import fetch from 'node-fetch';
 const activeJobs: Record<number, schedule.Job> = {};
 
 /**
- * Publish a post to Facebook
+ * Publish a post to Facebook using Hootsuite-style approach
  * @param post The post to publish
  * @returns Result of the operation
  */
 export async function publishPostToFacebook(post: Post): Promise<{success: boolean, data?: any, error?: string}> {
   try {
+    // Import Hootsuite-style service
+    const { HootsuiteStyleFacebookService } = await import('./hootsuiteStyleFacebookService');
+    
     // Verify post has all required data
     if (!post.accountId) {
       return { success: false, error: 'No Facebook account selected for this post' };
@@ -32,107 +35,83 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       return { success: false, error: 'Facebook account is not properly authenticated' };
     }
     
-    // Prepare post data for Facebook API
-    const postData: Record<string, any> = {};
-    
-    // Add post message
-    if (post.content) {
-      postData.message = post.content;
-    }
-    
-    // Add media if present
-    if (post.mediaUrl) {
-      // Check file type to determine post type
-      const isVideo = post.mediaUrl.match(/\.(mp4|mov|avi|wmv|flv|webm)$/i);
-      
-      if (isVideo) {
-        // Video post
-        postData.description = post.content || '';
-        postData.file_url = post.mediaUrl;
-      } else {
-        // Photo post
-        postData.url = post.mediaUrl;
-        postData.caption = post.content || '';
-      }
-    }
-    
-    // Add link if present
-    if (post.link) {
-      postData.link = post.link;
-    }
-    
-    // Determine endpoint based on media type
-    let endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/feed`;
-    
-    if (post.mediaUrl) {
-      const isVideo = post.mediaUrl.match(/\.(mp4|mov|avi|wmv|flv|webm)$/i);
-      if (isVideo) {
-        endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/videos`;
-      } else {
-        endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/photos`;
-      }
-    }
-    
-    // Log the request for debugging
-    console.log('Publishing to Facebook:', {
-      endpoint,
-      postData,
-      pageId: account.pageId,
-      hasAccessToken: !!account.accessToken
-    });
-
-    // Make API request to Facebook using form data
-    const formData = new URLSearchParams();
-    Object.entries(postData).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        formData.append(key, String(value));
-      }
-    });
-    formData.append('access_token', account.accessToken);
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData.toString()
-    });
-    
-    const data = await response.json() as any;
-    
-    // Log the response for debugging
-    console.log('Facebook API response:', {
-      status: response.status,
-      ok: response.ok,
-      data
-    });
-    
-    if (!response.ok || data.error) {
-      console.error('Facebook API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: data.error,
-        fullResponse: data
-      });
+    // Validate token before using it
+    const isValidToken = await HootsuiteStyleFacebookService.validatePageToken(account.pageId, account.accessToken);
+    if (!isValidToken) {
+      console.log('Invalid page token detected, attempting refresh...');
       return { 
         success: false, 
-        error: data.error?.message || `Facebook API error: ${response.status} ${response.statusText}`,
-        data: data
+        error: 'Facebook access token is invalid or expired. Please refresh your Facebook connection.' 
       };
     }
     
-    // Log activity for successful publication
-    await storage.createActivity({
-      userId: post.userId || null,
-      type: 'post_published',
-      description: 'Post published to Facebook',
-      metadata: { 
-        postId: post.id,
-        facebookResponse: data
-      }
-    });
+    console.log(`Publishing post ${post.id} to Facebook page: ${account.name} (${account.pageId})`);
     
-    return { success: true, data };
+    let result;
+    
+    // Determine post type and publish accordingly
+    if (post.mediaUrl) {
+      // Check if it's a photo/image
+      const isImage = post.mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+      
+      if (isImage) {
+        // Publish as photo post
+        result = await HootsuiteStyleFacebookService.publishPhotoPost(
+          account.pageId,
+          account.accessToken,
+          post.mediaUrl,
+          post.content || undefined
+        );
+      } else {
+        // For videos or other media, publish as text post with link
+        result = await HootsuiteStyleFacebookService.publishTextPost(
+          account.pageId,
+          account.accessToken,
+          post.content || 'Check out this content!',
+          post.mediaUrl
+        );
+      }
+    } else {
+      // Text-only post
+      result = await HootsuiteStyleFacebookService.publishTextPost(
+        account.pageId,
+        account.accessToken,
+        post.content!,
+        post.link || undefined
+      );
+    }
+    
+    if (result.success) {
+      // Log activity for successful publication
+      await storage.createActivity({
+        userId: post.userId || null,
+        type: 'post_published',
+        description: `Post published to Facebook page: ${account.name}`,
+        metadata: { 
+          postId: post.id,
+          facebookPostId: result.postId,
+          pageId: account.pageId
+        }
+      });
+      
+      console.log(`Successfully published post ${post.id} to Facebook. FB Post ID: ${result.postId}`);
+      
+      return { 
+        success: true, 
+        data: { 
+          facebookPostId: result.postId,
+          pageId: account.pageId,
+          pageName: account.name
+        }
+      };
+    } else {
+      console.error(`Failed to publish post ${post.id} to Facebook:`, result.error);
+      return { 
+        success: false, 
+        error: result.error || 'Unknown Facebook publishing error'
+      };
+    }
+    
   } catch (error) {
     console.error('Error publishing to Facebook:', error);
     return { 

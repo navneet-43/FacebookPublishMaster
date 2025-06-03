@@ -17,7 +17,7 @@ export function setupAuth() {
     clientSecret: process.env.FACEBOOK_APP_SECRET || '',
     callbackURL: `https://b781679d-4a63-4962-b0b3-454a3c55c07c-00-22vmnl02o2c4l.picard.replit.dev/auth/facebook/callback`,
     profileFields: ['id', 'displayName', 'email'],
-    // Permissions are set in the Facebook Developer Portal, not here
+    scope: ['pages_manage_posts', 'pages_read_engagement', 'pages_manage_metadata', 'pages_show_list', 'business_management']
   }, async (accessToken: string, refreshToken: string, profile: FacebookProfile, done: Function) => {
     try {
       // Check if user exists in database
@@ -43,14 +43,9 @@ export function setupAuth() {
         });
       }
       
-      // After successful login, fetch user's Facebook pages and refresh tokens
-      await fetchUserPages(user.id, tokenToStore);
-      
-      // Refresh existing page tokens if we have a long-lived token
-      if (longLivedToken) {
-        const { refreshUserFacebookTokens } = await import('./services/facebookTokenService');
-        await refreshUserFacebookTokens(user.id, longLivedToken);
-      }
+      // Use Hootsuite-style token refresh approach
+      const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
+      await HootsuiteStyleFacebookService.refreshUserPageTokens(user.id, tokenToStore);
       
       return done(null, user);
     } catch (error) {
