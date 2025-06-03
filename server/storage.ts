@@ -15,6 +15,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByFacebookId(facebookId: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<User>): Promise<User | undefined>;
 
@@ -70,6 +71,10 @@ export class DatabaseStorage implements IStorage {
   async getUserByFacebookId(facebookId: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.facebookId, facebookId));
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -363,6 +368,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values()).find(
       (user) => user.facebookId === facebookId
     );
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
   }
   
   async updateUser(id: number, data: Partial<User>): Promise<User | undefined> {

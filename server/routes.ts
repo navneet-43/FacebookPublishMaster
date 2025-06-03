@@ -54,20 +54,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
   
-  // Demo login endpoint for testing
-  app.post('/api/auth/demo-login', async (req: Request, res: Response) => {
+  // Email/Password login endpoint
+  app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
-      // Create or get demo user
-      let user = await storage.getUserByUsername("demo");
+      const { email, password } = req.body;
       
-      if (!user) {
-        user = await storage.createUser({
-          username: "demo",
-          email: "demo@example.com"
-        });
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
       }
       
-      // Manually set user in session
+      // Find user by email
+      const users = await storage.getAllUsers();
+      const user = users.find(u => u.email === email);
+      
+      if (!user || !user.password) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      
+      // For simplicity, we'll use plain text password comparison
+      // In production, use bcrypt or similar for password hashing
+      if (user.password !== password) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      
+      // Log the user in
       req.login(user, (err) => {
         if (err) {
           return res.status(500).json({ message: 'Login failed' });
@@ -77,13 +87,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user: {
             id: user.id,
             username: user.username,
-            email: user.email
+            email: user.email,
+            fullName: user.fullName
           }
         });
       });
     } catch (error) {
-      console.error("Demo login error:", error);
-      res.status(500).json({ message: "Failed to create demo login" });
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Failed to login" });
+    }
+  });
+
+  // Registration endpoint
+  app.post('/api/auth/register', async (req: Request, res: Response) => {
+    try {
+      const { username, email, password, fullName } = req.body;
+      
+      if (!username || !email || !password) {
+        return res.status(400).json({ message: "Username, email, and password are required" });
+      }
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
+      
+      const users = await storage.getAllUsers();
+      const existingEmail = users.find(u => u.email === email);
+      if (existingEmail) {
+        return res.status(409).json({ message: "Email already registered" });
+      }
+      
+      // Create new user
+      const user = await storage.createUser({
+        username,
+        email,
+        password, // In production, hash this password with bcrypt
+        fullName
+      });
+      
+      // Log the user in immediately after registration
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: 'Registration successful but login failed' });
+        }
+        res.status(201).json({ 
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName
+          }
+        });
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Failed to register user" });
     }
   });
 
