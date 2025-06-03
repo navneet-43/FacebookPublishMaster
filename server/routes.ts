@@ -556,47 +556,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: user.id
       });
       
-      // Schedule post if it has a scheduledFor date
+      // Handle immediate vs scheduled posts
       if (post.scheduledFor && post.status === "scheduled") {
+        // Schedule for future publication
         const scheduledDate = new Date(post.scheduledFor);
         
-        // Schedule job to publish post
         schedule.scheduleJob(scheduledDate, async () => {
           try {
-            // In a real implementation, this would make an API call to Facebook
-            console.log(`Publishing post ${post.id} at ${new Date().toISOString()}`);
+            console.log(`Publishing scheduled post ${post.id} at ${new Date().toISOString()}`);
             
-            // Update post status
-            const updatedPost = await storage.updatePost(post.id, { 
+            // Get the latest post data
+            const currentPost = await storage.getPost(post.id);
+            if (!currentPost) return;
+            
+            // Import the publishing function
+            const { publishPostToFacebook } = await import('./services/postService');
+            const result = await publishPostToFacebook(currentPost);
+            
+            if (result.success) {
+              await storage.updatePost(post.id, { 
+                status: "published",
+                publishedAt: new Date()
+              });
+              
+              await storage.createActivity({
+                userId: post.userId,
+                type: "post_published",
+                description: "Scheduled post published to Facebook",
+                metadata: { postId: post.id, facebookResponse: result.data }
+              });
+            } else {
+              await storage.updatePost(post.id, { 
+                status: "failed",
+                errorMessage: result.error || "Failed to publish to Facebook"
+              });
+              
+              await storage.createActivity({
+                userId: post.userId,
+                type: "post_failed",
+                description: "Scheduled post failed to publish",
+                metadata: { postId: post.id, error: result.error }
+              });
+            }
+          } catch (error) {
+            console.error(`Error publishing scheduled post ${post.id}:`, error);
+            await storage.updatePost(post.id, { 
+              status: "failed",
+              errorMessage: error instanceof Error ? error.message : "Unknown error"
+            });
+          }
+        });
+      } else if (post.status === "draft" && post.accountId) {
+        // Publish immediately for draft posts with account selected
+        try {
+          console.log(`Publishing immediate post ${post.id}`);
+          
+          const { publishPostToFacebook } = await import('./services/postService');
+          const result = await publishPostToFacebook(post);
+          
+          if (result.success) {
+            // Update post status to published
+            const updatedPost = await storage.updatePost(post.id, {
               status: "published",
               publishedAt: new Date()
             });
             
-            // Log activity
             await storage.createActivity({
-              userId: post.userId,
+              userId: user.id,
               type: "post_published",
-              description: "Post published successfully",
-              metadata: { postId: post.id }
+              description: "Post published immediately to Facebook",
+              metadata: { postId: post.id, facebookResponse: result.data }
             });
-          } catch (error) {
-            console.error(`Error publishing post ${post.id}:`, error);
             
-            // Update post with error
-            await storage.updatePost(post.id, { 
+            // Return the updated post
+            res.status(201).json(updatedPost);
+            return;
+          } else {
+            // Update post status to failed
+            await storage.updatePost(post.id, {
               status: "failed",
-              errorMessage: error instanceof Error ? error.message : "Failed to publish post"
+              errorMessage: result.error || "Failed to publish to Facebook"
             });
             
-            // Log activity
             await storage.createActivity({
-              userId: post.userId,
+              userId: user.id,
               type: "post_failed",
-              description: "Failed to publish post",
-              metadata: { postId: post.id, error: error instanceof Error ? error.message : "Unknown error" }
+              description: "Post failed to publish to Facebook",
+              metadata: { postId: post.id, error: result.error }
             });
           }
-        });
+        } catch (error) {
+          console.error(`Error publishing immediate post ${post.id}:`, error);
+          await storage.updatePost(post.id, {
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
       }
       
       // Log activity
