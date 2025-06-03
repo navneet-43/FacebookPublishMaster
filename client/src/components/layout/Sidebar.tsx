@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -6,6 +7,14 @@ export default function Sidebar() {
   const isActive = (path: string) => {
     return location === path;
   };
+
+  // Fetch the current user data
+  const { data: authStatus } = useQuery({
+    queryKey: ['/api/auth/status'],
+    retry: false,
+  });
+
+  const user = (authStatus as any)?.user;
 
   return (
     <aside className="w-64 bg-white shadow-md hidden md:block">
@@ -62,8 +71,8 @@ export default function Sidebar() {
             <i className="fa-solid fa-user text-gray-500"></i>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium">Demo User</p>
-            <p className="text-xs text-gray-500">demo@example.com</p>
+            <p className="text-sm font-medium">{user?.fullName || user?.username || "User"}</p>
+            <p className="text-xs text-gray-500">{user?.email || "No email"}</p>
           </div>
         </div>
       </div>

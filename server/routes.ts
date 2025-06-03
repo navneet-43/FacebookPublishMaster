@@ -157,7 +157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: user.id,
           username: user.username, 
-          email: user.email
+          email: user.email,
+          fullName: user.fullName
         }
       });
     } else {
