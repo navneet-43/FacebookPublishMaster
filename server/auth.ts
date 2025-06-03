@@ -23,23 +23,34 @@ export function setupAuth() {
       // Check if user exists in database
       let user = await storage.getUserByFacebookId(profile.id);
       
+      // Exchange for long-lived token
+      const { exchangeForLongLivedToken } = await import('./services/facebookTokenService');
+      const longLivedToken = await exchangeForLongLivedToken(accessToken);
+      const tokenToStore = longLivedToken || accessToken;
+      
       if (!user) {
         // Create a new user with Facebook profile info
         user = await storage.createUser({
           username: profile.displayName || `fb_${profile.id}`,
           email: profile.emails?.[0]?.value || `${profile.id}@facebook.com`,
           facebookId: profile.id,
-          facebookToken: accessToken
+          facebookToken: tokenToStore
         });
       } else {
         // Update the user's Facebook token
         await storage.updateUser(user.id, {
-          facebookToken: accessToken
+          facebookToken: tokenToStore
         });
       }
       
-      // After successful login, fetch user's Facebook pages
-      await fetchUserPages(user.id, accessToken);
+      // After successful login, fetch user's Facebook pages and refresh tokens
+      await fetchUserPages(user.id, tokenToStore);
+      
+      // Refresh existing page tokens if we have a long-lived token
+      if (longLivedToken) {
+        const { refreshUserFacebookTokens } = await import('./services/facebookTokenService');
+        await refreshUserFacebookTokens(user.id, longLivedToken);
+      }
       
       return done(null, user);
     } catch (error) {

@@ -176,14 +176,21 @@ export default function FacebookAccounts() {
                     <div className="mt-4 space-y-2">
                       {hasFacebookToken ? (
                         <>
-                          <p className="text-sm">Your Facebook account is connected, but no pages have been imported yet.</p>
-                          <Button 
-                            variant="default" 
-                            className="mt-2"
-                            onClick={() => window.location.href = '/api/facebook-pages/sync'}
-                          >
-                            Import My Pages
-                          </Button>
+                          <p className="text-sm">Your Facebook account is connected, but the tokens may need refreshing.</p>
+                          <div className="flex gap-2 mt-2">
+                            <Button 
+                              variant="default"
+                              onClick={() => window.location.href = '/auth/facebook'}
+                            >
+                              Refresh Facebook Connection
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              onClick={() => window.location.href = '/api/facebook-pages/sync'}
+                            >
+                              Import Pages
+                            </Button>
+                          </div>
                         </>
                       ) : (
                         <>

@@ -81,13 +81,21 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       hasAccessToken: !!account.accessToken
     });
 
-    // Make API request to Facebook
-    const response = await fetch(`${endpoint}?access_token=${account.accessToken}`, {
+    // Make API request to Facebook using form data
+    const formData = new URLSearchParams();
+    Object.entries(postData).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    });
+    formData.append('access_token', account.accessToken);
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: JSON.stringify(postData)
+      body: formData.toString()
     });
     
     const data = await response.json() as any;
