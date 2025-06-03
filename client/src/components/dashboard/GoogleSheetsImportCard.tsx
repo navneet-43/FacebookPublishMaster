@@ -26,12 +26,21 @@ export default function GoogleSheetsImportCard() {
   const [dateRange, setDateRange] = useState("7days");
 
   const importMutation = useMutation({
-    mutationFn: () => {
-      return apiRequest('POST', '/api/import-from-google-sheets', { 
-        spreadsheetId, 
-        sheetName: "Sheet1",
-        dateRange
+    mutationFn: async () => {
+      const response = await fetch('/api/import-from-google-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          spreadsheetId, 
+          sheetName: "Sheet1",
+          dateRange
+        })
       });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Import failed');
+      }
+      return response.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
@@ -88,9 +97,7 @@ export default function GoogleSheetsImportCard() {
               <SelectValue placeholder="Select spreadsheet" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="marketing-calendar">Marketing Calendar (Q3)</SelectItem>
-              <SelectItem value="social-media">Social Media Content</SelectItem>
-              <SelectItem value="blog-content">Blog Content</SelectItem>
+              <SelectItem value="none" disabled>No spreadsheets available - Connect Google Sheets first</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -89,9 +89,7 @@ export default function GoogleSheetsImportCard() {
               <SelectValue placeholder="Select spreadsheet" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="marketing-calendar">Marketing Calendar (Q3)</SelectItem>
-              <SelectItem value="social-media">Social Media Content</SelectItem>
-              <SelectItem value="blog-content">Blog Content</SelectItem>
+              <SelectItem value="none" disabled>No spreadsheets available - Connect Google Sheets first</SelectItem>
             </SelectContent>
           </Select>
         </div>
