@@ -175,6 +175,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     });
   });
+
+  // Facebook OAuth routes
+  app.get('/auth/facebook', 
+    passport.authenticate('facebook', { 
+      scope: ['email', 'pages_show_list', 'pages_manage_posts', 'pages_read_engagement']
+    })
+  );
+
+  app.get('/auth/facebook/callback', 
+    passport.authenticate('facebook', { 
+      failureRedirect: '/login-error',
+      successRedirect: '/facebook-accounts'
+    })
+  );
   
   // Facebook pages sync endpoint - automatically fetch and save user's Facebook pages
   app.get('/api/facebook-pages/sync', isAuthenticated, async (req: Request, res: Response) => {
