@@ -191,6 +191,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
   
+  // Test Facebook posting endpoint
+  app.post('/api/facebook-test-post', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { accountId, message } = req.body;
+      
+      // Get the Facebook account
+      const account = await storage.getFacebookAccount(accountId);
+      if (!account) {
+        return res.status(404).json({ message: "Facebook account not found" });
+      }
+      
+      console.log(`Testing Facebook post for account: ${account.name}`);
+      console.log(`Page ID: ${account.pageId}`);
+      console.log(`Token length: ${account.accessToken.length}`);
+      
+      // Test with a simple text post
+      const testMessage = message || "Test post from SocialFlow app";
+      const endpoint = `https://graph.facebook.com/v16.0/${account.pageId}/feed`;
+      
+      const formData = new URLSearchParams();
+      formData.append('message', testMessage);
+      formData.append('access_token', account.accessToken);
+      
+      console.log(`Posting to: ${endpoint}`);
+      console.log(`Message: ${testMessage}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData.toString()
+      });
+      
+      const data = await response.json();
+      
+      console.log('Facebook API Response:', {
+        status: response.status,
+        ok: response.ok,
+        data: data
+      });
+      
+      res.json({
+        success: response.ok,
+        status: response.status,
+        response: data,
+        endpoint: endpoint,
+        message: testMessage
+      });
+      
+    } catch (error) {
+      console.error("Error testing Facebook post:", error);
+      res.status(500).json({ message: "Failed to test post" });
+    }
+  });
+
+  // Facebook token test endpoint
+  app.get('/api/facebook-tokens/test', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      
+      // Get user's Facebook accounts
+      const accounts = await storage.getFacebookAccounts(user.id);
+      const results = [];
+      
+      for (const account of accounts) {
+        console.log(`Testing token for ${account.name} (${account.pageId})`);
+        
+        // Test basic token validity
+        const tokenTest = await fetch(`https://graph.facebook.com/v16.0/me?access_token=${account.accessToken}`);
+        const tokenData = await tokenTest.json();
+        
+        // Test page access
+        const pageTest = await fetch(`https://graph.facebook.com/v16.0/${account.pageId}?access_token=${account.accessToken}`);
+        const pageData = await pageTest.json();
+        
+        // Test posting permissions
+        const permTest = await fetch(`https://graph.facebook.com/v16.0/${account.pageId}/permissions?access_token=${account.accessToken}`);
+        const permData = await permTest.json();
+        
+        results.push({
+          account: account.name,
+          pageId: account.pageId,
+          tokenValid: !tokenData.error,
+          tokenError: tokenData.error?.message,
+          pageAccess: !pageData.error,
+          pageError: pageData.error?.message,
+          permissions: permData.data || [],
+          permissionError: permData.error?.message
+        });
+        
+        console.log(`Test results for ${account.name}:`, {
+          tokenValid: !tokenData.error,
+          pageAccess: !pageData.error,
+          hasPermissions: !!permData.data
+        });
+      }
+      
+      res.json({ results });
+    } catch (error) {
+      console.error("Error testing Facebook tokens:", error);
+      res.status(500).json({ message: "Failed to test tokens" });
+    }
+  });
+
   // Facebook token refresh endpoint
   app.post('/api/facebook-tokens/refresh', isAuthenticated, async (req: Request, res: Response) => {
     try {
