@@ -73,6 +73,14 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       }
     }
     
+    // Log the request for debugging
+    console.log('Publishing to Facebook:', {
+      endpoint,
+      postData,
+      pageId: account.pageId,
+      hasAccessToken: !!account.accessToken
+    });
+
     // Make API request to Facebook
     const response = await fetch(`${endpoint}?access_token=${account.accessToken}`, {
       method: 'POST',
@@ -84,11 +92,23 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     
     const data = await response.json();
     
+    // Log the response for debugging
+    console.log('Facebook API response:', {
+      status: response.status,
+      ok: response.ok,
+      data
+    });
+    
     if (!response.ok || data.error) {
-      console.error('Facebook API error:', data);
+      console.error('Facebook API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: data.error,
+        fullResponse: data
+      });
       return { 
         success: false, 
-        error: data.error?.message || 'Failed to publish to Facebook',
+        error: data.error?.message || `Facebook API error: ${response.status} ${response.statusText}`,
         data: data
       };
     }
