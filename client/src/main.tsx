@@ -4,7 +4,7 @@ import "./index.css";
 import { ThemeProvider } from "./components/theme-provider";
 
 createRoot(document.getElementById("root")!).render(
-  <ThemeProvider defaultTheme="light" storageKey="fb-publisher-theme">
+  <ThemeProvider defaultTheme="light" storageKey="socialflow-theme">
     <App />
   </ThemeProvider>
 );

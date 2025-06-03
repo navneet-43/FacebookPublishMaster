@@ -22,7 +22,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             <div className="bg-fb-blue text-white p-2 rounded-lg">
               <i className="fa-solid fa-bolt-lightning"></i>
             </div>
-            <h1 className="ml-3 text-xl font-bold">FB Publisher</h1>
+            <h1 className="ml-3 text-xl font-bold">SocialFlow</h1>
           </div>
           <button type="button" className="text-gray-500 hover:text-gray-700" onClick={onClose}>
             <i className="fa-solid fa-times"></i>

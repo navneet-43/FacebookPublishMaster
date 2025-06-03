@@ -98,7 +98,7 @@ function AuthenticatedApp() {
                 <div className="bg-fb-blue text-white p-2 rounded-lg">
                   <i className="fa-solid fa-bolt-lightning"></i>
                 </div>
-                <h1 className="ml-3 text-xl font-bold">FB Publisher</h1>
+                <h1 className="ml-3 text-xl font-bold">SocialFlow</h1>
               </div>
               <button 
                 type="button" 
