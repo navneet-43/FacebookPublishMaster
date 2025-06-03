@@ -31,7 +31,9 @@ export default function FacebookAccounts() {
     refetchOnWindowFocus: true
   });
 
-  const isLoggedIn = authStatus?.isLoggedIn || false;
+  const isLoggedIn = (authStatus as any)?.isLoggedIn || false;
+  const user = (authStatus as any)?.user;
+  const hasFacebookToken = user?.facebookToken;
 
 
   const { data: accounts = [], isLoading } = useQuery<FacebookAccount[]>({
@@ -172,14 +174,37 @@ export default function FacebookAccounts() {
                   <p className="text-sm mt-2">Connect your Facebook account to get started</p>
                   {isLoggedIn ? (
                     <div className="mt-4 space-y-2">
-                      <p className="text-sm">Your Facebook account is connected, but no pages have been imported yet.</p>
-                      <Button 
-                        variant="default" 
-                        className="mt-2"
-                        onClick={() => window.location.href = '/api/facebook-pages/sync'}
-                      >
-                        Import My Pages
-                      </Button>
+                      {hasFacebookToken ? (
+                        <>
+                          <p className="text-sm">Your Facebook account is connected, but no pages have been imported yet.</p>
+                          <Button 
+                            variant="default" 
+                            className="mt-2"
+                            onClick={() => window.location.href = '/api/facebook-pages/sync'}
+                          >
+                            Import My Pages
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm">Connect your Facebook account to import your pages automatically.</p>
+                          <Button 
+                            variant="default" 
+                            className="mt-2"
+                            onClick={() => window.location.href = '/auth/facebook'}
+                          >
+                            Connect Facebook Account
+                          </Button>
+                          <p className="text-sm mt-4">or</p>
+                          <Button 
+                            variant="outline" 
+                            className="mt-2"
+                            onClick={() => setIsAddDialogOpen(true)}
+                          >
+                            Connect Account Manually
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="mt-4">

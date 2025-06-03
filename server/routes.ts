@@ -158,7 +158,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: user.id,
           username: user.username, 
           email: user.email,
-          fullName: user.fullName
+          fullName: user.fullName,
+          facebookToken: user.facebookToken
         }
       });
     } else {
@@ -195,7 +196,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as any;
       if (!user.facebookToken) {
-        return res.status(400).json({ message: "No Facebook token found" });
+        // Redirect to Facebook OAuth flow to get token
+        return res.redirect('/auth/facebook');
       }
       
       // Fetch pages from Facebook
