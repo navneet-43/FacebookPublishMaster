@@ -7,8 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Separator } from "@/components/ui/separator";
-import { Facebook, Mail, Lock, User } from "lucide-react";
+import { Mail, Lock, User, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
@@ -113,9 +112,7 @@ export default function Login() {
     },
   });
 
-  const handleFacebookLogin = () => {
-    window.location.href = "/auth/facebook";
-  };
+
 
   const onLoginSubmit = (values: LoginFormValues) => {
     loginMutation.mutate(values);
@@ -130,7 +127,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Facebook className="h-8 w-8 text-white" />
+            <Shield className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">FB Publisher</h1>
           <p className="text-gray-600">Social media automation platform</p>
@@ -150,24 +147,7 @@ export default function Login() {
           </CardHeader>
           
           <CardContent className="space-y-4">
-            {/* Facebook Login */}
-            <Button
-              onClick={handleFacebookLogin}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              size="lg"
-            >
-              <Facebook className="mr-2 h-5 w-5" />
-              Continue with Facebook
-            </Button>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">or</span>
-              </div>
-            </div>
 
             {/* Email/Password Form */}
             {isRegistering ? (
