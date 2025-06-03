@@ -18,14 +18,13 @@ import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
 
 const authenticateUser = async (req: Request) => {
-  // First check if user is authenticated via Passport
+  // Check if user is authenticated via Passport (Facebook OAuth)
   if (req.isAuthenticated() && req.user) {
     return req.user as any;
   }
   
-  // Fallback to demo user for development
-  const user = await storage.getUserByUsername("demo");
-  return user || null;
+  // No fallback - user must be properly authenticated
+  return null;
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -54,6 +53,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
   
+  // Demo login endpoint for testing
+  app.post('/api/auth/demo-login', async (req: Request, res: Response) => {
+    try {
+      // Create or get demo user
+      let user = await storage.getUserByUsername("demo");
+      
+      if (!user) {
+        user = await storage.createUser({
+          username: "demo",
+          email: "demo@example.com"
+        });
+      }
+      
+      // Manually set user in session
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: 'Login failed' });
+        }
+        res.json({ 
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email
+          }
+        });
+      });
+    } catch (error) {
+      console.error("Demo login error:", error);
+      res.status(500).json({ message: "Failed to create demo login" });
+    }
+  });
+
   // Login status endpoint
   app.get('/api/auth/status', (req: Request, res: Response) => {
     if (req.isAuthenticated()) {

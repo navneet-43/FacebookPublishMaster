@@ -13,6 +13,7 @@ import { FacebookAccount } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Facebook } from "lucide-react";
 import LoginButton from "@/components/common/LoginButton";
+import DemoLoginButton from "@/components/common/DemoLoginButton";
 import FacebookOAuthInstructions from "@/components/common/FacebookOAuthInstructions";
 
 export default function FacebookAccounts() {
@@ -140,7 +141,11 @@ export default function FacebookAccounts() {
                 <div className="text-center max-w-md">
                   <Facebook className="h-12 w-12 mx-auto mb-4 text-blue-600" />
                   <p className="mb-4">Connect your Facebook account to easily manage and schedule posts to your business pages.</p>
-                  <LoginButton size="lg" />
+                  <div className="space-y-3">
+                    <LoginButton size="lg" />
+                    <div className="text-sm text-gray-500">or</div>
+                    <DemoLoginButton />
+                  </div>
                 </div>
               </CardContent>
             </Card>
