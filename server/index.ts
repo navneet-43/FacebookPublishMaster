@@ -2,33 +2,36 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import session from "express-session";
-import MemoryStore from "memorystore";
+import connectPgSimple from "connect-pg-simple";
 import passport from "passport";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { postService } from "./services/postService";
 import schedule from "node-schedule";
+import { pool } from "./db";
 
-const MemoryStoreSession = MemoryStore(session);
+const PgSession = connectPgSimple(session);
 const app = express();
 
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Session configuration 
+// Session configuration with PostgreSQL storage
 app.use(session({
   secret: process.env.SESSION_SECRET || 'social_media_automation_secret',
   resave: false,
   saveUninitialized: false,
   cookie: { 
     secure: false, // Set to false for development to allow HTTP
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days for persistent login
     httpOnly: true,
     sameSite: 'lax'
   },
-  store: new MemoryStoreSession({
-    checkPeriod: 86400000 // prune expired entries every 24h
+  store: new PgSession({
+    pool: pool,
+    tableName: 'sessions',
+    createTableIfMissing: true
   })
 }));
 
