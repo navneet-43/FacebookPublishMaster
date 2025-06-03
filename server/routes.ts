@@ -9,7 +9,8 @@ import {
   insertGoogleSheetsIntegrationSchema,
   insertCustomLabelSchema,
   insertPostSchema,
-  insertActivitySchema
+  insertActivitySchema,
+  FacebookAccount
 } from "../shared/schema";
 import schedule from "node-schedule";
 import multer from "multer";
@@ -631,100 +632,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No Facebook accounts connected" });
       }
       
-      const account = accounts[0];
-      
-      // Sample posts from "Google Sheets"
-      const samplePosts = [
-        {
-          content: "Check out our latest blog post about sustainable fashion!",
-          labels: ["Blog"],
-          language: "English",
-          scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
-          status: "scheduled",
-          sheetRowId: "row123", // Instead of asanaTaskId
-          accountId: account.id
-        },
-        {
-          content: "New summer collection now available!",
-          labels: ["Fashion"],
-          language: "English",
-          scheduledFor: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
-          status: "scheduled",
-          sheetRowId: "row124", // Instead of asanaTaskId
-          accountId: account.id
-        },
-        {
-          content: "Happy Weekend! Use code WEEKEND20 for 20% off all items!",
-          labels: ["Promotion"],
-          language: "English",
-          scheduledFor: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-          status: "draft",
-          sheetRowId: "row125", // Instead of asanaTaskId
-          accountId: account.id
-        }
-      ];
-      
-      const createdPosts = [];
-      
-      for (const post of samplePosts) {
-        const createdPost = await storage.createPost({
-          ...post,
-          userId: user.id
-        });
-        createdPosts.push(createdPost);
-        
-        // Schedule if needed
-        if (createdPost.scheduledFor && createdPost.status === "scheduled") {
-          const scheduledDate = new Date(createdPost.scheduledFor);
-          
-          schedule.scheduleJob(scheduledDate, async () => {
-            try {
-              // Update post status (simulating publishing)
-              await storage.updatePost(createdPost.id, { 
-                status: "published",
-                publishedAt: new Date()
-              });
-              
-              // Log activity
-              await storage.createActivity({
-                userId: user.id,
-                type: "post_published",
-                description: "Post published successfully",
-                metadata: { postId: createdPost.id }
-              });
-            } catch (error) {
-              console.error(`Error publishing post ${createdPost.id}:`, error);
-              
-              // Update post with error
-              await storage.updatePost(createdPost.id, { 
-                status: "failed",
-                errorMessage: error instanceof Error ? error.message : "Failed to publish post"
-              });
-              
-              // Log activity
-              await storage.createActivity({
-                userId: user.id,
-                type: "post_failed",
-                description: "Failed to publish post",
-                metadata: { postId: createdPost.id, error: error instanceof Error ? error.message : "Unknown error" }
-              });
-            }
-          });
-        }
-      }
-      
-      // Log activity with Google Sheets metadata
-      await storage.createActivity({
-        userId: user.id,
-        type: "google_sheets_import",
-        description: `Imported ${createdPosts.length} posts from Google Sheets`,
-        metadata: { spreadsheetId, sheetName, dateRange, count: createdPosts.length }
-      });
-      
-      res.status(201).json({
-        success: true,
-        count: createdPosts.length,
-        posts: createdPosts
+      // Google Sheets integration requires proper API credentials
+      return res.status(400).json({
+        success: false,
+        message: "Google Sheets integration requires proper API credentials. Please provide your Google Sheets API key and OAuth credentials to enable data import."
       });
     } catch (error) {
       console.error("Error importing from Google Sheets:", error);
@@ -790,34 +701,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Create a sample post (simulating Excel import)
-      const post = await storage.createPost({
-        userId: user.id,
-        accountId: accounts[0].id,
-        content: "This post was imported from an Excel file. In a real implementation, this would contain content from your Excel spreadsheet.",
-        status: "scheduled",
-        scheduledFor: new Date(Date.now() + 48 * 60 * 60 * 1000), // 2 days from now
-        language: "en",
-        labels: JSON.stringify(["Imported", "Excel"]),
-        mediaUrl: null,
-        link: null,
-        publishedAt: null,
-        asanaTaskId: null,
-        errorMessage: null
-      });
-
-      // Create an activity record
-      await storage.createActivity({
-        userId: user.id,
-        type: "excel_import",
-        description: "Imported a row from Excel",
-        metadata: JSON.stringify({ postId: post.id, fileName: "sample.xlsx" })
-      });
-      
-      return res.status(200).json({ 
-        success: true,
-        message: "Successfully imported from Excel",
-        imported: 1
+      // Excel import requires proper file parsing implementation
+      return res.status(400).json({
+        success: false,
+        message: "Excel import feature requires file upload and parsing implementation. Please upload an actual Excel file with post content."
       });
     } catch (error) {
       console.error("Error importing from Excel:", error);
