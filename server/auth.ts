@@ -15,7 +15,7 @@ export function setupAuth() {
   passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID || '',
     clientSecret: process.env.FACEBOOK_APP_SECRET || '',
-    callbackURL: `https://workspace.RumbleQuiz.repl.co/auth/facebook/callback`,
+    callbackURL: `https://b781679d-4a63-4962-b0b3-454a3c55c07c-00-22vmnl02o2c4l.picard.replit.dev/auth/facebook/callback`,
     profileFields: ['id', 'displayName', 'email'],
     // Permissions are set in the Facebook Developer Portal, not here
   }, async (accessToken: string, refreshToken: string, profile: FacebookProfile, done: Function) => {
