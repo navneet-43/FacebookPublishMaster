@@ -13,7 +13,6 @@ import { FacebookAccount } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Facebook } from "lucide-react";
 import LoginButton from "@/components/common/LoginButton";
-import DemoLoginButton from "@/components/common/DemoLoginButton";
 import FacebookOAuthInstructions from "@/components/common/FacebookOAuthInstructions";
 
 export default function FacebookAccounts() {
@@ -31,6 +30,9 @@ export default function FacebookAccounts() {
     queryKey: ['/api/auth/status'],
     refetchOnWindowFocus: true
   });
+
+  const isLoggedIn = authStatus?.isLoggedIn || false;
+
 
   const { data: accounts = [], isLoading } = useQuery<FacebookAccount[]>({
     queryKey: ['/api/facebook-accounts'],
@@ -115,8 +117,6 @@ export default function FacebookAccounts() {
     setNewAccount(prev => ({ ...prev, [name]: value }));
   };
 
-  const isLoggedIn = authStatus?.isLoggedIn;
-
   return (
     <>
       <DashboardHeader 
@@ -143,8 +143,6 @@ export default function FacebookAccounts() {
                   <p className="mb-4">Connect your Facebook account to easily manage and schedule posts to your business pages.</p>
                   <div className="space-y-3">
                     <LoginButton size="lg" />
-                    <div className="text-sm text-gray-500">or</div>
-                    <DemoLoginButton />
                   </div>
                 </div>
               </CardContent>

@@ -27,12 +27,21 @@ export default function GoogleSheetsImportCard() {
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', '/api/import-from-google-sheets', { 
-        spreadsheetId, 
-        sheetName: "Sheet1",
-        dateRange,
-        dataSource
+      const response = await fetch('/api/import-from-google-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          spreadsheetId, 
+          sheetName: "Sheet1",
+          dateRange,
+          dataSource
+        })
       });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Import failed');
+      }
+      return response.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
