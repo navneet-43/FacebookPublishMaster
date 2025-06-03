@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Image, Video, MapPin, Smile, Hash, Link2, Users, Globe, Lock, TrendingUp, ChevronDown } from "lucide-react";
+import { CalendarIcon, Image, Video, MapPin, Smile, Hash, Link2, Users, Globe, Lock, TrendingUp, ChevronDown, Check, ChevronsUpDown, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
@@ -15,13 +15,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { FacebookAccount } from "@shared/schema";
+import { FacebookAccount, CustomLabel } from "@shared/schema";
 import MediaUpload from "@/components/common/MediaUpload";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formSchema = z.object({
   accountId: z.string().min(1, "Please select a Facebook page"),
@@ -31,10 +34,13 @@ const formSchema = z.object({
   language: z.string().default("en"),
   labels: z.array(z.string()).default([]),
   scheduledFor: z.date().optional(),
+  scheduledTime: z.string().optional(),
   status: z.enum(["draft", "scheduled", "publish"]).default("draft"),
   collaborator: z.string().optional(),
   privacy: z.enum(["public", "restricted"]).default("public"),
   boost: z.boolean().default(false),
+  crosspost: z.boolean().default(false),
+  crosspostTo: z.array(z.string()).default([]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -55,6 +61,12 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     staleTime: 60000,
   });
 
+  // Fetch custom labels
+  const { data: customLabels = [] } = useQuery<CustomLabel[]>({
+    queryKey: ['/api/custom-labels'],
+    staleTime: 60000,
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -68,8 +80,12 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       collaborator: "",
       privacy: "public",
       boost: false,
+      crosspost: false,
+      crosspostTo: [],
     },
   });
+
+  const watchCrosspost = form.watch("crosspost");
 
   const createPostMutation = useMutation({
     mutationFn: (values: FormValues) => {
@@ -118,6 +134,9 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="text-xl font-semibold">Create post</DialogTitle>
+          <DialogDescription>
+            Create and schedule your Facebook post with advanced publishing options
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
@@ -358,6 +377,212 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                     Active times
                   </Button>
                 </div>
+              )}
+            </div>
+
+            <Separator className="bg-gray-200" />
+
+            {/* Custom Labels */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Labels</h3>
+              <p className="text-gray-600 text-sm mb-4">Add labels to organize your content and track performance.</p>
+              
+              <FormField
+                control={form.control}
+                name="labels"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between h-12",
+                              !field.value?.length && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value?.length
+                              ? `${field.value.length} label${field.value.length > 1 ? "s" : ""} selected`
+                              : "Select labels"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search labels..." />
+                          <CommandEmpty>No labels found.</CommandEmpty>
+                          <CommandGroup>
+                            {customLabels.map((label) => (
+                              <CommandItem
+                                key={label.id}
+                                value={label.name}
+                                onSelect={() => {
+                                  const labelId = label.id.toString();
+                                  const selectedLabels = field.value || [];
+                                  const newLabels = selectedLabels.includes(labelId)
+                                    ? selectedLabels.filter((id) => id !== labelId)
+                                    : [...selectedLabels, labelId];
+                                  field.onChange(newLabels);
+                                }}
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <Badge 
+                                    style={{ backgroundColor: label.color }} 
+                                    className="h-4 w-4 rounded-full p-0" 
+                                  />
+                                  <span className="flex-1">{label.name}</span>
+                                  <Check
+                                    className={cn(
+                                      "h-4 w-4",
+                                      field.value?.includes(label.id.toString()) ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {/* Display selected labels */}
+              {form.watch("labels")?.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.watch("labels")?.map((labelId) => {
+                    const label = customLabels.find(l => l.id.toString() === labelId);
+                    if (!label) return null;
+                    return (
+                      <Badge 
+                        key={label.id} 
+                        variant="secondary" 
+                        className="flex items-center gap-1"
+                        style={{ backgroundColor: label.color + '20', color: label.color }}
+                      >
+                        <div 
+                          className="w-2 h-2 rounded-full" 
+                          style={{ backgroundColor: label.color }}
+                        />
+                        {label.name}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 ml-1"
+                          onClick={() => {
+                            const currentLabels = form.getValues("labels") || [];
+                            const newLabels = currentLabels.filter(id => id !== labelId);
+                            form.setValue("labels", newLabels);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <Separator className="bg-gray-200" />
+
+            {/* Crosspost to Other Pages */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Crosspost to other pages</h3>
+              <p className="text-gray-600 text-sm mb-4">Post the same content to multiple Facebook pages.</p>
+              
+              <FormField
+                control={form.control}
+                name="crosspost"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-sm font-medium">
+                        Post the same content to multiple Facebook pages
+                      </FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              {watchCrosspost && (
+                <FormField
+                  control={form.control}
+                  name="crosspostTo"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col mt-4">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between h-12",
+                                !field.value?.length && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value?.length
+                                ? `${field.value.length} page${field.value.length > 1 ? "s" : ""} selected for crosspost`
+                                : "Select additional pages"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search pages..." />
+                            <CommandEmpty>No additional pages found.</CommandEmpty>
+                            <CommandGroup>
+                              {accounts
+                                .filter(account => account.id.toString() !== form.watch("accountId"))
+                                .map((account) => (
+                                <CommandItem
+                                  key={account.id}
+                                  value={account.name}
+                                  onSelect={() => {
+                                    const accountId = account.id.toString();
+                                    const selectedPages = field.value || [];
+                                    const newPages = selectedPages.includes(accountId)
+                                      ? selectedPages.filter((id) => id !== accountId)
+                                      : [...selectedPages, accountId];
+                                    field.onChange(newPages);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-3 w-full">
+                                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">f</span>
+                                    </div>
+                                    <span className="flex-1">{account.name}</span>
+                                    <Check
+                                      className={cn(
+                                        "h-4 w-4",
+                                        field.value?.includes(account.id.toString()) ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
             </div>
 
