@@ -191,12 +191,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
   
+  // Facebook token refresh endpoint
+  app.post('/api/facebook-tokens/refresh', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { userToken } = req.body;
+      
+      if (!userToken) {
+        return res.status(400).json({ message: "User token required" });
+      }
+      
+      const { refreshUserFacebookTokens } = await import('./services/facebookTokenService');
+      await refreshUserFacebookTokens(user.id, userToken);
+      
+      res.json({ success: true, message: "Tokens refreshed successfully" });
+    } catch (error) {
+      console.error("Error refreshing Facebook tokens:", error);
+      res.status(500).json({ message: "Failed to refresh tokens" });
+    }
+  });
+
   // Facebook pages sync endpoint - automatically fetch and save user's Facebook pages
   app.get('/api/facebook-pages/sync', isAuthenticated, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
       if (!user.facebookToken) {
         // Redirect to Facebook OAuth flow to get token
+        return res.redirect('/auth/facebook');
+      }
+      
+      // Validate token before using it
+      const { validateFacebookToken } = await import('./services/facebookTokenService');
+      const isValidToken = await validateFacebookToken(user.facebookToken);
+      
+      if (!isValidToken) {
+        console.log('Facebook token is invalid, redirecting to OAuth');
         return res.redirect('/auth/facebook');
       }
       
