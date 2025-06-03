@@ -90,7 +90,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       body: JSON.stringify(postData)
     });
     
-    const data = await response.json();
+    const data = await response.json() as any;
     
     // Log the response for debugging
     console.log('Facebook API response:', {
