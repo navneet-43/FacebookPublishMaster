@@ -706,13 +706,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts", async (req: Request, res: Response) => {
     try {
-      console.log(`🎯 POST REQUEST RECEIVED at ${new Date().toISOString()}`);
+      // Force immediate debug output
+      process.stderr.write(`\n🎯 POST /api/posts - ${new Date().toISOString()}\n`);
+      process.stderr.write(`📥 Request body: ${JSON.stringify(req.body, null, 2)}\n`);
+      
       const user = await authenticateUser(req);
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      
-      console.log(`📥 RAW REQUEST BODY:`, JSON.stringify(req.body, null, 2));
       
       const result = insertPostSchema.safeParse(req.body);
       if (!result.success) {
