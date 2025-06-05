@@ -91,21 +91,32 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const watchCrosspost = form.watch("crosspost");
 
   const createPostMutation = useMutation({
-    mutationFn: (postData: any) => {
-      console.log('🔥 MUTATION: Received data for sending:', JSON.stringify(postData, null, 2));
-      console.log('🔥 MUTATION: Status check:', postData.status);
-      console.log('🔥 MUTATION: ScheduledFor check:', postData.scheduledFor);
+    mutationFn: async (postData: any) => {
+      console.log('🔥 MUTATION START: Data received:', JSON.stringify(postData, null, 2));
+      console.log('🔥 MUTATION: Status verification:', postData.status);
+      console.log('🔥 MUTATION: ScheduledFor verification:', postData.scheduledFor);
+      
+      // Ensure scheduledFor is properly serialized
+      if (postData.scheduledFor) {
+        console.log('🔥 MUTATION: ScheduledFor type:', typeof postData.scheduledFor);
+        console.log('🔥 MUTATION: ScheduledFor ISO:', postData.scheduledFor.toISOString());
+        postData.scheduledFor = postData.scheduledFor.toISOString();
+      }
       
       const requestBody = JSON.stringify(postData);
-      console.log('🔥 MUTATION: Final request body:', requestBody);
+      console.log('🔥 MUTATION: Serialized request body:', requestBody);
+      console.log('🔥 MUTATION: Making request to /api/posts');
       
-      return apiRequest('/api/posts', {
+      const response = await apiRequest('/api/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: requestBody,
       });
+      
+      console.log('🔥 MUTATION: Response received:', response.status);
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
