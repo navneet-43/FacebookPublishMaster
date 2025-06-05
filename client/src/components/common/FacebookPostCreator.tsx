@@ -133,9 +133,6 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const onSubmit = (values: FormValues) => {
     console.log('🔍 FRONTEND DEBUG - Original form values:', JSON.stringify(values, null, 2));
     
-    // Create a clean copy of values
-    const finalValues: any = { ...values };
-    
     console.log('📊 TOGGLE STATE - State:', isScheduleEnabled, 'Ref:', scheduleEnabledRef.current);
     
     // Use ref as primary source of truth since it's more reliable
@@ -151,7 +148,9 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       scheduledTime: values.scheduledTime
     });
     
-    // Force explicit status setting based on scheduling state
+    // Create the final post data object with explicit status control
+    let postData: any;
+    
     if (shouldSchedule) {
       const scheduledDate = values.scheduledFor!;
       const scheduledTime = values.scheduledTime!;
@@ -162,36 +161,38 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       // Only schedule if the date is in the future
       const now = new Date();
       if (date > now) {
-        finalValues.scheduledFor = date;
-        finalValues.status = "scheduled";
-        console.log('✅ FORCE SCHEDULED: Setting status to scheduled, date:', date.toISOString());
-        console.log('✅ FORCE SCHEDULED: finalValues after setting:', { status: finalValues.status, scheduledFor: finalValues.scheduledFor });
+        postData = {
+          ...values,
+          accountId: parseInt(values.accountId),
+          status: "scheduled",
+          scheduledFor: date,
+        };
+        delete postData.scheduledTime;
+        console.log('✅ CREATING SCHEDULED POST:', date.toISOString());
       } else {
-        finalValues.status = "immediate";
-        delete finalValues.scheduledFor;
-        console.log('⚠️ PAST DATE: Date is in the past, setting to immediate');
+        postData = {
+          ...values,
+          accountId: parseInt(values.accountId),
+          status: "immediate",
+        };
+        delete postData.scheduledTime;
+        delete postData.scheduledFor;
+        console.log('⚠️ PAST DATE: Creating immediate post');
       }
     } else {
       // For immediate publishing
-      finalValues.status = "immediate";
-      delete finalValues.scheduledFor;
-      console.log('⚡ IMMEDIATE: Setting status to immediate, reason:', !toggleEnabled ? 'toggle off' : 'no schedule data');
+      postData = {
+        ...values,
+        accountId: parseInt(values.accountId),
+        status: "immediate",
+      };
+      delete postData.scheduledTime;
+      delete postData.scheduledFor;
+      console.log('⚡ CREATING IMMEDIATE POST');
     }
-    
-    // Remove scheduledTime as it's not needed in the API
-    delete finalValues.scheduledTime;
-    
-    console.log('🔧 FINALVALUES AFTER LOGIC:', JSON.stringify(finalValues, null, 2));
-    
-    // Prepare final post data AFTER all scheduling logic
-    const postData = {
-      ...finalValues,
-      accountId: parseInt(finalValues.accountId),
-    };
     
     console.log('🚀 CLIENT: Final postData object:', JSON.stringify(postData, null, 2));
     console.log('🚀 CLIENT: Status check:', postData.status, 'ScheduledFor:', postData.scheduledFor);
-    console.log('🚀 CLIENT: finalValues status:', finalValues.status, 'finalValues scheduledFor:', finalValues.scheduledFor);
     
     createPostMutation.mutate(postData);
   };
