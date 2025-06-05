@@ -706,6 +706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts", async (req: Request, res: Response) => {
     try {
+      console.log(`🎯 POST REQUEST RECEIVED at ${new Date().toISOString()}`);
       const user = await authenticateUser(req);
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
