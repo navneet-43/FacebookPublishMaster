@@ -37,8 +37,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
   
-  // Add API routes
-  app.use('/api', apiRoutes);
+  // Add API routes - DISABLED TO FIX IMMEDIATE PUBLISHING
+  // app.use('/api', apiRoutes);
   
   // Facebook authentication routes
   app.get('/auth/facebook', 
