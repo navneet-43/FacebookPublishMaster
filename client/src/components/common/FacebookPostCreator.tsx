@@ -182,13 +182,16 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     // Remove scheduledTime as it's not needed in the API
     delete finalValues.scheduledTime;
     
-    // Prepare final post data
+    // Prepare final post data AFTER all scheduling logic
     const postData = {
       ...finalValues,
       accountId: parseInt(finalValues.accountId),
     };
     
-    console.log('🚀 CLIENT: Submitting post with status:', postData.status, 'scheduledFor:', postData.scheduledFor, 'isScheduleEnabled:', isScheduleEnabled);
+    console.log('🚀 CLIENT: Final postData object:', JSON.stringify(postData, null, 2));
+    console.log('🚀 CLIENT: Status check:', postData.status, 'ScheduledFor:', postData.scheduledFor);
+    console.log('🚀 CLIENT: finalValues status:', finalValues.status, 'finalValues scheduledFor:', finalValues.scheduledFor);
+    
     createPostMutation.mutate(postData);
   };
 
