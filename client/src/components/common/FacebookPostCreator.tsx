@@ -776,7 +776,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                   onClick={() => {
                     // Save as draft without publishing
                     const values = form.getValues();
-                    const draftValues = { ...values, status: 'draft' };
+                    const draftValues = { ...values, status: 'draft' as const };
                     delete draftValues.scheduledTime;
                     console.log('🚀 CLIENT: Saving as draft:', draftValues.status);
                     createPostMutation.mutate(draftValues);

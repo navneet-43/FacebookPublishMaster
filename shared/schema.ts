@@ -97,7 +97,7 @@ export const posts = pgTable("posts", {
   language: text("language").default("English"),
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
-  status: text("status").notNull().default("draft"),
+  status: text("status").notNull(),
   sheetRowId: text("sheet_row_id"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
