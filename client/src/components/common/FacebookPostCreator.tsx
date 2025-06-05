@@ -131,17 +131,11 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   });
 
   const onSubmit = (values: FormValues) => {
-    // Combine date and time for scheduled posts
-    let finalValues = { ...values };
+    console.log('🔍 FRONTEND DEBUG - Original form values:', JSON.stringify(values, null, 2));
     
-    console.log('🔍 FRONTEND DEBUG - Form values:', {
-      isScheduleEnabled,
-      scheduledFor: values.scheduledFor,
-      scheduledTime: values.scheduledTime,
-      originalStatus: values.status
-    });
+    // Create a clean copy of values
+    const finalValues: any = { ...values };
     
-    // Check current toggle state at submission time
     console.log('📊 TOGGLE STATE - State:', isScheduleEnabled, 'Ref:', scheduleEnabledRef.current);
     
     // Use ref as primary source of truth since it's more reliable
@@ -152,10 +146,12 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     console.log('🎯 SCHEDULE CHECK:', {
       toggleEnabled,
       hasScheduleData,
-      shouldSchedule
+      shouldSchedule,
+      scheduledFor: values.scheduledFor,
+      scheduledTime: values.scheduledTime
     });
     
-    // Override status based on scheduling state
+    // Force explicit status setting based on scheduling state
     if (shouldSchedule) {
       const scheduledDate = values.scheduledFor!;
       const scheduledTime = values.scheduledTime!;
@@ -168,19 +164,24 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       if (date > now) {
         finalValues.scheduledFor = date;
         finalValues.status = "scheduled";
-        console.log('✅ SCHEDULING ENABLED: Setting status to scheduled, date:', date.toISOString());
+        console.log('✅ FORCE SCHEDULED: Setting status to scheduled, date:', date.toISOString());
+        console.log('✅ FORCE SCHEDULED: finalValues after setting:', { status: finalValues.status, scheduledFor: finalValues.scheduledFor });
       } else {
         finalValues.status = "immediate";
+        delete finalValues.scheduledFor;
         console.log('⚠️ PAST DATE: Date is in the past, setting to immediate');
       }
     } else {
       // For immediate publishing
       finalValues.status = "immediate";
+      delete finalValues.scheduledFor;
       console.log('⚡ IMMEDIATE: Setting status to immediate, reason:', !toggleEnabled ? 'toggle off' : 'no schedule data');
     }
     
     // Remove scheduledTime as it's not needed in the API
     delete finalValues.scheduledTime;
+    
+    console.log('🔧 FINALVALUES AFTER LOGIC:', JSON.stringify(finalValues, null, 2));
     
     // Prepare final post data AFTER all scheduling logic
     const postData = {
