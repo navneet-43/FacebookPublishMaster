@@ -128,6 +128,13 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     // Combine date and time for scheduled posts
     let finalValues = { ...values };
     
+    console.log('🔍 FRONTEND DEBUG - Form values:', {
+      isScheduleEnabled,
+      scheduledFor: values.scheduledFor,
+      scheduledTime: values.scheduledTime,
+      originalStatus: values.status
+    });
+    
     // Override status based on scheduling state
     if (isScheduleEnabled && values.scheduledFor && values.scheduledTime) {
       const date = new Date(values.scheduledFor);
@@ -135,9 +142,11 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       date.setHours(hours, minutes, 0, 0);
       finalValues.scheduledFor = date;
       finalValues.status = "scheduled";
+      console.log('✅ SCHEDULING ENABLED: Setting status to scheduled, date:', date.toISOString());
     } else {
       // For immediate publishing
       finalValues.status = "immediate";
+      console.log('⚡ IMMEDIATE: Setting status to immediate');
     }
     
     // Remove scheduledTime as it's not needed in the API
