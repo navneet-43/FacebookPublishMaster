@@ -729,11 +729,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`✅ VALIDATED DATA:`, JSON.stringify(result.data, null, 2));
       
       // Force immediate publishing for immediate status
+      console.log(`🔍 STATUS CHECK: result.data.status = "${result.data.status}", type = ${typeof result.data.status}`);
       if (result.data.status === "immediate") {
         console.log(`🚀 IMMEDIATE PUBLISH: Processing immediate post for user ${user.id}`);
         
         // Get Facebook account
-        const account = await storage.getFacebookAccount(result.data.accountId);
+        if (!result.data.accountId) {
+          return res.status(400).json({ message: "No Facebook account selected" });
+        }
+        
+        const account = await storage.getFacebookAccount(result.data.accountId as number);
         if (!account) {
           return res.status(404).json({ message: "Facebook account not found" });
         }
@@ -753,9 +758,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const post = await storage.createPost({
               ...result.data,
               userId: user.id,
-              status: "published",
-              publishedAt: new Date()
-            });
+              status: "published"
+            } as any);
 
             // Log activity
             await storage.createActivity({
@@ -774,7 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userId: user.id,
               status: "failed",
               errorMessage: publishResult.error || "Failed to publish to Facebook"
-            });
+            } as any);
 
             console.log(`❌ IMMEDIATE PUBLISH FAILED: ${publishResult.error}`);
             return res.status(500).json({ 
@@ -792,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: user.id,
             status: "failed",
             errorMessage: error instanceof Error ? error.message : "Unknown error"
-          });
+          } as any);
 
           return res.status(500).json({ 
             message: "Failed to publish to Facebook", 

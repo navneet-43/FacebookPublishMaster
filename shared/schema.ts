@@ -113,8 +113,10 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   labels: true,
   language: true,
   scheduledFor: true,
+  publishedAt: true,
   status: true,
   sheetRowId: true,
+  errorMessage: true,
 });
 
 // Activities model
