@@ -18,9 +18,22 @@ import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
 
 const authenticateUser = async (req: Request) => {
+  // Check if user is authenticated via Passport (Facebook OAuth)
   if (req.isAuthenticated() && req.user) {
     return req.user as any;
   }
+  
+  // Fallback to session-based auth for existing users
+  const userId = (req.session as any)?.userId;
+  if (userId) {
+    try {
+      const user = await storage.getUser(userId);
+      return user;
+    } catch (error) {
+      console.error("Error fetching user from session:", error);
+    }
+  }
+  
   return null;
 };
 
@@ -46,22 +59,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // User authentication routes
+  // Temporary direct login for existing Facebook users
   app.post('/api/auth/login', async (req: Request, res: Response) => {
-    const { username, password } = req.body;
-    
-    if (!username || !password) {
-      return res.status(400).json({ message: "Username and password are required" });
-    }
-    
     try {
-      const user = await storage.getUserByUsername(username);
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+      // Find the existing Facebook user
+      const user = await storage.getUser(3); // Your user ID
+      if (user) {
+        (req.session as any).userId = user.id;
+        res.json({ 
+          message: "Login successful", 
+          user: { id: user.id, username: user.username } 
+        });
+      } else {
+        res.status(401).json({ message: "User not found" });
       }
-      
-      (req.session as any).userId = user.id;
-      res.json({ message: "Login successful", user: { id: user.id, username: user.username } });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Internal server error" });
