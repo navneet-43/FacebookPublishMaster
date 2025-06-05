@@ -616,6 +616,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/custom-labels/:id", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      const label = await storage.getCustomLabel(id);
+      
+      if (!label) {
+        return res.status(404).json({ message: "Label not found" });
+      }
+      
+      if (label.userId !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this label" });
+      }
+      
+      const result = insertCustomLabelSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid label data", errors: result.error.format() });
+      }
+      
+      const updatedLabel = await storage.updateCustomLabel(id, result.data);
+      res.json(updatedLabel);
+    } catch (error) {
+      console.error("Error updating custom label:", error);
+      res.status(500).json({ message: "Failed to update custom label" });
+    }
+  });
+
   app.delete("/api/custom-labels/:id", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);

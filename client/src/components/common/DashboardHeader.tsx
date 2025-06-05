@@ -6,6 +6,7 @@ interface DashboardHeaderProps {
   lastUpdated?: string;
   onExport?: () => void;
   onImport?: () => void;
+  onImportClick?: () => void;
   showExport?: boolean;
   showImport?: boolean;
   importLabel?: string;
@@ -18,6 +19,7 @@ export default function DashboardHeader({
   lastUpdated,
   onExport,
   onImport,
+  onImportClick,
   showExport = true,
   showImport = true,
   importLabel = "Import from Google Sheets",
@@ -57,7 +59,7 @@ export default function DashboardHeader({
             {showImport && (
               <Button 
                 className="bg-fb-blue hover:bg-blue-700 flex items-center" 
-                onClick={onImport}
+                onClick={onImportClick || onImport}
               >
                 <i className="fa-solid fa-plus mr-2"></i>
                 {importLabel}
