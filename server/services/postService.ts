@@ -49,27 +49,36 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     
     let result;
     
-    // Determine post type and publish accordingly
-    if (post.mediaUrl) {
-      // Check if it's a photo/image
-      const isImage = post.mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-      
-      if (isImage) {
-        // Publish as photo post
-        result = await HootsuiteStyleFacebookService.publishPhotoPost(
-          account.pageId,
-          account.accessToken,
-          post.mediaUrl,
-          post.content || undefined
-        );
-      } else {
-        // For videos or other media, publish as text post with link
-        result = await HootsuiteStyleFacebookService.publishTextPost(
-          account.pageId,
-          account.accessToken,
-          post.content || 'Check out this content!',
-          post.mediaUrl
-        );
+    // Determine post type based on mediaType and publish accordingly
+    if (post.mediaUrl && post.mediaType && post.mediaType !== 'none') {
+      switch (post.mediaType) {
+        case 'photo':
+          result = await HootsuiteStyleFacebookService.publishPhotoPost(
+            account.pageId,
+            account.accessToken,
+            post.mediaUrl,
+            post.content || undefined
+          );
+          break;
+          
+        case 'video':
+        case 'reel':
+          result = await HootsuiteStyleFacebookService.publishVideoPost(
+            account.pageId,
+            account.accessToken,
+            post.mediaUrl,
+            post.content || undefined
+          );
+          break;
+          
+        default:
+          // Fallback to text post with media as link
+          result = await HootsuiteStyleFacebookService.publishTextPost(
+            account.pageId,
+            account.accessToken,
+            post.content || 'Check out this content!',
+            post.mediaUrl
+          );
       }
     } else {
       // Text-only post
