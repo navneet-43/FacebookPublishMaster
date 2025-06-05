@@ -36,7 +36,7 @@ function Router() {
   }
 
   // Show login if not authenticated
-  if (!authStatus || !(authStatus as any).isLoggedIn) {
+  if (!authStatus?.isLoggedIn) {
     return <Login />;
   }
 
@@ -44,11 +44,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/dashboard" component={Dashboard} />
       <Route path="/calendar" component={PublishingCalendar} />
       <Route path="/publishing-calendar" component={PublishingCalendar} />
       <Route path="/history" component={PublishingHistory} />
-      <Route path="/publishing-history" component={PublishingHistory} />
       <Route path="/facebook-accounts" component={FacebookAccounts} />
       <Route path="/google-sheets-integration" component={GoogleSheetsIntegration} />
       <Route path="/custom-labels" component={CustomLabels} />
@@ -78,7 +76,7 @@ function AuthenticatedApp() {
     retry: false,
   });
 
-  const isAuthenticated = authStatus && (authStatus as any).isLoggedIn;
+  const isAuthenticated = authStatus?.isLoggedIn;
 
   return (
     <div className="flex min-h-screen">
