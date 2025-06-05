@@ -711,10 +711,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
+      console.log(`📥 RAW REQUEST BODY:`, JSON.stringify(req.body, null, 2));
+      
       const result = insertPostSchema.safeParse(req.body);
       if (!result.success) {
+        console.log(`❌ VALIDATION FAILED:`, result.error.format());
         return res.status(400).json({ message: "Invalid post data", errors: result.error.format() });
       }
+      
+      console.log(`✅ VALIDATED DATA:`, JSON.stringify(result.data, null, 2));
       
       const post = await storage.createPost({
         ...result.data,

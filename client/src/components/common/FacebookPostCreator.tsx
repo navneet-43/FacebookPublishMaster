@@ -131,19 +131,22 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     // Combine date and time for scheduled posts
     let finalValues = { ...values };
     
+    // Override status based on scheduling state
     if (isScheduleEnabled && values.scheduledFor && values.scheduledTime) {
       const date = new Date(values.scheduledFor);
       const [hours, minutes] = values.scheduledTime.split(':').map(Number);
       date.setHours(hours, minutes, 0, 0);
       finalValues.scheduledFor = date;
-      // Ensure status is set to scheduled when scheduling is enabled
       finalValues.status = "scheduled";
+    } else {
+      // For immediate publishing
+      finalValues.status = "immediate";
     }
     
     // Remove scheduledTime as it's not needed in the API
     delete finalValues.scheduledTime;
     
-    console.log('Submitting post with status:', finalValues.status, 'scheduledFor:', finalValues.scheduledFor);
+    console.log('🚀 CLIENT: Submitting post with status:', finalValues.status, 'scheduledFor:', finalValues.scheduledFor, 'isScheduleEnabled:', isScheduleEnabled);
     createPostMutation.mutate(finalValues);
   };
 
@@ -771,8 +774,12 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    form.setValue('status', 'draft');
-                    form.handleSubmit(onSubmit)();
+                    // Save as draft without publishing
+                    const values = form.getValues();
+                    const draftValues = { ...values, status: 'draft' };
+                    delete draftValues.scheduledTime;
+                    console.log('🚀 CLIENT: Saving as draft:', draftValues.status);
+                    createPostMutation.mutate(draftValues);
                   }}
                   className="px-6"
                 >
@@ -781,7 +788,6 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                 
                 <Button 
                   type="submit"
-                  onClick={() => form.setValue('status', isScheduleEnabled ? 'scheduled' : 'immediate')}
                   disabled={createPostMutation.isPending}
                   className="px-6 bg-blue-600 hover:bg-blue-700"
                 >
