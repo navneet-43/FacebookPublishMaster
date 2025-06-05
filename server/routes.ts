@@ -706,37 +706,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts", async (req: Request, res: Response) => {
     try {
-      // Force immediate debug output
-      process.stderr.write(`\n🎯 POST /api/posts - ${new Date().toISOString()}\n`);
-      process.stderr.write(`📥 Raw request headers: ${JSON.stringify(req.headers, null, 2)}\n`);
-      process.stderr.write(`📥 Request body: ${JSON.stringify(req.body, null, 2)}\n`);
-      process.stderr.write(`🔍 RAW STATUS: "${req.body.status}" (type: ${typeof req.body.status})\n`);
-      process.stderr.write(`🔍 RAW SCHEDULED_FOR: "${req.body.scheduledFor}" (type: ${typeof req.body.scheduledFor})\n`);
+      console.log(`🎯 POST /api/posts - Status: "${req.body.status}"`);
       
       const user = await authenticateUser(req);
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      // Force logging by writing to response headers for debugging
-      res.setHeader('X-Debug-Raw-Status', req.body.status || 'undefined');
-      
       const result = insertPostSchema.safeParse(req.body);
       if (!result.success) {
-        console.log(`❌ VALIDATION FAILED:`, result.error.format());
         return res.status(400).json({ message: "Invalid post data", errors: result.error.format() });
       }
       
-      // Add validated status to response headers
-      res.setHeader('X-Debug-Validated-Status', result.data.status || 'undefined');
-      console.log(`✅ VALIDATED DATA:`, JSON.stringify(result.data, null, 2));
-      
-      // Force immediate publishing for immediate status
-      console.log(`🔍 STATUS CHECK: result.data.status = "${result.data.status}", type = ${typeof result.data.status}`);
+      // Handle three different actions based on status
       if (result.data.status === "immediate") {
-        console.log(`🚀 IMMEDIATE PUBLISH: Processing immediate post for user ${user.id}`);
+        // PUBLISH NOW - Publish immediately to Facebook
+        console.log(`🚀 PUBLISH NOW: Publishing immediately`);
         
-        // Get Facebook account
         if (!result.data.accountId) {
           return res.status(400).json({ message: "No Facebook account selected" });
         }
@@ -747,53 +733,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         try {
-          // Import and call publishing service
           const { publishPostToFacebook } = await import('./services/postService');
           const publishResult = await publishPostToFacebook({
             ...result.data,
             userId: user.id,
-            id: 0, // Temporary ID for publishing
+            id: 0,
             createdAt: new Date()
           } as any);
 
           if (publishResult.success) {
-            // Create post with published status
             const post = await storage.createPost({
               ...result.data,
               userId: user.id,
               status: "published"
             } as any);
 
-            // Log activity
             await storage.createActivity({
               userId: user.id,
               type: "post_published",
-              description: `Post published immediately to Facebook: ${result.data.content.substring(0, 50)}...`,
+              description: `Post published immediately: ${result.data.content.substring(0, 50)}...`,
               metadata: { postId: post.id, facebookResponse: publishResult.data }
             });
 
-            console.log(`✅ IMMEDIATE PUBLISH SUCCESS: Post ${post.id} published to Facebook`);
+            console.log(`✅ PUBLISHED: Post ${post.id} published to Facebook`);
             return res.status(201).json(post);
           } else {
-            // Create post with failed status
             const post = await storage.createPost({
               ...result.data,
               userId: user.id,
               status: "failed",
-              errorMessage: publishResult.error || "Failed to publish to Facebook"
+              errorMessage: publishResult.error || "Failed to publish"
             } as any);
 
-            console.log(`❌ IMMEDIATE PUBLISH FAILED: ${publishResult.error}`);
-            return res.status(500).json({ 
-              message: "Failed to publish to Facebook", 
-              error: publishResult.error,
-              post
-            });
+            return res.status(500).json({ message: "Failed to publish", error: publishResult.error, post });
           }
         } catch (error) {
-          console.error(`💥 IMMEDIATE PUBLISH ERROR:`, error);
-          
-          // Create post with failed status
           const post = await storage.createPost({
             ...result.data,
             userId: user.id,
@@ -801,100 +775,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
             errorMessage: error instanceof Error ? error.message : "Unknown error"
           } as any);
 
-          return res.status(500).json({ 
-            message: "Failed to publish to Facebook", 
-            error: error instanceof Error ? error.message : "Unknown error",
-            post
-          });
+          return res.status(500).json({ message: "Failed to publish", error: error instanceof Error ? error.message : "Unknown error", post });
         }
-      }
-      
-      // For non-immediate posts, save normally
-      const post = await storage.createPost({
-        ...result.data,
-        userId: user.id
-      });
-      
-      console.log(`📋 POST CREATED: id=${post.id}, status="${post.status}", accountId=${post.accountId}, scheduledFor=${post.scheduledFor}`);
-      
-      // Handle immediate vs scheduled posts
-      if (post.scheduledFor && post.status === "scheduled") {
-        // Schedule for future publication
-        const scheduledDate = new Date(post.scheduledFor);
-        console.log(`🕒 SCHEDULING: Post ${post.id} scheduled for ${scheduledDate.toISOString()}`);
+      } else if (result.data.status === "scheduled") {
+        // SCHEDULE - Save for future publication
+        console.log(`📅 SCHEDULE: Saving for future publication`);
         
-        const job = schedule.scheduleJob(scheduledDate, async () => {
-          try {
-            console.log(`🚀 AUTO-PUBLISHING: Scheduled post ${post.id} at ${new Date().toISOString()}`);
-            
-            // Get the latest post data
-            const currentPost = await storage.getPost(post.id);
-            if (!currentPost) {
-              console.error(`Post ${post.id} not found for scheduled publishing`);
-              return;
-            }
-            
-            // Only publish if still scheduled (not manually published/cancelled)
-            if (currentPost.status !== 'scheduled') {
-              console.log(`Post ${post.id} status is ${currentPost.status}, skipping scheduled publishing`);
-              return;
-            }
-            
-            // Import the publishing function
-            const { publishPostToFacebook } = await import('./services/postService');
-            const result = await publishPostToFacebook(currentPost);
-            
-            if (result.success) {
-              await storage.updatePost(post.id, { 
-                status: "published",
-                publishedAt: new Date()
-              });
-              
-              await storage.createActivity({
-                userId: post.userId,
-                type: "post_published",
-                description: "Scheduled post automatically published to Facebook",
-                metadata: { postId: post.id, facebookResponse: result.data }
-              });
-              
-              console.log(`✅ AUTO-PUBLISH SUCCESS: Post ${post.id} published to Facebook on schedule`);
-            } else {
-              await storage.updatePost(post.id, { 
-                status: "failed",
-                errorMessage: result.error || "Failed to publish to Facebook"
-              });
-              
-              await storage.createActivity({
-                userId: post.userId,
-                type: "post_failed",
-                description: "Scheduled post failed to auto-publish",
-                metadata: { postId: post.id, error: result.error }
-              });
-              
-              console.error(`❌ AUTO-PUBLISH FAILED: Post ${post.id} failed to publish: ${result.error}`);
-            }
-          } catch (error) {
-            console.error(`Error in scheduled publishing for post ${post.id}:`, error);
-            await storage.updatePost(post.id, { 
-              status: "failed",
-              errorMessage: error instanceof Error ? error.message : "Unknown error"
-            });
-          }
+        const post = await storage.createPost({
+          ...result.data,
+          userId: user.id,
+          scheduledFor: result.data.scheduledFor ? new Date(result.data.scheduledFor) : undefined
+        } as any);
+
+        await storage.createActivity({
+          userId: user.id,
+          type: "post_scheduled",
+          description: `Post scheduled for ${result.data.scheduledFor}: ${result.data.content.substring(0, 50)}...`,
+          metadata: { postId: post.id }
         });
 
-        if (job) {
-          console.log(`✅ SCHEDULED: Post ${post.id} will auto-publish at ${scheduledDate.toISOString()}`);
-          console.log(`⏰ Next scheduled job: ${job.nextInvocation()?.toISOString()}`);
-        } else {
-          console.error(`❌ SCHEDULING FAILED: Could not schedule post ${post.id}`);
-        }
-      } else if (post.status === "immediate" && post.accountId) {
-        console.log(`🎯 TRIGGERING IMMEDIATE PUBLISH: Post ${post.id} meets criteria for immediate Facebook publishing`);
-        // Publish immediately for draft/immediate posts with account selected
-        try {
-          console.log(`🚀 FACEBOOK PUBLISHING: Starting immediate publication for post ${post.id}`);
-          console.log(`📝 Post details: status=${post.status}, accountId=${post.accountId}, content="${post.content}"`);
-          
+        console.log(`✅ SCHEDULED: Post ${post.id} scheduled for ${post.scheduledFor}`);
+        return res.status(201).json(post);
+      } else {
+        // PUBLISH LATER - Save as draft
+        console.log(`📝 PUBLISH LATER: Saving as draft`);
+        
+        const post = await storage.createPost({
+          ...result.data,
+          userId: user.id,
+          status: "draft"
+        } as any);
+
+        await storage.createActivity({
+          userId: user.id,
+          type: "post_drafted",
+          description: `Post saved as draft: ${result.data.content.substring(0, 50)}...`,
+          metadata: { postId: post.id }
+        });
+
+        console.log(`✅ DRAFT: Post ${post.id} saved as draft`);
+        return res.status(201).json(post);
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+      return res.status(500).json({ message: "Failed to create post" });
+    }
+  });
           const { publishPostToFacebook } = await import('./services/postService');
           const result = await publishPostToFacebook(post);
           

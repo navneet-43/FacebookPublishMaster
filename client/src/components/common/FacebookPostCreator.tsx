@@ -91,32 +91,14 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const watchCrosspost = form.watch("crosspost");
 
   const createPostMutation = useMutation({
-    mutationFn: async (postData: any) => {
-      console.log('🔥 MUTATION START: Data received:', JSON.stringify(postData, null, 2));
-      console.log('🔥 MUTATION: Status verification:', postData.status);
-      console.log('🔥 MUTATION: ScheduledFor verification:', postData.scheduledFor);
-      
-      // Ensure scheduledFor is properly serialized
-      if (postData.scheduledFor) {
-        console.log('🔥 MUTATION: ScheduledFor type:', typeof postData.scheduledFor);
-        console.log('🔥 MUTATION: ScheduledFor ISO:', postData.scheduledFor.toISOString());
-        postData.scheduledFor = postData.scheduledFor.toISOString();
-      }
-      
-      const requestBody = JSON.stringify(postData);
-      console.log('🔥 MUTATION: Serialized request body:', requestBody);
-      console.log('🔥 MUTATION: Making request to /api/posts');
-      
-      const response = await apiRequest('/api/posts', {
+    mutationFn: (postData: any) => {
+      return apiRequest('/api/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: requestBody,
+        body: JSON.stringify(postData),
       });
-      
-      console.log('🔥 MUTATION: Response received:', response.status);
-      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
@@ -142,70 +124,54 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   });
 
   const onSubmit = (values: FormValues) => {
-    console.log('🔍 FRONTEND DEBUG - Original form values:', JSON.stringify(values, null, 2));
-    
-    console.log('📊 TOGGLE STATE - State:', isScheduleEnabled, 'Ref:', scheduleEnabledRef.current);
-    
-    // Use ref as primary source of truth since it's more reliable
-    const toggleEnabled = scheduleEnabledRef.current;
-    const hasScheduleData = values.scheduledFor && values.scheduledTime;
-    const shouldSchedule = toggleEnabled && hasScheduleData;
-    
-    console.log('🎯 SCHEDULE CHECK:', {
-      toggleEnabled,
-      hasScheduleData,
-      shouldSchedule,
-      scheduledFor: values.scheduledFor,
-      scheduledTime: values.scheduledTime
-    });
-    
-    // Create the final post data object with explicit status control
-    let postData: any;
-    
-    if (shouldSchedule) {
-      const scheduledDate = values.scheduledFor!;
-      const scheduledTime = values.scheduledTime!;
-      const date = new Date(scheduledDate);
-      const [hours, minutes] = scheduledTime.split(':').map(Number);
-      date.setHours(hours, minutes, 0, 0);
+    // Clean base data
+    const baseData = {
+      accountId: parseInt(values.accountId),
+      content: values.content,
+      mediaUrl: values.mediaUrl || "",
+      mediaType: values.mediaType,
+      link: values.link || "",
+      language: values.language,
+      labels: values.labels,
+      collaborator: values.collaborator || "",
+      privacy: values.privacy,
+      boost: values.boost,
+      crosspost: values.crosspost,
+      crosspostTo: values.crosspostTo,
+    };
+
+    // Determine action based on schedule toggle
+    if (isScheduleEnabled && values.scheduledFor && values.scheduledTime) {
+      // SCHEDULE ACTION - Create scheduled post
+      const scheduledDate = new Date(values.scheduledFor);
+      const [hours, minutes] = values.scheduledTime.split(':').map(Number);
+      scheduledDate.setHours(hours, minutes, 0, 0);
       
-      // Only schedule if the date is in the future
       const now = new Date();
-      if (date > now) {
-        postData = {
-          ...values,
-          accountId: parseInt(values.accountId),
+      if (scheduledDate > now) {
+        const postData = {
+          ...baseData,
           status: "scheduled",
-          scheduledFor: date,
+          scheduledFor: scheduledDate.toISOString(),
         };
-        delete postData.scheduledTime;
-        console.log('✅ CREATING SCHEDULED POST:', date.toISOString());
+        console.log('📅 SCHEDULING POST:', postData);
+        createPostMutation.mutate(postData);
       } else {
-        postData = {
-          ...values,
-          accountId: parseInt(values.accountId),
-          status: "immediate",
-        };
-        delete postData.scheduledTime;
-        delete postData.scheduledFor;
-        console.log('⚠️ PAST DATE: Creating immediate post');
+        toast({
+          title: "Invalid Date",
+          description: "Please select a future date and time.",
+          variant: "destructive",
+        });
       }
     } else {
-      // For immediate publishing
-      postData = {
-        ...values,
-        accountId: parseInt(values.accountId),
+      // PUBLISH NOW ACTION - Create immediate post
+      const postData = {
+        ...baseData,
         status: "immediate",
       };
-      delete postData.scheduledTime;
-      delete postData.scheduledFor;
-      console.log('⚡ CREATING IMMEDIATE POST');
+      console.log('🚀 PUBLISHING IMMEDIATELY:', postData);
+      createPostMutation.mutate(postData);
     }
-    
-    console.log('🚀 CLIENT: Final postData object:', JSON.stringify(postData, null, 2));
-    console.log('🚀 CLIENT: Status check:', postData.status, 'ScheduledFor:', postData.scheduledFor);
-    
-    createPostMutation.mutate(postData);
   };
 
   return (
