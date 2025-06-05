@@ -36,7 +36,7 @@ const formSchema = z.object({
   labels: z.array(z.string()).default([]),
   scheduledFor: z.date().optional(),
   scheduledTime: z.string().optional(),
-  status: z.enum(["draft", "scheduled", "publish"]).default("draft"),
+  status: z.enum(["draft", "scheduled", "immediate"]).default("draft"),
   collaborator: z.string().optional(),
   privacy: z.enum(["public", "restricted"]).default("public"),
   boost: z.boolean().default(false),
@@ -752,7 +752,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                 
                 <Button 
                   type="submit"
-                  onClick={() => form.setValue('status', isScheduleEnabled ? 'scheduled' : 'publish')}
+                  onClick={() => form.setValue('status', isScheduleEnabled ? 'scheduled' : 'immediate')}
                   disabled={createPostMutation.isPending}
                   className="px-6 bg-blue-600 hover:bg-blue-700"
                 >

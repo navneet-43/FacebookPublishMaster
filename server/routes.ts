@@ -742,7 +742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         });
-      } else if ((post.status === "draft" || post.status === "immediate") && post.accountId) {
+      } else if (post.status === "immediate" && post.accountId) {
         console.log(`🎯 TRIGGERING IMMEDIATE PUBLISH: Post ${post.id} meets criteria for immediate Facebook publishing`);
         // Publish immediately for draft/immediate posts with account selected
         try {
