@@ -728,6 +728,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('X-Debug-Validated-Status', result.data.status || 'undefined');
       console.log(`✅ VALIDATED DATA:`, JSON.stringify(result.data, null, 2));
       
+      // Force immediate publishing for immediate status
+      if (result.data.status === "immediate") {
+        console.log(`🚀 IMMEDIATE PUBLISH: Processing immediate post for user ${user.id}`);
+        
+        // Get Facebook account
+        const account = await storage.getFacebookAccount(result.data.accountId);
+        if (!account) {
+          return res.status(404).json({ message: "Facebook account not found" });
+        }
+
+        try {
+          // Import and call publishing service
+          const { publishPostToFacebook } = await import('./services/postService');
+          const publishResult = await publishPostToFacebook({
+            ...result.data,
+            userId: user.id,
+            id: 0, // Temporary ID for publishing
+            createdAt: new Date()
+          } as any);
+
+          if (publishResult.success) {
+            // Create post with published status
+            const post = await storage.createPost({
+              ...result.data,
+              userId: user.id,
+              status: "published",
+              publishedAt: new Date()
+            });
+
+            // Log activity
+            await storage.createActivity({
+              userId: user.id,
+              type: "post_published",
+              description: `Post published immediately to Facebook: ${result.data.content.substring(0, 50)}...`,
+              metadata: { postId: post.id, facebookResponse: publishResult.data }
+            });
+
+            console.log(`✅ IMMEDIATE PUBLISH SUCCESS: Post ${post.id} published to Facebook`);
+            return res.status(201).json(post);
+          } else {
+            // Create post with failed status
+            const post = await storage.createPost({
+              ...result.data,
+              userId: user.id,
+              status: "failed",
+              errorMessage: publishResult.error || "Failed to publish to Facebook"
+            });
+
+            console.log(`❌ IMMEDIATE PUBLISH FAILED: ${publishResult.error}`);
+            return res.status(500).json({ 
+              message: "Failed to publish to Facebook", 
+              error: publishResult.error,
+              post
+            });
+          }
+        } catch (error) {
+          console.error(`💥 IMMEDIATE PUBLISH ERROR:`, error);
+          
+          // Create post with failed status
+          const post = await storage.createPost({
+            ...result.data,
+            userId: user.id,
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : "Unknown error"
+          });
+
+          return res.status(500).json({ 
+            message: "Failed to publish to Facebook", 
+            error: error instanceof Error ? error.message : "Unknown error",
+            post
+          });
+        }
+      }
+      
+      // For non-immediate posts, save normally
       const post = await storage.createPost({
         ...result.data,
         userId: user.id
