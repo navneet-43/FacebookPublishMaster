@@ -92,15 +92,19 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
 
   const createPostMutation = useMutation({
     mutationFn: (postData: any) => {
-      console.log('🔥 MUTATION: Sending to API with status:', postData.status);
-      console.log('🔥 MUTATION: Full data:', JSON.stringify(postData, null, 2));
+      console.log('🔥 MUTATION: Received data for sending:', JSON.stringify(postData, null, 2));
+      console.log('🔥 MUTATION: Status check:', postData.status);
+      console.log('🔥 MUTATION: ScheduledFor check:', postData.scheduledFor);
+      
+      const requestBody = JSON.stringify(postData);
+      console.log('🔥 MUTATION: Final request body:', requestBody);
       
       return apiRequest('/api/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(postData),
+        body: requestBody,
       });
     },
     onSuccess: () => {
