@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -55,6 +55,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
+  const scheduleEnabledRef = useRef(false);
 
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
@@ -136,12 +137,16 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       originalStatus: values.status
     });
     
-    // Check if scheduling should be enabled based on form data
+    // Check current toggle state at submission time
+    console.log('📊 TOGGLE STATE - State:', isScheduleEnabled, 'Ref:', scheduleEnabledRef.current);
+    
+    // Use ref as primary source of truth since it's more reliable
+    const toggleEnabled = scheduleEnabledRef.current;
     const hasScheduleData = values.scheduledFor && values.scheduledTime;
-    const shouldSchedule = isScheduleEnabled && hasScheduleData;
+    const shouldSchedule = toggleEnabled && hasScheduleData;
     
     console.log('🎯 SCHEDULE CHECK:', {
-      isScheduleEnabled,
+      toggleEnabled,
       hasScheduleData,
       shouldSchedule
     });
@@ -167,7 +172,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     } else {
       // For immediate publishing
       finalValues.status = "immediate";
-      console.log('⚡ IMMEDIATE: Setting status to immediate, reason:', !isScheduleEnabled ? 'toggle off' : 'no schedule data');
+      console.log('⚡ IMMEDIATE: Setting status to immediate, reason:', !toggleEnabled ? 'toggle off' : 'no schedule data');
     }
     
     // Remove scheduledTime as it's not needed in the API
@@ -393,6 +398,8 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                     onCheckedChange={(checked) => {
                       console.log('🎯 TOGGLE CHANGED:', checked);
                       setIsScheduleEnabled(checked);
+                      scheduleEnabledRef.current = checked;
+                      console.log('🔄 STATE AND REF UPDATED:', checked);
                     }}
                   />
                 </div>
