@@ -90,11 +90,8 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const watchCrosspost = form.watch("crosspost");
 
   const createPostMutation = useMutation({
-    mutationFn: (values: FormValues) => {
-      const postData = {
-        ...values,
-        accountId: parseInt(values.accountId),
-      };
+    mutationFn: (postData: any) => {
+      console.log('🔥 MUTATION: Sending to API with status:', postData.status);
       
       return apiRequest('/api/posts', {
         method: 'POST',
@@ -146,8 +143,14 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     // Remove scheduledTime as it's not needed in the API
     delete finalValues.scheduledTime;
     
-    console.log('🚀 CLIENT: Submitting post with status:', finalValues.status, 'scheduledFor:', finalValues.scheduledFor, 'isScheduleEnabled:', isScheduleEnabled);
-    createPostMutation.mutate(finalValues);
+    // Prepare final post data
+    const postData = {
+      ...finalValues,
+      accountId: parseInt(finalValues.accountId),
+    };
+    
+    console.log('🚀 CLIENT: Submitting post with status:', postData.status, 'scheduledFor:', postData.scheduledFor, 'isScheduleEnabled:', isScheduleEnabled);
+    createPostMutation.mutate(postData);
   };
 
   return (
@@ -776,10 +779,16 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                   onClick={() => {
                     // Save as draft without publishing
                     const values = form.getValues();
-                    const draftValues = { ...values, status: 'draft' as const };
+                    const draftValues = { ...values, status: 'draft' };
                     delete draftValues.scheduledTime;
-                    console.log('🚀 CLIENT: Saving as draft:', draftValues.status);
-                    createPostMutation.mutate(draftValues);
+                    
+                    const postData = {
+                      ...draftValues,
+                      accountId: parseInt(draftValues.accountId),
+                    };
+                    
+                    console.log('🚀 CLIENT: Saving as draft:', postData.status);
+                    createPostMutation.mutate(postData);
                   }}
                   className="px-6"
                 >
