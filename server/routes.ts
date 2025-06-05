@@ -709,6 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Force immediate debug output
       process.stderr.write(`\n🎯 POST /api/posts - ${new Date().toISOString()}\n`);
       process.stderr.write(`📥 Request body: ${JSON.stringify(req.body, null, 2)}\n`);
+      process.stderr.write(`🔍 RAW STATUS: "${req.body.status}" (type: ${typeof req.body.status})\n`);
       
       const user = await authenticateUser(req);
       if (!user) {
