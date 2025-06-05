@@ -55,13 +55,6 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
-  
-  // Reset schedule state when dialog opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      setIsScheduleEnabled(false);
-    }
-  }, [isOpen]);
 
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
@@ -155,8 +148,10 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     
     // Override status based on scheduling state
     if (shouldSchedule) {
-      const date = new Date(values.scheduledFor);
-      const [hours, minutes] = values.scheduledTime.split(':').map(Number);
+      const scheduledDate = values.scheduledFor!;
+      const scheduledTime = values.scheduledTime!;
+      const date = new Date(scheduledDate);
+      const [hours, minutes] = scheduledTime.split(':').map(Number);
       date.setHours(hours, minutes, 0, 0);
       
       // Only schedule if the date is in the future
