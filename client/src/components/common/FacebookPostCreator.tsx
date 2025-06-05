@@ -92,6 +92,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const createPostMutation = useMutation({
     mutationFn: (postData: any) => {
       console.log('🔥 MUTATION: Sending to API with status:', postData.status);
+      console.log('🔥 MUTATION: Full data:', JSON.stringify(postData, null, 2));
       
       return apiRequest('/api/posts', {
         method: 'POST',
@@ -369,7 +370,10 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                   <Switch
                     id="schedule-toggle"
                     checked={isScheduleEnabled}
-                    onCheckedChange={setIsScheduleEnabled}
+                    onCheckedChange={(checked) => {
+                      console.log('🎯 TOGGLE CHANGED:', checked);
+                      setIsScheduleEnabled(checked);
+                    }}
                   />
                 </div>
               </div>
