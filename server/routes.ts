@@ -740,13 +740,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         });
-      } else if (post.status === "draft" && post.accountId) {
-        // Publish immediately for draft posts with account selected
+      } else if ((post.status === "draft" || post.status === "immediate") && post.accountId) {
+        // Publish immediately for draft/immediate posts with account selected
         try {
-          console.log(`Publishing immediate post ${post.id}`);
+          console.log(`🚀 FACEBOOK PUBLISHING: Starting immediate publication for post ${post.id}`);
+          console.log(`📝 Post details: status=${post.status}, accountId=${post.accountId}, content="${post.content}"`);
           
           const { publishPostToFacebook } = await import('./services/postService');
           const result = await publishPostToFacebook(post);
+          
+          console.log(`📊 FACEBOOK API RESULT for post ${post.id}:`, result);
           
           if (result.success) {
             // Update post status to published
@@ -761,6 +764,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               description: "Post published immediately to Facebook",
               metadata: { postId: post.id, facebookResponse: result.data }
             });
+            
+            console.log(`✅ SUCCESS: Post ${post.id} published to Facebook!`);
             
             // Return the updated post
             res.status(201).json(updatedPost);
@@ -778,9 +783,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               description: "Post failed to publish to Facebook",
               metadata: { postId: post.id, error: result.error }
             });
+            
+            console.log(`❌ FAILED: Post ${post.id} failed to publish: ${result.error}`);
           }
         } catch (error) {
-          console.error(`Error publishing immediate post ${post.id}:`, error);
+          console.error(`💥 ERROR publishing immediate post ${post.id}:`, error);
           await storage.updatePost(post.id, {
             status: "failed",
             errorMessage: error instanceof Error ? error.message : "Unknown error"
@@ -872,6 +879,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting post:", error);
       res.status(500).json({ message: "Failed to delete post" });
+    }
+  });
+
+  // Manual publish endpoint for testing Facebook publishing
+  app.post("/api/posts/:id/publish", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      const post = await storage.getPost(id);
+      
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      
+      if (post.userId !== user.id) {
+        return res.status(403).json({ message: "Not authorized to publish this post" });
+      }
+      
+      if (!post.accountId) {
+        return res.status(400).json({ message: "No Facebook account selected for this post" });
+      }
+      
+      console.log(`🚀 MANUAL PUBLISH: Starting Facebook publication for post ${post.id}`);
+      console.log(`📝 Post details: accountId=${post.accountId}, content="${post.content}"`);
+      
+      const { publishPostToFacebook } = await import('./services/postService');
+      const result = await publishPostToFacebook(post);
+      
+      console.log(`📊 FACEBOOK API RESULT for manual publish of post ${post.id}:`, result);
+      
+      if (result.success) {
+        // Update post status to published
+        const updatedPost = await storage.updatePost(post.id, {
+          status: "published",
+          publishedAt: new Date()
+        });
+        
+        await storage.createActivity({
+          userId: user.id,
+          type: "post_published",
+          description: "Post manually published to Facebook",
+          metadata: { postId: post.id, facebookResponse: result.data }
+        });
+        
+        console.log(`✅ SUCCESS: Post ${post.id} manually published to Facebook!`);
+        
+        res.json({ 
+          success: true, 
+          message: "Post published to Facebook successfully",
+          post: updatedPost,
+          facebookData: result.data
+        });
+      } else {
+        // Update post status to failed
+        await storage.updatePost(post.id, {
+          status: "failed",
+          errorMessage: result.error || "Failed to publish to Facebook"
+        });
+        
+        await storage.createActivity({
+          userId: user.id,
+          type: "post_failed",
+          description: "Manual post publication failed",
+          metadata: { postId: post.id, error: result.error }
+        });
+        
+        console.log(`❌ FAILED: Manual publish of post ${post.id} failed: ${result.error}`);
+        
+        res.status(400).json({ 
+          success: false, 
+          message: result.error || "Failed to publish to Facebook",
+          error: result.error
+        });
+      }
+    } catch (error) {
+      console.error(`💥 ERROR in manual publish for post ${req.params.id}:`, error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Internal server error during publication",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
