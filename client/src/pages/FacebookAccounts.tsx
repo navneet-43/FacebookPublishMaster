@@ -109,6 +109,28 @@ export default function FacebookAccounts() {
     }
   });
 
+  const testFacebookMutation = useMutation({
+    mutationFn: () => {
+      return apiRequest('/api/facebook-direct-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Facebook Test Successful",
+        description: `Test post published successfully to ${data.accountName}. Post ID: ${data.facebookPostId}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Facebook Test Failed",
+        description: error.message || "Failed to publish test post to Facebook",
+        variant: "destructive"
+      });
+    }
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     addAccountMutation.mutate(newAccount);
@@ -190,6 +212,20 @@ export default function FacebookAccounts() {
                             >
                               Import Pages
                             </Button>
+                            <Button 
+                              variant="outline"
+                              onClick={() => testFacebookMutation.mutate()}
+                              disabled={testFacebookMutation.isPending}
+                            >
+                              {testFacebookMutation.isPending ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  Testing...
+                                </>
+                              ) : (
+                                'Test Facebook Publishing'
+                              )}
+                            </Button>
                           </div>
                         </>
                       ) : (
@@ -240,6 +276,21 @@ export default function FacebookAccounts() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => testFacebookMutation.mutate()}
+                        disabled={testFacebookMutation.isPending}
+                      >
+                        {testFacebookMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Testing...
+                          </>
+                        ) : (
+                          'Test Publishing'
+                        )}
+                      </Button>
                       <div className="flex items-center space-x-2">
                         <Switch 
                           checked={account.isActive}
