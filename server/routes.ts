@@ -727,14 +727,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (post.scheduledFor && post.status === "scheduled") {
         // Schedule for future publication
         const scheduledDate = new Date(post.scheduledFor);
+        console.log(`🕒 SCHEDULING: Post ${post.id} scheduled for ${scheduledDate.toISOString()}`);
         
-        schedule.scheduleJob(scheduledDate, async () => {
+        const job = schedule.scheduleJob(scheduledDate, async () => {
           try {
-            console.log(`Publishing scheduled post ${post.id} at ${new Date().toISOString()}`);
+            console.log(`🚀 AUTO-PUBLISHING: Scheduled post ${post.id} at ${new Date().toISOString()}`);
             
             // Get the latest post data
             const currentPost = await storage.getPost(post.id);
-            if (!currentPost) return;
+            if (!currentPost) {
+              console.error(`Post ${post.id} not found for scheduled publishing`);
+              return;
+            }
+            
+            // Only publish if still scheduled (not manually published/cancelled)
+            if (currentPost.status !== 'scheduled') {
+              console.log(`Post ${post.id} status is ${currentPost.status}, skipping scheduled publishing`);
+              return;
+            }
             
             // Import the publishing function
             const { publishPostToFacebook } = await import('./services/postService');
@@ -749,9 +759,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.createActivity({
                 userId: post.userId,
                 type: "post_published",
-                description: "Scheduled post published to Facebook",
+                description: "Scheduled post automatically published to Facebook",
                 metadata: { postId: post.id, facebookResponse: result.data }
               });
+              
+              console.log(`✅ AUTO-PUBLISH SUCCESS: Post ${post.id} published to Facebook on schedule`);
             } else {
               await storage.updatePost(post.id, { 
                 status: "failed",
@@ -761,18 +773,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.createActivity({
                 userId: post.userId,
                 type: "post_failed",
-                description: "Scheduled post failed to publish",
+                description: "Scheduled post failed to auto-publish",
                 metadata: { postId: post.id, error: result.error }
               });
+              
+              console.error(`❌ AUTO-PUBLISH FAILED: Post ${post.id} failed to publish: ${result.error}`);
             }
           } catch (error) {
-            console.error(`Error publishing scheduled post ${post.id}:`, error);
+            console.error(`Error in scheduled publishing for post ${post.id}:`, error);
             await storage.updatePost(post.id, { 
               status: "failed",
               errorMessage: error instanceof Error ? error.message : "Unknown error"
             });
           }
         });
+
+        if (job) {
+          console.log(`✅ SCHEDULED: Post ${post.id} will auto-publish at ${scheduledDate.toISOString()}`);
+          console.log(`⏰ Next scheduled job: ${job.nextInvocation()?.toISOString()}`);
+        } else {
+          console.error(`❌ SCHEDULING FAILED: Could not schedule post ${post.id}`);
+        }
       } else if (post.status === "immediate" && post.accountId) {
         console.log(`🎯 TRIGGERING IMMEDIATE PUBLISH: Post ${post.id} meets criteria for immediate Facebook publishing`);
         // Publish immediately for draft/immediate posts with account selected

@@ -128,7 +128,23 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   });
 
   const onSubmit = (values: FormValues) => {
-    createPostMutation.mutate(values);
+    // Combine date and time for scheduled posts
+    let finalValues = { ...values };
+    
+    if (isScheduleEnabled && values.scheduledFor && values.scheduledTime) {
+      const date = new Date(values.scheduledFor);
+      const [hours, minutes] = values.scheduledTime.split(':').map(Number);
+      date.setHours(hours, minutes, 0, 0);
+      finalValues.scheduledFor = date;
+      // Ensure status is set to scheduled when scheduling is enabled
+      finalValues.status = "scheduled";
+    }
+    
+    // Remove scheduledTime as it's not needed in the API
+    delete finalValues.scheduledTime;
+    
+    console.log('Submitting post with status:', finalValues.status, 'scheduledFor:', finalValues.scheduledFor);
+    createPostMutation.mutate(finalValues);
   };
 
   return (
@@ -399,10 +415,23 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                       )}
                     />
 
-                    <Input 
-                      type="time"
-                      defaultValue="14:17"
-                      className="w-32 h-12"
+                    <FormField
+                      control={form.control}
+                      name="scheduledTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input 
+                              type="time"
+                              defaultValue="14:17"
+                              className="w-32 h-12"
+                              {...field}
+                              value={field.value || "14:17"}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
                   </div>
 
