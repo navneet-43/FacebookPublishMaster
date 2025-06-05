@@ -115,6 +115,8 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   scheduledFor: true,
   status: true,
   sheetRowId: true,
+}).extend({
+  status: z.enum(["draft", "scheduled", "published", "failed", "immediate"]).default("draft")
 });
 
 // Activities model

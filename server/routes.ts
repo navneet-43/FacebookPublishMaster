@@ -715,12 +715,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
+      // Force logging by writing to response headers for debugging
+      res.setHeader('X-Debug-Raw-Status', req.body.status || 'undefined');
+      
       const result = insertPostSchema.safeParse(req.body);
       if (!result.success) {
         console.log(`❌ VALIDATION FAILED:`, result.error.format());
         return res.status(400).json({ message: "Invalid post data", errors: result.error.format() });
       }
       
+      // Add validated status to response headers
+      res.setHeader('X-Debug-Validated-Status', result.data.status || 'undefined');
       console.log(`✅ VALIDATED DATA:`, JSON.stringify(result.data, null, 2));
       
       const post = await storage.createPost({
