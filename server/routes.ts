@@ -1038,6 +1038,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Quick fix: Publish existing draft posts
+  app.post("/api/publish-draft-posts", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Get all draft posts for this user
+      const allPosts = await storage.getPosts(user.id);
+      const draftPosts = allPosts.filter(post => post.status === "draft" && post.accountId);
+      
+      console.log(`🔄 BULK PUBLISH: Found ${draftPosts.length} draft posts to publish`);
+      
+      const results = [];
+      
+      for (const post of draftPosts) {
+        try {
+          console.log(`🚀 PUBLISHING: Post ${post.id} - "${post.content}"`);
+          
+          const { publishPostToFacebook } = await import('./services/postService');
+          const result = await publishPostToFacebook(post);
+          
+          if (result.success) {
+            await storage.updatePost(post.id, {
+              status: "published",
+              publishedAt: new Date()
+            });
+            
+            await storage.createActivity({
+              userId: user.id,
+              type: "post_published",
+              description: `Post published to Facebook: ${post.content?.substring(0, 50)}...`,
+              metadata: { postId: post.id, facebookResponse: result.data }
+            });
+            
+            results.push({ postId: post.id, success: true, facebookPostId: result.data?.facebookPostId });
+            console.log(`✅ SUCCESS: Post ${post.id} published to Facebook`);
+          } else {
+            await storage.updatePost(post.id, {
+              status: "failed",
+              errorMessage: result.error
+            });
+            results.push({ postId: post.id, success: false, error: result.error });
+            console.log(`❌ FAILED: Post ${post.id} - ${result.error}`);
+          }
+        } catch (error) {
+          console.error(`💥 ERROR publishing post ${post.id}:`, error);
+          results.push({ postId: post.id, success: false, error: error instanceof Error ? error.message : "Unknown error" });
+        }
+      }
+      
+      res.json({ 
+        message: `Processed ${draftPosts.length} draft posts`,
+        results,
+        published: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length
+      });
+      
+    } catch (error) {
+      console.error('Error in bulk publish:', error);
+      res.status(500).json({ message: "Failed to publish draft posts" });
+    }
+  });
+
   // Import from Google Sheets
   app.post("/api/import-from-google-sheets", async (req: Request, res: Response) => {
     try {
