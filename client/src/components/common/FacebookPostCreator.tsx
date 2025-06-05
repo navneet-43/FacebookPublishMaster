@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -55,6 +55,13 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isScheduleEnabled, setIsScheduleEnabled] = useState(false);
+  
+  // Reset schedule state when dialog opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsScheduleEnabled(false);
+    }
+  }, [isOpen]);
 
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
@@ -136,18 +143,36 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       originalStatus: values.status
     });
     
+    // Check if scheduling should be enabled based on form data
+    const hasScheduleData = values.scheduledFor && values.scheduledTime;
+    const shouldSchedule = isScheduleEnabled && hasScheduleData;
+    
+    console.log('🎯 SCHEDULE CHECK:', {
+      isScheduleEnabled,
+      hasScheduleData,
+      shouldSchedule
+    });
+    
     // Override status based on scheduling state
-    if (isScheduleEnabled && values.scheduledFor && values.scheduledTime) {
+    if (shouldSchedule) {
       const date = new Date(values.scheduledFor);
       const [hours, minutes] = values.scheduledTime.split(':').map(Number);
       date.setHours(hours, minutes, 0, 0);
-      finalValues.scheduledFor = date;
-      finalValues.status = "scheduled";
-      console.log('✅ SCHEDULING ENABLED: Setting status to scheduled, date:', date.toISOString());
+      
+      // Only schedule if the date is in the future
+      const now = new Date();
+      if (date > now) {
+        finalValues.scheduledFor = date;
+        finalValues.status = "scheduled";
+        console.log('✅ SCHEDULING ENABLED: Setting status to scheduled, date:', date.toISOString());
+      } else {
+        finalValues.status = "immediate";
+        console.log('⚠️ PAST DATE: Date is in the past, setting to immediate');
+      }
     } else {
       // For immediate publishing
       finalValues.status = "immediate";
-      console.log('⚡ IMMEDIATE: Setting status to immediate');
+      console.log('⚡ IMMEDIATE: Setting status to immediate, reason:', !isScheduleEnabled ? 'toggle off' : 'no schedule data');
     }
     
     // Remove scheduledTime as it's not needed in the API
