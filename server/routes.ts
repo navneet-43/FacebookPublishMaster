@@ -690,6 +690,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: user.id
       });
       
+      console.log(`📋 POST CREATED: id=${post.id}, status="${post.status}", accountId=${post.accountId}, scheduledFor=${post.scheduledFor}`);
+      
       // Handle immediate vs scheduled posts
       if (post.scheduledFor && post.status === "scheduled") {
         // Schedule for future publication
@@ -741,6 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         });
       } else if ((post.status === "draft" || post.status === "immediate") && post.accountId) {
+        console.log(`🎯 TRIGGERING IMMEDIATE PUBLISH: Post ${post.id} meets criteria for immediate Facebook publishing`);
         // Publish immediately for draft/immediate posts with account selected
         try {
           console.log(`🚀 FACEBOOK PUBLISHING: Starting immediate publication for post ${post.id}`);
@@ -962,6 +965,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: "Internal server error during publication",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Direct Facebook API test endpoint
+  app.post("/api/facebook-direct-test", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Get user's Facebook accounts
+      const accounts = await storage.getFacebookAccounts(user.id);
+      if (accounts.length === 0) {
+        return res.status(400).json({ message: "No Facebook accounts found" });
+      }
+      
+      const account = accounts[0]; // Use first account for testing
+      console.log(`🧪 DIRECT FACEBOOK TEST: Testing with account ${account.name} (${account.pageId})`);
+      
+      const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
+      
+      // Test token validation
+      const isValid = await HootsuiteStyleFacebookService.validatePageToken(account.pageId, account.accessToken);
+      console.log(`🔐 Token validation: ${isValid}`);
+      
+      if (!isValid) {
+        return res.status(400).json({ 
+          message: "Facebook access token is invalid or expired. Please refresh your Facebook connection.",
+          tokenValid: false,
+          accountName: account.name
+        });
+      }
+      
+      // Test publishing a simple post
+      const testMessage = `Test post from SocialFlow at ${new Date().toISOString()}`;
+      const result = await HootsuiteStyleFacebookService.publishTextPost(
+        account.pageId, 
+        account.accessToken, 
+        testMessage
+      );
+      
+      console.log(`📊 Direct test result:`, result);
+      
+      if (result.success) {
+        res.json({ 
+          success: true, 
+          message: "Test post published successfully to Facebook",
+          facebookPostId: result.postId,
+          accountName: account.name,
+          tokenValid: true
+        });
+      } else {
+        res.status(400).json({ 
+          success: false,
+          message: result.error || "Failed to publish test post",
+          error: result.error,
+          accountName: account.name,
+          tokenValid: true
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error in direct Facebook test:', error);
+      res.status(500).json({ 
+        message: "Internal server error during Facebook test",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
