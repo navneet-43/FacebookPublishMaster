@@ -91,6 +91,7 @@ export const posts = pgTable("posts", {
   accountId: integer("account_id").references(() => facebookAccounts.id),
   content: text("content").notNull(),
   mediaUrl: text("media_url"),
+  mediaType: text("media_type").default("none"), // none, photo, video, reel
   link: text("link"),
   labels: json("labels").$type<string[]>().default([]),
   language: text("language").default("English"),
@@ -107,6 +108,7 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   accountId: true,
   content: true,
   mediaUrl: true,
+  mediaType: true,
   link: true,
   labels: true,
   language: true,

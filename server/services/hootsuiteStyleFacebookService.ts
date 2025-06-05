@@ -133,14 +133,32 @@ export class HootsuiteStyleFacebookService {
   }
 
   /**
-   * Publish photo post to Facebook page
+   * Publish photo post to Facebook page (supports Google Drive links)
    */
   static async publishPhotoPost(pageId: string, pageAccessToken: string, photoUrl: string, caption?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
+      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
+      
+      let finalPhotoUrl = photoUrl;
+      
+      // Convert Google Drive links to direct download URLs
+      if (isGoogleDriveLink(photoUrl)) {
+        const convertedUrl = convertGoogleDriveLink(photoUrl);
+        if (convertedUrl) {
+          finalPhotoUrl = convertedUrl;
+          console.log('Converted Google Drive link for Facebook:', finalPhotoUrl);
+        } else {
+          return {
+            success: false,
+            error: 'Invalid Google Drive link format'
+          };
+        }
+      }
+      
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/photos`;
       
       const postData = new URLSearchParams();
-      postData.append('url', photoUrl);
+      postData.append('url', finalPhotoUrl);
       postData.append('access_token', pageAccessToken);
       
       if (caption) {
@@ -175,6 +193,74 @@ export class HootsuiteStyleFacebookService {
       
     } catch (error) {
       console.error('Error publishing photo post:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Publish video post to Facebook page (supports Google Drive links)
+   */
+  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+    try {
+      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
+      
+      let finalVideoUrl = videoUrl;
+      
+      // Convert Google Drive links to direct download URLs
+      if (isGoogleDriveLink(videoUrl)) {
+        const convertedUrl = convertGoogleDriveLink(videoUrl);
+        if (convertedUrl) {
+          finalVideoUrl = convertedUrl;
+          console.log('Converted Google Drive link for Facebook video:', finalVideoUrl);
+        } else {
+          return {
+            success: false,
+            error: 'Invalid Google Drive link format'
+          };
+        }
+      }
+      
+      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      
+      const postData = new URLSearchParams();
+      postData.append('file_url', finalVideoUrl);
+      postData.append('access_token', pageAccessToken);
+      
+      if (description) {
+        postData.append('description', description);
+      }
+      
+      console.log(`Publishing video post to page ${pageId}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: postData.toString()
+      });
+      
+      const data = await response.json() as any;
+      
+      if (!response.ok || data.error) {
+        console.error('Facebook video publishing error:', data.error);
+        return {
+          success: false,
+          error: data.error?.message || `API error: ${response.status}`
+        };
+      }
+      
+      console.log('Successfully published video post:', data.id);
+      return {
+        success: true,
+        postId: data.id
+      };
+      
+    } catch (error) {
+      console.error('Error publishing video post:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

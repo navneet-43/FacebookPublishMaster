@@ -30,6 +30,7 @@ const formSchema = z.object({
   accountId: z.string().min(1, "Please select a Facebook page"),
   content: z.string().min(1, "Content is required"),
   mediaUrl: z.string().optional(),
+  mediaType: z.enum(["none", "photo", "video", "reel"]).default("none"),
   link: z.string().url().optional().or(z.literal("")),
   language: z.string().default("en"),
   labels: z.array(z.string()).default([]),
@@ -73,6 +74,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       accountId: "",
       content: "",
       mediaUrl: "",
+      mediaType: "none",
       link: "",
       language: "en",
       labels: [],
@@ -199,21 +201,53 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                 </Button>
               </div>
               
+              {/* Media Type Selection */}
               <FormField
                 control={form.control}
-                name="mediaUrl"
+                name="mediaType"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel>Media Type</FormLabel>
                     <FormControl>
-                      <MediaUpload 
-                        existingUrl={field.value || ""} 
-                        onMediaUploaded={(url: string) => field.onChange(url)}
-                      />
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select media type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Media</SelectItem>
+                          <SelectItem value="photo">Photo</SelectItem>
+                          <SelectItem value="video">Video</SelectItem>
+                          <SelectItem value="reel">Reel</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Google Drive Link Input */}
+              {form.watch("mediaType") !== "none" && (
+                <FormField
+                  control={form.control}
+                  name="mediaUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Google Drive Link</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Paste Google Drive share link here..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Make sure the Google Drive file is publicly accessible or shared with viewing permissions
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <Separator className="bg-gray-200" />
