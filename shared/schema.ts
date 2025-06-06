@@ -10,7 +10,7 @@ export const sessions = pgTable("sessions", {
   expire: timestamp("expire").notNull(),
 });
 
-// User model
+// Legacy users table (for Facebook OAuth users)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -22,6 +22,20 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// New platform users table (independent authentication)
+export const platformUsers = pgTable("platform_users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  role: text("role").default("user"), // user, admin
+  isActive: boolean("is_active").default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -29,6 +43,26 @@ export const insertUserSchema = createInsertSchema(users).pick({
   fullName: true,
   facebookId: true,
   facebookToken: true,
+});
+
+export const insertPlatformUserSchema = createInsertSchema(platformUsers).pick({
+  username: true,
+  password: true,
+  email: true,
+  fullName: true,
+  role: true,
+});
+
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const registerSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email address"),
+  fullName: z.string().min(1, "Full name is required"),
 });
 
 // Facebook accounts model
@@ -188,6 +222,11 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
 // Export all types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type PlatformUser = typeof platformUsers.$inferSelect;
+export type InsertPlatformUser = z.infer<typeof insertPlatformUserSchema>;
+export type LoginCredentials = z.infer<typeof loginSchema>;
+export type RegisterData = z.infer<typeof registerSchema>;
 
 export type FacebookAccount = typeof facebookAccounts.$inferSelect;
 export type InsertFacebookAccount = z.infer<typeof insertFacebookAccountSchema>;

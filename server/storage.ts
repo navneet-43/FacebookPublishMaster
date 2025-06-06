@@ -1,5 +1,6 @@
 import {
   User, InsertUser, users,
+  PlatformUser, InsertPlatformUser, platformUsers,
   FacebookAccount, InsertFacebookAccount, facebookAccounts,
   GoogleSheetsIntegration, InsertGoogleSheetsIntegration, googleSheetsIntegrations,
   CustomLabel, InsertCustomLabel, customLabels,
@@ -11,13 +12,21 @@ import { eq, and, desc, sql, lt, gt, isNull } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
-  // User operations
+  // Legacy user operations (Facebook OAuth)
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByFacebookId(facebookId: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<User>): Promise<User | undefined>;
+
+  // Platform user operations (new authentication system)
+  getPlatformUser(id: number): Promise<PlatformUser | undefined>;
+  getPlatformUserByUsername(username: string): Promise<PlatformUser | undefined>;
+  getPlatformUserByEmail(email: string): Promise<PlatformUser | undefined>;
+  createPlatformUser(user: InsertPlatformUser): Promise<PlatformUser>;
+  updatePlatformUser(id: number, data: Partial<PlatformUser>): Promise<PlatformUser | undefined>;
+  updatePlatformUserLastLogin(id: number): Promise<void>;
 
   // Facebook account operations
   getFacebookAccounts(userId: number): Promise<FacebookAccount[]>;
@@ -89,6 +98,43 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return updatedUser;
+  }
+
+  // Platform user operations (new authentication system)
+  async getPlatformUser(id: number): Promise<PlatformUser | undefined> {
+    const [user] = await db.select().from(platformUsers).where(eq(platformUsers.id, id));
+    return user;
+  }
+
+  async getPlatformUserByUsername(username: string): Promise<PlatformUser | undefined> {
+    const [user] = await db.select().from(platformUsers).where(eq(platformUsers.username, username));
+    return user;
+  }
+
+  async getPlatformUserByEmail(email: string): Promise<PlatformUser | undefined> {
+    const [user] = await db.select().from(platformUsers).where(eq(platformUsers.email, email));
+    return user;
+  }
+
+  async createPlatformUser(userData: InsertPlatformUser): Promise<PlatformUser> {
+    const [user] = await db.insert(platformUsers).values(userData).returning();
+    return user;
+  }
+
+  async updatePlatformUser(id: number, data: Partial<PlatformUser>): Promise<PlatformUser | undefined> {
+    const [updatedUser] = await db
+      .update(platformUsers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(platformUsers.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  async updatePlatformUserLastLogin(id: number): Promise<void> {
+    await db
+      .update(platformUsers)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(platformUsers.id, id));
   }
 
   // Facebook account operations
