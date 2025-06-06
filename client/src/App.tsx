@@ -11,36 +11,13 @@ import FacebookAccounts from "@/pages/FacebookAccounts";
 import GoogleSheetsIntegration from "@/pages/GoogleSheetsIntegration";
 import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
-import Login from "@/pages/Login";
+
 import Sidebar from "@/components/layout/Sidebar";
 import MobileMenu from "@/components/layout/MobileMenu";
 import { useState } from "react";
 
 function Router() {
-  // Check authentication status
-  const { data: authStatus, isLoading } = useQuery({
-    queryKey: ['/api/auth/status'],
-    retry: false,
-  });
-
-  // Show loading while checking auth
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login if not authenticated
-  if (!authStatus?.isLoggedIn) {
-    return <Login />;
-  }
-
-  // Show dashboard if authenticated
+  // Direct access to dashboard without authentication check
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
