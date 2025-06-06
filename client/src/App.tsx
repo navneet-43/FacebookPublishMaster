@@ -13,6 +13,8 @@ import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileMenu from "@/components/layout/MobileMenu";
+import PlatformLogin from "@/components/auth/PlatformLogin";
+import { usePlatformAuth } from "@/hooks/usePlatformAuth";
 import { useState } from "react";
 
 function Router() {
@@ -33,6 +35,22 @@ function Router() {
 
 function AuthenticatedApp() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isAuthenticated, isLoading } = usePlatformAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <PlatformLogin onSuccess={() => window.location.reload()} />;
+  }
 
   return (
     <div className="flex min-h-screen">
