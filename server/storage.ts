@@ -360,6 +360,7 @@ export class DatabaseStorage implements IStorage {
 // Memory storage implementation
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
+  private platformUsers: Map<number, PlatformUser>;
   private facebookAccounts: Map<number, FacebookAccount>;
   private googleSheetsIntegrations: Map<number, GoogleSheetsIntegration>;
   private customLabels: Map<number, CustomLabel>;
@@ -367,6 +368,7 @@ export class MemStorage implements IStorage {
   private activities: Map<number, Activity>;
   private currentIds: {
     users: number;
+    platformUsers: number;
     facebookAccounts: number;
     googleSheetsIntegrations: number;
     customLabels: number;

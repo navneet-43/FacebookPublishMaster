@@ -16,6 +16,7 @@ import multer from "multer";
 import { uploadImage } from "./utils/cloudinary";
 import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
+import { setupPlatformAuthRoutes, requirePlatformAuth } from "./routes/platformAuth";
 
 const authenticateUser = async (req: Request) => {
   // Use default Facebook OAuth user (ID 3) without authentication
@@ -29,6 +30,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     req.storage = storage;
     next();
   });
+
+  // Setup new platform authentication routes
+  setupPlatformAuthRoutes(app);
   
   // Facebook authentication routes
   app.get('/auth/facebook', 
