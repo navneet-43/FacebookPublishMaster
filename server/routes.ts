@@ -200,11 +200,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // SCHEDULE - Save for future publication
         console.log(`📅 SCHEDULE: Saving for future publication`);
         
+        if (!result.data.scheduledFor) {
+          return res.status(400).json({ message: "Scheduled date is required for scheduled posts" });
+        }
+
         const post = await storage.createPost({
           ...result.data,
           userId: user.id,
-          scheduledFor: result.data.scheduledFor ? new Date(result.data.scheduledFor) : undefined
+          scheduledFor: new Date(result.data.scheduledFor)
         } as any);
+
+        // Set up the actual scheduling job
+        const { schedulePostPublication } = await import('./services/postService');
+        schedulePostPublication(post);
 
         await storage.createActivity({
           userId: user.id,

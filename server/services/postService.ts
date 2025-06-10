@@ -146,32 +146,45 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
  * @param post The post to schedule
  */
 export function schedulePostPublication(post: Post): void {
+  console.log(`🔍 SCHEDULE DEBUG: Attempting to schedule post ${post.id}`);
+  console.log(`🔍 Post status: ${post.status}`);
+  console.log(`🔍 Scheduled for: ${post.scheduledFor}`);
+  
   if (!post.scheduledFor || post.status !== 'scheduled') {
-    console.warn(`Post ${post.id} is not scheduled or has no scheduled date`);
+    console.warn(`❌ Post ${post.id} is not scheduled or has no scheduled date`);
+    console.warn(`❌ Status: ${post.status}, ScheduledFor: ${post.scheduledFor}`);
     return;
   }
   
   // Cancel any existing job for this post
   if (activeJobs[post.id]) {
+    console.log(`🔄 Canceling existing job for post ${post.id}`);
     activeJobs[post.id].cancel();
     delete activeJobs[post.id];
   }
   
   const scheduledTime = new Date(post.scheduledFor);
-  if (scheduledTime <= new Date()) {
-    console.warn(`Post ${post.id} scheduled time is in the past`);
+  const now = new Date();
+  console.log(`🕐 Current time: ${now.toISOString()}`);
+  console.log(`🕐 Scheduled time: ${scheduledTime.toISOString()}`);
+  console.log(`🕐 Time difference (ms): ${scheduledTime.getTime() - now.getTime()}`);
+  
+  if (scheduledTime <= now) {
+    console.warn(`❌ Post ${post.id} scheduled time is in the past`);
+    console.warn(`❌ Scheduled: ${scheduledTime.toISOString()}, Current: ${now.toISOString()}`);
     return;
   }
   
   // Schedule new job
+  console.log(`✅ SCHEDULING: Creating job for post ${post.id} at ${scheduledTime.toISOString()}`);
   activeJobs[post.id] = schedule.scheduleJob(scheduledTime, async () => {
     try {
-      console.log(`Executing scheduled post ${post.id}`);
+      console.log(`🚀 EXECUTING SCHEDULED POST: ${post.id} at ${new Date().toISOString()}`);
       
       // Get latest post data
       const currentPost = await storage.getPost(post.id);
       if (!currentPost || currentPost.status !== 'scheduled') {
-        console.warn(`Post ${post.id} no longer exists or is not scheduled`);
+        console.warn(`❌ SCHEDULED EXECUTION FAILED: Post ${post.id} no longer exists or is not scheduled`);
         return;
       }
       
@@ -232,7 +245,8 @@ export function schedulePostPublication(post: Post): void {
     }
   });
   
-  console.log(`Post ${post.id} scheduled for publication at ${scheduledTime.toISOString()}`);
+  console.log(`✅ SCHEDULE SUCCESS: Post ${post.id} scheduled for publication at ${scheduledTime.toISOString()}`);
+  console.log(`🎯 ACTIVE JOBS COUNT: ${Object.keys(activeJobs).length}`);
 }
 
 /**
