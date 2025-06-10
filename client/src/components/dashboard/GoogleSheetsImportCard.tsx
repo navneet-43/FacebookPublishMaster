@@ -20,14 +20,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { FacebookAccount } from "@shared/schema";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Settings, FileSpreadsheet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { GoogleSheetsSetupGuide } from "@/components/common/GoogleSheetsSetupGuide";
 
 export default function GoogleSheetsImportCard() {
   const { toast } = useToast();
   const [spreadsheetId, setSpreadsheetId] = useState("");
   const [sheetName, setSheetName] = useState("Sheet1");
   const [accountId, setAccountId] = useState("");
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
@@ -109,13 +111,10 @@ export default function GoogleSheetsImportCard() {
     importMutation.mutate();
   };
 
-  const handleSetup = () => {
-    const accessToken = prompt('Enter your Google Sheets API access token:');
-    const id = prompt('Enter your Google Spreadsheet ID:');
-    
-    if (accessToken && id) {
-      setupMutation.mutate({ accessToken, spreadsheetId: id });
-    }
+  const handleSetupComplete = (credentials: { accessToken: string; spreadsheetId: string }) => {
+    setupMutation.mutate(credentials);
+    setSpreadsheetId(credentials.spreadsheetId);
+    setShowSetupGuide(false);
   };
 
   const isConnected = integration && (integration as any).accessToken;
@@ -136,13 +135,23 @@ export default function GoogleSheetsImportCard() {
               </AlertDescription>
             </Alert>
             
-            <Button 
-              className="w-full bg-fb-blue hover:bg-blue-700"
-              onClick={handleSetup}
-              disabled={setupMutation.isPending}
-            >
-              {setupMutation.isPending ? "Setting up..." : "Setup Google Sheets"}
-            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                variant="outline"
+                onClick={() => setShowSetupGuide(true)}
+                className="flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Setup Guide
+              </Button>
+              <Button 
+                className="bg-fb-blue hover:bg-blue-700"
+                onClick={() => setShowSetupGuide(true)}
+                disabled={setupMutation.isPending}
+              >
+                {setupMutation.isPending ? "Setting up..." : "Quick Setup"}
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -209,6 +218,12 @@ export default function GoogleSheetsImportCard() {
             </Button>
           </div>
         )}
+        
+        <GoogleSheetsSetupGuide
+          isOpen={showSetupGuide}
+          onClose={() => setShowSetupGuide(false)}
+          onComplete={handleSetupComplete}
+        />
       </CardContent>
     </Card>
   );
