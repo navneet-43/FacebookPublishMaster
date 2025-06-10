@@ -39,6 +39,7 @@ export interface IStorage {
   getGoogleSheetsIntegration(userId: number): Promise<GoogleSheetsIntegration | undefined>;
   createGoogleSheetsIntegration(integration: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration>;
   updateGoogleSheetsIntegration(userId: number, data: Partial<GoogleSheetsIntegration>): Promise<GoogleSheetsIntegration | undefined>;
+  createOrUpdateGoogleSheetsIntegration(data: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration>;
 
   // Custom label operations
   getCustomLabels(userId: number): Promise<CustomLabel[]>;
@@ -204,6 +205,20 @@ export class DatabaseStorage implements IStorage {
       .where(eq(googleSheetsIntegrations.userId, userId))
       .returning();
     return updatedIntegration;
+  }
+
+  async createOrUpdateGoogleSheetsIntegration(data: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration> {
+    // Check if integration exists
+    const existing = await this.getGoogleSheetsIntegration(data.userId);
+    
+    if (existing) {
+      // Update existing integration
+      const updated = await this.updateGoogleSheetsIntegration(data.userId, data);
+      return updated!;
+    } else {
+      // Create new integration
+      return await this.createGoogleSheetsIntegration(data);
+    }
   }
 
   // Custom label operations

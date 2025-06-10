@@ -18,6 +18,7 @@ import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
 import { setupPlatformAuthRoutes, requirePlatformAuth } from "./routes/platformAuth";
 import { GoogleSheetsService } from "./services/googleSheetsService";
+import { setupGoogleOAuthRoutes } from "./routes/googleOAuth";
 
 const authenticateUser = async (req: Request) => {
   // Use default Facebook OAuth user (ID 3) without authentication
@@ -34,6 +35,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup new platform authentication routes
   setupPlatformAuthRoutes(app);
+  
+  // Setup Google OAuth routes
+  setupGoogleOAuthRoutes(app);
   
   // Facebook authentication routes
   app.get('/auth/facebook', 
