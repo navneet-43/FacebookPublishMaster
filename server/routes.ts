@@ -17,6 +17,7 @@ import { uploadImage } from "./utils/cloudinary";
 import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
 import { setupPlatformAuthRoutes, requirePlatformAuth } from "./routes/platformAuth";
+import { GoogleSheetsService } from "./services/googleSheetsService";
 
 const authenticateUser = async (req: Request) => {
   // Use default Facebook OAuth user (ID 3) without authentication
@@ -426,9 +427,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Facebook account not found" });
       }
 
-      // Import Google Sheets service
-      const { GoogleSheetsService } = await import('./services/googleSheetsService');
-      
       const result = await GoogleSheetsService.importFromSheet({
         accessToken: integration.accessToken,
         spreadsheetId,
