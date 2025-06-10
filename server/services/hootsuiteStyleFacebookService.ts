@@ -89,16 +89,14 @@ export class HootsuiteStyleFacebookService {
     try {
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/feed`;
       
-      // Enhance message with custom labels as hashtags for tracking
-      let enhancedMessage = message;
-      if (customLabels && customLabels.length > 0) {
-        const labelHashtags = customLabels.map(label => `#${label.replace(/\s+/g, '')}`).join(' ');
-        enhancedMessage = `${message}\n\n${labelHashtags}`;
-      }
-
       const postData = new URLSearchParams();
-      postData.append('message', enhancedMessage);
+      postData.append('message', message);
       postData.append('access_token', pageAccessToken);
+      
+      // Add custom labels for insights tracking (not visible in post)
+      if (customLabels && customLabels.length > 0) {
+        postData.append('custom_labels', JSON.stringify(customLabels));
+      }
       
       // Include language metadata if provided
       if (language) {
@@ -169,19 +167,17 @@ export class HootsuiteStyleFacebookService {
       
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/photos`;
       
-      // Enhance caption with custom labels as hashtags for tracking
-      let enhancedCaption = caption || '';
-      if (customLabels && customLabels.length > 0) {
-        const labelHashtags = customLabels.map(label => `#${label.replace(/\s+/g, '')}`).join(' ');
-        enhancedCaption = caption ? `${caption}\n\n${labelHashtags}` : labelHashtags;
-      }
-
       const postData = new URLSearchParams();
       postData.append('url', finalPhotoUrl);
       postData.append('access_token', pageAccessToken);
       
-      if (enhancedCaption) {
-        postData.append('caption', enhancedCaption);
+      if (caption) {
+        postData.append('caption', caption);
+      }
+      
+      // Add custom labels for insights tracking (not visible in post)
+      if (customLabels && customLabels.length > 0) {
+        postData.append('custom_labels', JSON.stringify(customLabels));
       }
       
       // Include language metadata if provided
@@ -249,19 +245,17 @@ export class HootsuiteStyleFacebookService {
       
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
       
-      // Enhance description with custom labels as hashtags for tracking
-      let enhancedDescription = description || '';
-      if (customLabels && customLabels.length > 0) {
-        const labelHashtags = customLabels.map(label => `#${label.replace(/\s+/g, '')}`).join(' ');
-        enhancedDescription = description ? `${description}\n\n${labelHashtags}` : labelHashtags;
-      }
-
       const postData = new URLSearchParams();
       postData.append('file_url', finalVideoUrl);
       postData.append('access_token', pageAccessToken);
       
-      if (enhancedDescription) {
-        postData.append('description', enhancedDescription);
+      if (description) {
+        postData.append('description', description);
+      }
+      
+      // Add custom labels for insights tracking (not visible in post)
+      if (customLabels && customLabels.length > 0) {
+        postData.append('custom_labels', JSON.stringify(customLabels));
       }
       
       // Include language metadata if provided
