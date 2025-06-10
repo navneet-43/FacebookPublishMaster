@@ -336,5 +336,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Google Sheets Integration routes
+  app.get("/api/google-sheets-integration", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const integration = await storage.getGoogleSheetsIntegration(user.id);
+      res.json(integration || { connected: false });
+    } catch (error) {
+      console.error("Error fetching Google Sheets integration:", error);
+      res.status(500).json({ message: "Failed to fetch Google Sheets integration" });
+    }
+  });
+
+  app.post("/api/google-sheets-integration", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const { accessToken, refreshToken, spreadsheetId } = req.body;
+      
+      if (!accessToken || !spreadsheetId) {
+        return res.status(400).json({ message: "Access token and spreadsheet ID are required" });
+      }
+
+      const existingIntegration = await storage.getGoogleSheetsIntegration(user.id);
+      let integration;
+      
+      if (existingIntegration) {
+        integration = await storage.updateGoogleSheetsIntegration(user.id, {
+          accessToken,
+          refreshToken,
+          spreadsheetId
+        });
+      } else {
+        integration = await storage.createGoogleSheetsIntegration({
+          userId: user.id,
+          accessToken,
+          refreshToken,
+          spreadsheetId
+        });
+      }
+      
+      await storage.createActivity({
+        userId: user.id,
+        type: "google_sheets_connected",
+        description: "Google Sheets integration connected",
+        metadata: { integrationId: integration?.id }
+      });
+      
+      res.status(201).json(integration);
+    } catch (error) {
+      console.error("Error setting up Google Sheets integration:", error);
+      res.status(500).json({ message: "Failed to set up Google Sheets integration" });
+    }
+  });
+
+  app.post("/api/import-from-google-sheets", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const { spreadsheetId, sheetName, range, accountId } = req.body;
+      
+      if (!spreadsheetId || !sheetName || !accountId) {
+        return res.status(400).json({ 
+          message: "Spreadsheet ID, sheet name, and Facebook account are required" 
+        });
+      }
+
+      // Check if user has Google Sheets integration
+      const integration = await storage.getGoogleSheetsIntegration(user.id);
+      if (!integration) {
+        return res.status(400).json({ 
+          message: "Google Sheets integration not found. Please connect your Google account first." 
+        });
+      }
+
+      // Verify Facebook account exists
+      const account = await storage.getFacebookAccount(accountId);
+      if (!account || account.userId !== user.id) {
+        return res.status(400).json({ message: "Facebook account not found" });
+      }
+
+      // Import Google Sheets service
+      const { GoogleSheetsService } = await import('./services/googleSheetsService');
+      
+      const result = await GoogleSheetsService.importFromSheet({
+        accessToken: integration.accessToken,
+        spreadsheetId,
+        sheetName,
+        range: range || 'A:Z',
+        userId: user.id,
+        accountId
+      });
+
+      if (result.success) {
+        await storage.createActivity({
+          userId: user.id,
+          type: "google_sheets_imported",
+          description: `Imported ${result.postsCreated} posts from Google Sheets`,
+          metadata: { 
+            spreadsheetId,
+            sheetName,
+            postsCreated: result.postsCreated
+          }
+        });
+
+        res.json({
+          success: true,
+          message: `Successfully imported ${result.postsCreated} posts`,
+          postsCreated: result.postsCreated
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.error || "Failed to import from Google Sheets"
+        });
+      }
+    } catch (error) {
+      console.error("Error importing from Google Sheets:", error);
+      res.status(500).json({ message: "Failed to import from Google Sheets" });
+    }
+  });
+
   return httpServer;
 }

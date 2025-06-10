@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { 
@@ -17,30 +17,43 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { FacebookAccount } from "@shared/schema";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function GoogleSheetsImportCard() {
   const { toast } = useToast();
-  const [dataSource, setDataSource] = useState("api");
-  const [spreadsheetId, setSpreadsheetId] = useState("marketing-calendar");
-  const [dateRange, setDateRange] = useState("7days");
+  const [spreadsheetId, setSpreadsheetId] = useState("");
+  const [sheetName, setSheetName] = useState("Sheet1");
+  const [accountId, setAccountId] = useState("");
+
+  // Fetch Facebook accounts
+  const { data: accounts = [] } = useQuery<FacebookAccount[]>({
+    queryKey: ['/api/facebook-accounts'],
+    staleTime: 60000,
+  });
+
+  // Check Google Sheets integration status
+  const { data: integration } = useQuery({
+    queryKey: ['/api/google-sheets-integration'],
+    staleTime: 60000,
+  });
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/import-from-google-sheets', {
+      const response = await apiRequest('/api/import-from-google-sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           spreadsheetId, 
-          sheetName: "Sheet1",
-          dateRange
+          sheetName,
+          accountId: parseInt(accountId),
+          range: "A:Z"
         })
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Import failed');
-      }
-      return response.json();
+      return response;
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
@@ -48,7 +61,7 @@ export default function GoogleSheetsImportCard() {
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       toast({
         title: "Import successful",
-        description: `Successfully imported ${data?.count || 'multiple'} posts from Google Sheets.`,
+        description: data?.message || 'Posts imported successfully from Google Sheets.',
       });
     },
     onError: (error) => {
@@ -60,9 +73,52 @@ export default function GoogleSheetsImportCard() {
     }
   });
 
+  const setupMutation = useMutation({
+    mutationFn: async (data: { accessToken: string; spreadsheetId: string }) => {
+      return apiRequest('/api/google-sheets-integration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/google-sheets-integration'] });
+      toast({
+        title: "Integration setup",
+        description: "Google Sheets integration configured successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Setup failed",
+        description: `Failed to setup integration: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleImport = () => {
+    if (!spreadsheetId || !sheetName || !accountId) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
     importMutation.mutate();
   };
+
+  const handleSetup = () => {
+    const accessToken = prompt('Enter your Google Sheets API access token:');
+    const id = prompt('Enter your Google Spreadsheet ID:');
+    
+    if (accessToken && id) {
+      setupMutation.mutate({ accessToken, spreadsheetId: id });
+    }
+  };
+
+  const isConnected = integration && (integration as any).accessToken;
 
   return (
     <Card>
@@ -71,75 +127,88 @@ export default function GoogleSheetsImportCard() {
       </CardHeader>
       
       <CardContent className="p-6">
-        <div className="mb-4">
-          <Label htmlFor="data-source" className="block text-sm font-medium text-gray-700 mb-1">Data Source</Label>
-          <Select
-            value={dataSource}
-            onValueChange={setDataSource}
-          >
-            <SelectTrigger id="data-source" className="w-full">
-              <SelectValue placeholder="Select data source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="api">Google Sheets API Integration</SelectItem>
-              <SelectItem value="excel">Excel Upload</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="mb-4">
-          <Label htmlFor="spreadsheet" className="block text-sm font-medium text-gray-700 mb-1">Google Spreadsheet</Label>
-          <Select
-            value={spreadsheetId}
-            onValueChange={setSpreadsheetId}
-          >
-            <SelectTrigger id="spreadsheet" className="w-full">
-              <SelectValue placeholder="Select spreadsheet" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none" disabled>No spreadsheets available - Connect Google Sheets first</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="mb-4">
-          <Label htmlFor="date-range" className="block text-sm font-medium text-gray-700 mb-1">Date Range</Label>
-          <Select
-            value={dateRange}
-            onValueChange={setDateRange}
-          >
-            <SelectTrigger id="date-range" className="w-full">
-              <SelectValue placeholder="Select date range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7days">Next 7 days</SelectItem>
-              <SelectItem value="14days">Next 14 days</SelectItem>
-              <SelectItem value="30days">Next 30 days</SelectItem>
-              <SelectItem value="custom">Custom range</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="bg-fb-light-gray rounded-md p-4 mb-4">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <i className="fa-solid fa-circle-info text-fb-blue"></i>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-gray-700">
-                Content will be imported from Google Sheets based on your mapping configuration in settings.
-              </p>
-            </div>
+        {!isConnected ? (
+          <div className="space-y-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Connect your Google Sheets account to import content data.
+              </AlertDescription>
+            </Alert>
+            
+            <Button 
+              className="w-full bg-fb-blue hover:bg-blue-700"
+              onClick={handleSetup}
+              disabled={setupMutation.isPending}
+            >
+              {setupMutation.isPending ? "Setting up..." : "Setup Google Sheets"}
+            </Button>
           </div>
-        </div>
-        
-        <Button 
-          className="w-full bg-fb-blue hover:bg-blue-700"
-          onClick={handleImport}
-          disabled={importMutation.isPending}
-        >
-          {importMutation.isPending ? "Importing..." : "Import Content"}
-        </Button>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="spreadsheet-id" className="block text-sm font-medium text-gray-700 mb-1">
+                Spreadsheet ID
+              </Label>
+              <Input
+                id="spreadsheet-id"
+                placeholder="Enter Google Spreadsheet ID"
+                value={spreadsheetId}
+                onChange={(e) => setSpreadsheetId(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="sheet-name" className="block text-sm font-medium text-gray-700 mb-1">
+                Sheet Name
+              </Label>
+              <Input
+                id="sheet-name"
+                placeholder="Sheet1"
+                value={sheetName}
+                onChange={(e) => setSheetName(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="facebook-account" className="block text-sm font-medium text-gray-700 mb-1">
+                Facebook Page
+              </Label>
+              <Select value={accountId} onValueChange={setAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Facebook page" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">f</span>
+                        </div>
+                        {account.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Expected columns: Content, MediaURL, MediaType, Language, Labels, ScheduledFor, Link
+              </AlertDescription>
+            </Alert>
+            
+            <Button 
+              className="w-full bg-fb-blue hover:bg-blue-700"
+              onClick={handleImport}
+              disabled={importMutation.isPending || !spreadsheetId || !accountId}
+            >
+              {importMutation.isPending ? "Importing..." : "Import Content"}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
