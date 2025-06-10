@@ -249,12 +249,24 @@ export class HootsuiteStyleFacebookService {
       
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
       
+      // Enhance description with custom labels as hashtags for tracking
+      let enhancedDescription = description || '';
+      if (customLabels && customLabels.length > 0) {
+        const labelHashtags = customLabels.map(label => `#${label.replace(/\s+/g, '')}`).join(' ');
+        enhancedDescription = description ? `${description}\n\n${labelHashtags}` : labelHashtags;
+      }
+
       const postData = new URLSearchParams();
       postData.append('file_url', finalVideoUrl);
       postData.append('access_token', pageAccessToken);
       
-      if (description) {
-        postData.append('description', description);
+      if (enhancedDescription) {
+        postData.append('description', enhancedDescription);
+      }
+      
+      // Include language metadata if provided
+      if (language) {
+        postData.append('locale', language);
       }
       
       console.log(`Publishing video post to page ${pageId}`);

@@ -57,7 +57,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             account.pageId,
             account.accessToken,
             post.mediaUrl,
-            post.content || undefined
+            post.content || undefined,
+            post.labels || undefined,
+            post.language || undefined
           );
           break;
           
@@ -67,7 +69,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             account.pageId,
             account.accessToken,
             post.mediaUrl,
-            post.content || undefined
+            post.content || undefined,
+            post.labels || undefined,
+            post.language || undefined
           );
           break;
           
@@ -77,7 +81,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             account.pageId,
             account.accessToken,
             post.content || 'Check out this content!',
-            post.mediaUrl
+            post.mediaUrl,
+            post.labels || undefined,
+            post.language || undefined
           );
       }
     } else {
@@ -86,7 +92,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
         account.pageId,
         account.accessToken,
         post.content!,
-        post.link || undefined
+        post.link || undefined,
+        post.labels || undefined,
+        post.language || undefined
       );
     }
     
@@ -99,7 +107,10 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
         metadata: { 
           postId: post.id,
           facebookPostId: result.postId,
-          pageId: account.pageId
+          pageId: account.pageId,
+          customLabels: post.labels,
+          language: post.language,
+          mediaType: post.mediaType
         }
       });
       
