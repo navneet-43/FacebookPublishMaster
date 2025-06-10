@@ -85,6 +85,8 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       boost: false,
       crosspost: false,
       crosspostTo: [],
+      scheduledFor: new Date(),
+      scheduledTime: "14:00",
     },
   });
 
@@ -124,6 +126,11 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   });
 
   const onSubmit = (values: FormValues) => {
+    console.log('🔍 FORM SUBMIT DEBUG:');
+    console.log('🔍 isScheduleEnabled:', isScheduleEnabled);
+    console.log('🔍 values.scheduledFor:', values.scheduledFor);
+    console.log('🔍 values.scheduledTime:', values.scheduledTime);
+    
     // Clean base data
     const baseData = {
       accountId: parseInt(values.accountId),
@@ -141,13 +148,27 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
     };
 
     // Determine action based on schedule toggle
-    if (isScheduleEnabled && values.scheduledFor && values.scheduledTime) {
+    if (isScheduleEnabled) {
+      console.log('🔍 SCHEDULE MODE ENABLED');
+      
+      if (!values.scheduledFor || !values.scheduledTime) {
+        toast({
+          title: "Missing Schedule Information",
+          description: "Please select both date and time for scheduling.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // SCHEDULE ACTION - Create scheduled post
       const scheduledDate = new Date(values.scheduledFor);
       const [hours, minutes] = values.scheduledTime.split(':').map(Number);
       scheduledDate.setHours(hours, minutes, 0, 0);
       
       const now = new Date();
+      console.log('🔍 Scheduled time:', scheduledDate.toISOString());
+      console.log('🔍 Current time:', now.toISOString());
+      
       if (scheduledDate > now) {
         const postData = {
           ...baseData,
@@ -165,6 +186,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       }
     } else {
       // PUBLISH NOW ACTION - Create immediate post
+      console.log('🔍 IMMEDIATE MODE');
       const postData = {
         ...baseData,
         status: "immediate",
@@ -433,7 +455,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                             <PopoverContent className="w-auto p-0" align="start">
                               <Calendar
                                 mode="single"
-                                selected={field.value || new Date()}
+                                selected={field.value}
                                 onSelect={field.onChange}
                                 disabled={(date) =>
                                   date < new Date() || date < new Date("1900-01-01")
@@ -455,10 +477,8 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           <FormControl>
                             <Input 
                               type="time"
-                              defaultValue="14:17"
                               className="w-32 h-12"
                               {...field}
-                              value={field.value || "14:17"}
                             />
                           </FormControl>
                           <FormMessage />
