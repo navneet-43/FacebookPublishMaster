@@ -477,6 +477,57 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
 
             <Separator className="bg-gray-200" />
 
+            {/* Language Selection */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Language</h3>
+              <p className="text-gray-600 text-sm mb-4">Select the language for your post content.</p>
+              
+              <FormField
+                control={form.control}
+                name="language"
+                render={({ field }) => (
+                  <FormItem>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select language" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
+                        <SelectItem value="de">German</SelectItem>
+                        <SelectItem value="it">Italian</SelectItem>
+                        <SelectItem value="pt">Portuguese</SelectItem>
+                        <SelectItem value="ru">Russian</SelectItem>
+                        <SelectItem value="ja">Japanese</SelectItem>
+                        <SelectItem value="ko">Korean</SelectItem>
+                        <SelectItem value="zh">Chinese</SelectItem>
+                        <SelectItem value="hi">Hindi</SelectItem>
+                        <SelectItem value="ar">Arabic</SelectItem>
+                        <SelectItem value="nl">Dutch</SelectItem>
+                        <SelectItem value="sv">Swedish</SelectItem>
+                        <SelectItem value="da">Danish</SelectItem>
+                        <SelectItem value="no">Norwegian</SelectItem>
+                        <SelectItem value="fi">Finnish</SelectItem>
+                        <SelectItem value="pl">Polish</SelectItem>
+                        <SelectItem value="tr">Turkish</SelectItem>
+                        <SelectItem value="th">Thai</SelectItem>
+                        <SelectItem value="vi">Vietnamese</SelectItem>
+                        <SelectItem value="id">Indonesian</SelectItem>
+                        <SelectItem value="ms">Malay</SelectItem>
+                        <SelectItem value="tl">Filipino</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <Separator className="bg-gray-200" />
+
             {/* Custom Labels */}
             <div>
               <h3 className="text-lg font-semibold mb-2">Labels</h3>

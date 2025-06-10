@@ -85,13 +85,25 @@ export class HootsuiteStyleFacebookService {
   /**
    * Publish text post to Facebook page (Hootsuite style)
    */
-  static async publishTextPost(pageId: string, pageAccessToken: string, message: string, link?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+  static async publishTextPost(pageId: string, pageAccessToken: string, message: string, link?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/feed`;
       
+      // Enhance message with custom labels as hashtags for tracking
+      let enhancedMessage = message;
+      if (customLabels && customLabels.length > 0) {
+        const labelHashtags = customLabels.map(label => `#${label.replace(/\s+/g, '')}`).join(' ');
+        enhancedMessage = `${message}\n\n${labelHashtags}`;
+      }
+
       const postData = new URLSearchParams();
-      postData.append('message', message);
+      postData.append('message', enhancedMessage);
       postData.append('access_token', pageAccessToken);
+      
+      // Include language metadata if provided
+      if (language) {
+        postData.append('locale', language);
+      }
       
       if (link) {
         postData.append('link', link);
@@ -135,7 +147,7 @@ export class HootsuiteStyleFacebookService {
   /**
    * Publish photo post to Facebook page (supports Google Drive links)
    */
-  static async publishPhotoPost(pageId: string, pageAccessToken: string, photoUrl: string, caption?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+  static async publishPhotoPost(pageId: string, pageAccessToken: string, photoUrl: string, caption?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
       
@@ -157,12 +169,24 @@ export class HootsuiteStyleFacebookService {
       
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/photos`;
       
+      // Enhance caption with custom labels as hashtags for tracking
+      let enhancedCaption = caption || '';
+      if (customLabels && customLabels.length > 0) {
+        const labelHashtags = customLabels.map(label => `#${label.replace(/\s+/g, '')}`).join(' ');
+        enhancedCaption = caption ? `${caption}\n\n${labelHashtags}` : labelHashtags;
+      }
+
       const postData = new URLSearchParams();
       postData.append('url', finalPhotoUrl);
       postData.append('access_token', pageAccessToken);
       
-      if (caption) {
-        postData.append('caption', caption);
+      if (enhancedCaption) {
+        postData.append('caption', enhancedCaption);
+      }
+      
+      // Include language metadata if provided
+      if (language) {
+        postData.append('locale', language);
       }
       
       console.log(`Publishing photo post to page ${pageId}`);
@@ -203,7 +227,7 @@ export class HootsuiteStyleFacebookService {
   /**
    * Publish video post to Facebook page (supports Google Drive links)
    */
-  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
       
