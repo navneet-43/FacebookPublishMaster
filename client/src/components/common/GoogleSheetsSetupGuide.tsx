@@ -100,7 +100,9 @@ export function GoogleSheetsSetupGuide({ isOpen, onClose, onComplete }: GoogleSh
                 <Card key={index}>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Badge variant="outline">{index + 1}</Badge>
+                      <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+                        {index + 1}
+                      </span>
                       {step.title}
                     </CardTitle>
                     <CardDescription className="text-xs">
@@ -190,19 +192,19 @@ export function GoogleSheetsSetupGuide({ isOpen, onClose, onComplete }: GoogleSh
               <CardContent>
                 <div className="space-y-2 text-xs">
                   <div className="grid grid-cols-2 gap-2">
-                    <Badge variant="default">Content</Badge>
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Content</span>
                     <span>Post message (required)</span>
-                    <Badge variant="secondary">MediaURL</Badge>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">MediaURL</span>
                     <span>Image/video link</span>
-                    <Badge variant="secondary">MediaType</Badge>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">MediaType</span>
                     <span>photo, video, or none</span>
-                    <Badge variant="secondary">Language</Badge>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">Language</span>
                     <span>en, es, fr, etc.</span>
-                    <Badge variant="secondary">Labels</Badge>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">Labels</span>
                     <span>Comma-separated tags</span>
-                    <Badge variant="secondary">ScheduledFor</Badge>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">ScheduledFor</span>
                     <span>YYYY-MM-DD HH:MM</span>
-                    <Badge variant="secondary">Link</Badge>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">Link</span>
                     <span>Optional URL to include</span>
                   </div>
                 </div>

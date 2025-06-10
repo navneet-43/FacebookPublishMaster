@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FacebookAccount } from "@shared/schema";
 import { AlertCircle, Settings, FileSpreadsheet } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { GoogleSheetsSetupGuide } from "@/components/common/GoogleSheetsSetupGuide";
+import { GoogleSheetsSetupSimple } from "@/components/common/GoogleSheetsSetupSimple";
 
 export default function GoogleSheetsImportCard() {
   const { toast } = useToast();
@@ -219,7 +219,7 @@ export default function GoogleSheetsImportCard() {
           </div>
         )}
         
-        <GoogleSheetsSetupGuide
+        <GoogleSheetsSetupSimple
           isOpen={showSetupGuide}
           onClose={() => setShowSetupGuide(false)}
           onComplete={handleSetupComplete}
