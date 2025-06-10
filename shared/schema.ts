@@ -151,6 +151,12 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   status: true,
   sheetRowId: true,
   errorMessage: true,
+}).extend({
+  scheduledFor: z.union([z.string(), z.date()]).optional().transform((val) => {
+    if (val instanceof Date) return val;
+    if (typeof val === 'string') return new Date(val);
+    return val;
+  }),
 });
 
 // Activities model

@@ -126,6 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/posts", async (req: Request, res: Response) => {
     try {
       console.log(`🎯 POST /api/posts - Status: "${req.body.status}"`);
+      console.log('🔍 Request body:', JSON.stringify(req.body, null, 2));
       
       const user = await authenticateUser(req);
       if (!user) {
@@ -134,6 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = insertPostSchema.safeParse(req.body);
       if (!result.success) {
+        console.log('❌ VALIDATION FAILED:', JSON.stringify(result.error.format(), null, 2));
         return res.status(400).json({ message: "Invalid post data", errors: result.error.format() });
       }
       
