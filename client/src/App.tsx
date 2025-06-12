@@ -13,7 +13,7 @@ import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileMenu from "@/components/layout/MobileMenu";
-import PlatformLogin from "@/components/auth/PlatformLogin";
+import TeamLogin from "@/pages/TeamLogin";
 import { usePlatformAuth } from "@/hooks/usePlatformAuth";
 import { useState } from "react";
 
@@ -49,7 +49,7 @@ function AuthenticatedApp() {
   }
 
   if (!isAuthenticated) {
-    return <PlatformLogin onSuccess={() => window.location.reload()} />;
+    return <TeamLogin />;
   }
 
   return (

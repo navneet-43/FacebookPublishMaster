@@ -1,15 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 
+interface PlatformUser {
+  id: number;
+  username: string;
+  email: string;
+  fullName: string;
+  role: string;
+}
+
+interface AuthStatus {
+  isAuthenticated: boolean;
+  user: PlatformUser | null;
+}
+
 export function usePlatformAuth() {
-  const { data: authStatus, isLoading, error } = useQuery({
-    queryKey: ['/api/platform/auth/status'],
+  const { data, isLoading } = useQuery<AuthStatus>({
+    queryKey: ["/api/platform/auth/status"],
     retry: false,
   });
 
   return {
-    user: (authStatus as any)?.user || null,
+    user: data?.user || null,
     isLoading,
-    isAuthenticated: (authStatus as any)?.isAuthenticated || false,
-    error
+    isAuthenticated: data?.isAuthenticated || false,
   };
 }
