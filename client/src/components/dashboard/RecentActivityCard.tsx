@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity } from "@/types";
+import { Activity } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -116,7 +116,28 @@ export default function RecentActivityCard() {
                     </div>
                     <div className="ml-3 flex-1">
                       <p className="text-sm text-gray-900">{activity.description}</p>
-                      <p className="text-xs text-gray-500">{formatTime(activity.createdAt)}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-gray-500">{formatTime(activity.createdAt)}</p>
+                        {activity.metadata && activity.type === 'post_published' && (
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            {activity.metadata.language && (
+                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                {activity.metadata.language.toUpperCase()}
+                              </span>
+                            )}
+                            {activity.metadata.customLabels && activity.metadata.customLabels.length > 0 && (
+                              <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                {activity.metadata.customLabels.join(', ')}
+                              </span>
+                            )}
+                            {activity.metadata.mediaType && activity.metadata.mediaType !== 'none' && (
+                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                                {activity.metadata.mediaType}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </li>

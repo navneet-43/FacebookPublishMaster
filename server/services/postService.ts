@@ -129,10 +129,13 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     
     if (result.success) {
       // Log activity for successful publication
+      const languageInfo = post.language ? ` (${post.language.toUpperCase()})` : '';
+      const labelsInfo = resolvedLabels && resolvedLabels.length > 0 ? ` with labels: ${resolvedLabels.join(', ')}` : '';
+      
       await storage.createActivity({
         userId: post.userId || null,
         type: 'post_published',
-        description: `Post published to Facebook page: ${account.name}`,
+        description: `Post published to Facebook page: ${account.name}${languageInfo}${labelsInfo}`,
         metadata: { 
           postId: post.id,
           facebookPostId: result.postId,
