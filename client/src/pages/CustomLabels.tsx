@@ -231,7 +231,7 @@ export default function CustomLabels() {
                         <div>
                           <div className="font-medium">{label.name}</div>
                           <div className="text-sm text-gray-500">
-                            Created {new Date(label.createdAt).toLocaleDateString()}
+                            ID: {label.id} • Created {new Date(label.createdAt).toLocaleDateString()}
                           </div>
                         </div>
                       </div>

@@ -635,7 +635,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           className="w-2 h-2 rounded-full" 
                           style={{ backgroundColor: label.color }}
                         />
-                        {label.name}
+                        {label.name} <span className="opacity-60">(ID: {label.id})</span>
                         <Button
                           type="button"
                           variant="ghost"
