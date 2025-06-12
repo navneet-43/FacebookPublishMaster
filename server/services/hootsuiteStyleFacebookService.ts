@@ -180,7 +180,10 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        postData.append('custom_labels', JSON.stringify(customLabels));
+        // Facebook expects custom labels as comma-separated string, not JSON array
+        const labelsString = customLabels.join(',');
+        postData.append('custom_labels', labelsString);
+        console.log('Adding custom labels to Facebook photo post:', labelsString);
       }
       
       // Include language metadata if provided
@@ -258,7 +261,10 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        postData.append('custom_labels', JSON.stringify(customLabels));
+        // Facebook expects custom labels as comma-separated string, not JSON array
+        const labelsString = customLabels.join(',');
+        postData.append('custom_labels', labelsString);
+        console.log('Adding custom labels to Facebook video post:', labelsString);
       }
       
       // Include language metadata if provided
