@@ -38,6 +38,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Setup new platform authentication routes
   app.use('/api/platform/auth', platformAuthRouter);
+  // Add alias for Replit environment URL rewrite
+  app.use('/api/client/auth', platformAuthRouter);
   
   // Setup Google OAuth routes
   setupGoogleOAuthRoutes(app);
