@@ -95,21 +95,14 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as an array parameter
-        customLabels.forEach((label, index) => {
-          postData.append(`custom_labels[${index}]`, label);
-        });
+        // Facebook expects custom labels as JSON array
+        postData.append('custom_labels', JSON.stringify(customLabels));
         console.log('Adding custom labels to Facebook text post:', customLabels);
       }
       
       // Include language metadata if provided
-      if (language && language !== 'en') {
-        // Use published parameter instead of locale for better compatibility
-        postData.append('published', 'false');
-        postData.append('targeting', JSON.stringify({ 
-          locales: [language] 
-        }));
-        console.log('Adding language targeting:', language);
+      if (language) {
+        postData.append('locale', language);
       }
       
       if (link) {
@@ -186,21 +179,14 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as an array parameter
-        customLabels.forEach((label, index) => {
-          postData.append(`custom_labels[${index}]`, label);
-        });
+        // Facebook expects custom labels as JSON array
+        postData.append('custom_labels', JSON.stringify(customLabels));
         console.log('Adding custom labels to Facebook photo post:', customLabels);
       }
       
       // Include language metadata if provided
-      if (language && language !== 'en') {
-        // Use published parameter instead of locale for better compatibility
-        postData.append('published', 'false');
-        postData.append('targeting', JSON.stringify({ 
-          locales: [language] 
-        }));
-        console.log('Adding language targeting:', language);
+      if (language) {
+        postData.append('locale', language);
       }
       
       console.log(`Publishing photo post to page ${pageId}`);
@@ -239,34 +225,32 @@ export class HootsuiteStyleFacebookService {
   }
 
   /**
-   * Publish video post to Facebook page (fallback to text post with video link)
+   * Publish video post to Facebook page (supports Google Drive links)
    */
   static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      // For Google Drive videos, publish as text post with link since direct video upload has restrictions
-      if (videoUrl.includes('drive.google.com')) {
-        console.log('Google Drive video detected, publishing as text post with link');
-        
-        const message = description ? 
-          `${description}\n\nVideo: ${videoUrl}` : 
-          `Check out this video: ${videoUrl}`;
-        
-        // Use text post method instead of video upload
-        return await this.publishTextPost(
-          pageId, 
-          pageAccessToken, 
-          message, 
-          undefined, // no link parameter since it's in the message
-          customLabels, 
-          language
-        );
+      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
+      
+      let finalVideoUrl = videoUrl;
+      
+      // Convert Google Drive links to direct download URLs
+      if (isGoogleDriveLink(videoUrl)) {
+        const convertedUrl = convertGoogleDriveLink(videoUrl);
+        if (convertedUrl) {
+          finalVideoUrl = convertedUrl;
+          console.log('Converted Google Drive link for Facebook video:', finalVideoUrl);
+        } else {
+          return {
+            success: false,
+            error: 'Invalid Google Drive link format'
+          };
+        }
       }
       
-      // For other video URLs, attempt direct upload
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
       
       const postData = new URLSearchParams();
-      postData.append('file_url', videoUrl);
+      postData.append('file_url', finalVideoUrl);
       postData.append('access_token', pageAccessToken);
       
       if (description) {
@@ -275,19 +259,14 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        customLabels.forEach((label, index) => {
-          postData.append(`custom_labels[${index}]`, label);
-        });
+        // Facebook expects custom labels as JSON array
+        postData.append('custom_labels', JSON.stringify(customLabels));
         console.log('Adding custom labels to Facebook video post:', customLabels);
       }
       
       // Include language metadata if provided
-      if (language && language !== 'en') {
-        postData.append('published', 'false');
-        postData.append('targeting', JSON.stringify({ 
-          locales: [language] 
-        }));
-        console.log('Adding language targeting:', language);
+      if (language) {
+        postData.append('locale', language);
       }
       
       console.log(`Publishing video post to page ${pageId}`);
@@ -304,21 +283,10 @@ export class HootsuiteStyleFacebookService {
       
       if (!response.ok || data.error) {
         console.error('Facebook video publishing error:', data.error);
-        
-        // Fallback to text post if video upload fails
-        console.log('Video upload failed, falling back to text post with link');
-        const message = description ? 
-          `${description}\n\nVideo: ${videoUrl}` : 
-          `Check out this video: ${videoUrl}`;
-        
-        return await this.publishTextPost(
-          pageId, 
-          pageAccessToken, 
-          message, 
-          undefined,
-          customLabels, 
-          language
-        );
+        return {
+          success: false,
+          error: data.error?.message || `API error: ${response.status}`
+        };
       }
       
       console.log('Successfully published video post:', data.id);
