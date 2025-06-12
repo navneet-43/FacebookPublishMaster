@@ -211,7 +211,12 @@ export default function TeamLogin() {
                       <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input placeholder="Choose a username" {...field} />
+                          <Input 
+                            placeholder="Choose a username" 
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -225,7 +230,13 @@ export default function TeamLogin() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="Enter your email" {...field} />
+                          <Input 
+                            type="email" 
+                            placeholder="Enter your email" 
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -239,7 +250,13 @@ export default function TeamLogin() {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Create a password (min 6 characters)" {...field} />
+                          <Input 
+                            type="password" 
+                            placeholder="Create a password (min 6 characters)" 
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
