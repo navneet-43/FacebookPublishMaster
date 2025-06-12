@@ -300,10 +300,8 @@ export class ExcelImportService {
     };
   }
   
-  static generateTemplate(userAccounts?: any[]): Buffer {
-    const accountName = userAccounts && userAccounts.length > 0 
-      ? userAccounts[0].name 
-      : 'Your Facebook Page Name';
+  static generateTemplate(): Buffer {
+    const accountName = 'Your Facebook Page Name';
     
     const templateData = [
       {

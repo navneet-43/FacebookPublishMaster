@@ -439,7 +439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get user's Facebook accounts to include in template
       const userAccounts = await storage.getFacebookAccounts(userId);
-      const templateBuffer = ExcelImportService.generateTemplate(userAccounts);
+      const templateBuffer = ExcelImportService.generateTemplate();
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="posts-import-template.xlsx"');
