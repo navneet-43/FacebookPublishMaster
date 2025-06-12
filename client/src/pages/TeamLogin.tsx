@@ -1,12 +1,9 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { loginSchema, registerSchema } from "@shared/schema";
 import { z } from "zod";
@@ -21,24 +18,21 @@ export default function TeamLogin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const loginForm = useForm<LoginData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-    },
+  // Login form state
+  const [loginData, setLoginData] = useState({
+    username: "",
+    password: "",
   });
 
-  const registerForm = useForm<RegisterData>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: "",
-      email: "",
-      fullName: "",
-      password: "",
-    },
-    mode: "onChange",
+  // Registration form state
+  const [registerData, setRegisterData] = useState({
+    fullName: "",
+    username: "",
+    email: "",
+    password: "",
   });
+
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginData) => {
@@ -51,26 +45,20 @@ export default function TeamLogin() {
       });
       return response;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       if (data.success) {
         toast({
           title: "Welcome back!",
-          description: `Logged in as ${data.user.fullName}`,
+          description: "You've been successfully logged in.",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/platform/auth/status"] });
         navigate("/");
-      } else {
-        toast({
-          title: "Login failed",
-          description: data.error || "Invalid credentials",
-          variant: "destructive",
-        });
       }
     },
     onError: (error: any) => {
       toast({
-        title: "Login error",
-        description: error.message || "Something went wrong",
+        title: "Login failed",
+        description: error.message || "Invalid credentials. Please try again.",
         variant: "destructive",
       });
     },
@@ -87,215 +75,184 @@ export default function TeamLogin() {
       });
       return response;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       if (data.success) {
         toast({
           title: "Account created!",
-          description: `Welcome to the team, ${data.user.fullName}!`,
+          description: "Welcome to SocialFlow. You're now logged in.",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/platform/auth/status"] });
         navigate("/");
-      } else {
-        toast({
-          title: "Registration failed",
-          description: data.error || "Unable to create account",
-          variant: "destructive",
-        });
       }
     },
     onError: (error: any) => {
       toast({
-        title: "Registration error",
-        description: error.message || "Something went wrong",
+        title: "Registration failed",
+        description: error.message || "Failed to create account. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const onLogin = (data: LoginData) => {
-    loginMutation.mutate(data);
+  const handleLogin = async () => {
+    setFormErrors({});
+    const result = loginSchema.safeParse(loginData);
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      result.error.errors.forEach((error) => {
+        errors[error.path[0] as string] = error.message;
+      });
+      setFormErrors(errors);
+      return;
+    }
+    loginMutation.mutate(loginData);
   };
 
-  const onRegister = (data: RegisterData) => {
-    registerMutation.mutate(data);
+  const handleRegister = async () => {
+    setFormErrors({});
+    const result = registerSchema.safeParse(registerData);
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      result.error.errors.forEach((error) => {
+        errors[error.path[0] as string] = error.message;
+      });
+      setFormErrors(errors);
+      return;
+    }
+    registerMutation.mutate(registerData);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">SocialFlow</h1>
-          <p className="text-gray-600">Team Dashboard for Social Media Publishing</p>
-        </div>
-
-        <Card className="shadow-lg">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">
-              {isLoginMode ? "Sign in to your account" : "Create your account"}
-            </CardTitle>
-            <CardDescription className="text-center">
-              {isLoginMode 
-                ? "Enter your credentials to access the dashboard" 
-                : "Join your team and start managing social media"
-              }
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-4">
-            {isLoginMode ? (
-              <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
-                  <FormField
-                    control={loginForm.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter your username" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={loginForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter your password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={loginMutation.isPending}
-                  >
-                    {loginMutation.isPending ? "Signing in..." : "Sign in"}
-                  </Button>
-                </form>
-              </Form>
-            ) : (
-              <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
-                  <FormField
-                    control={registerForm.control}
-                    name="fullName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="Enter your full name" 
-                            {...field}
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={registerForm.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="Choose a username" 
-                            {...field}
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={registerForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="email" 
-                            placeholder="Enter your email" 
-                            {...field}
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={registerForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="password" 
-                            placeholder="Create a password (min 6 characters)" 
-                            {...field}
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={registerMutation.isPending}
-                  >
-                    {registerMutation.isPending ? "Creating account..." : "Create account"}
-                  </Button>
-                </form>
-              </Form>
-            )}
-            
-            <div className="text-center pt-4 border-t">
-              <p className="text-sm text-gray-600">
-                {isLoginMode ? "Don't have an account?" : "Already have an account?"}
-                {" "}
-                <button
-                  type="button"
-                  onClick={() => setIsLoginMode(!isLoginMode)}
-                  className="text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  {isLoginMode ? "Sign up" : "Sign in"}
-                </button>
-              </p>
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold text-gray-900">
+            {isLoginMode ? "Welcome Back" : "Create Account"}
+          </CardTitle>
+          <CardDescription>
+            {isLoginMode 
+              ? "Sign in to your SocialFlow team account" 
+              : "Join your team on SocialFlow"
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoginMode ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Username</label>
+                <Input
+                  placeholder="Enter your username"
+                  value={loginData.username}
+                  onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
+                  className="w-full"
+                />
+                {formErrors.username && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.username}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">Password</label>
+                <Input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                  className="w-full"
+                />
+                {formErrors.password && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.password}</p>
+                )}
+              </div>
+              
+              <Button 
+                onClick={handleLogin}
+                className="w-full"
+                disabled={loginMutation.isPending}
+              >
+                {loginMutation.isPending ? "Signing in..." : "Sign in"}
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-        
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Secure team collaboration for social media management
-          </p>
-        </div>
-      </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Full Name</label>
+                <Input
+                  placeholder="Enter your full name"
+                  value={registerData.fullName}
+                  onChange={(e) => setRegisterData({ ...registerData, fullName: e.target.value })}
+                  className="w-full"
+                />
+                {formErrors.fullName && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.fullName}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">Username</label>
+                <Input
+                  placeholder="Choose a username"
+                  value={registerData.username}
+                  onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
+                  className="w-full"
+                />
+                {formErrors.username && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.username}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">Email</label>
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={registerData.email}
+                  onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                  className="w-full"
+                />
+                {formErrors.email && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.email}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">Password</label>
+                <Input
+                  type="password"
+                  placeholder="Create a password (min 6 characters)"
+                  value={registerData.password}
+                  onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                  className="w-full"
+                />
+                {formErrors.password && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.password}</p>
+                )}
+              </div>
+              
+              <Button 
+                onClick={handleRegister}
+                className="w-full"
+                disabled={registerMutation.isPending}
+              >
+                {registerMutation.isPending ? "Creating account..." : "Create account"}
+              </Button>
+            </div>
+          )}
+          
+          <div className="text-center pt-4 border-t mt-6">
+            <p className="text-sm text-gray-600">
+              {isLoginMode ? "Don't have an account?" : "Already have an account?"}
+              <button
+                onClick={() => setIsLoginMode(!isLoginMode)}
+                className="ml-1 text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {isLoginMode ? "Create a new account" : "Sign in here"}
+              </button>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
