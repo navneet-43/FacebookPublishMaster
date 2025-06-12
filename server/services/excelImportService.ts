@@ -199,15 +199,37 @@ export class ExcelImportService {
       try {
         // Find Facebook account
         let accountId = null;
-        if (postData.accountName) {
+        if (postData.accountName && postData.accountName.trim() !== '') {
           const account = accountMap.get(postData.accountName.toLowerCase());
           if (account) {
             accountId = account.id;
           } else {
-            errors.push(`Row ${i + 1}: Facebook account "${postData.accountName}" not found`);
-            failed++;
-            continue;
+            // Try partial matching
+            const partialMatch = userAccounts.find((acc: any) => 
+              acc.name.toLowerCase().includes(postData.accountName!.toLowerCase()) ||
+              postData.accountName!.toLowerCase().includes(acc.name.toLowerCase())
+            );
+            
+            if (partialMatch) {
+              accountId = partialMatch.id;
+              console.log(`Row ${i + 1}: Using partial match "${partialMatch.name}" for "${postData.accountName!}"`);
+            } else if (userAccounts.length > 0) {
+              // Use first available account as fallback
+              accountId = userAccounts[0].id;
+              console.log(`Row ${i + 1}: Account "${postData.accountName!}" not found, using default account "${userAccounts[0].name}"`);
+            } else {
+              errors.push(`Row ${i + 1}: No Facebook accounts available. Please connect a Facebook account first.`);
+              failed++;
+              continue;
+            }
           }
+        } else if (userAccounts.length > 0) {
+          // Use first available account if no account specified
+          accountId = userAccounts[0].id;
+        } else {
+          errors.push(`Row ${i + 1}: No Facebook accounts available. Please connect a Facebook account first.`);
+          failed++;
+          continue;
         }
         
         // Process custom labels
@@ -278,12 +300,16 @@ export class ExcelImportService {
     };
   }
   
-  static generateTemplate(): Buffer {
+  static generateTemplate(userAccounts?: any[]): Buffer {
+    const accountName = userAccounts && userAccounts.length > 0 
+      ? userAccounts[0].name 
+      : 'Your Facebook Page Name';
+    
     const templateData = [
       {
         content: 'Your post content here - this is the text that will be published',
         scheduledFor: '2024-12-15 14:00:00',
-        accountName: 'Your Facebook Page Name',
+        accountName: accountName,
         customLabels: 'label1, label2',
         language: 'EN',
         mediaUrl: 'https://example.com/image.jpg (optional)',
@@ -292,7 +318,7 @@ export class ExcelImportService {
       {
         content: 'Another example post with different scheduling',
         scheduledFor: '2024-12-16 10:30:00',
-        accountName: 'Your Facebook Page Name',
+        accountName: accountName,
         customLabels: 'promotion, sale',
         language: 'HI',
         mediaUrl: '',

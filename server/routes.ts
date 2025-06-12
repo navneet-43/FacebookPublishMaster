@@ -432,7 +432,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Excel/CSV Import Routes (replacing Google Sheets)
   app.get("/api/excel-import/template", requirePlatformAuth, async (req: Request, res: Response) => {
     try {
-      const templateBuffer = ExcelImportService.generateTemplate();
+      const userId = (req.session as any)?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
+      // Get user's Facebook accounts to include in template
+      const userAccounts = await storage.getFacebookAccounts(userId);
+      const templateBuffer = ExcelImportService.generateTemplate(userAccounts);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="posts-import-template.xlsx"');
