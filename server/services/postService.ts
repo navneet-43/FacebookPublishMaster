@@ -47,6 +47,35 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     
     console.log(`Publishing post ${post.id} to Facebook page: ${account.name} (${account.pageId})`);
     
+    // Resolve label IDs to label names if labels are provided as IDs
+    let resolvedLabels = post.labels;
+    if (post.labels && post.labels.length > 0 && post.userId) {
+      const labelNames = [];
+      for (const label of post.labels) {
+        // Check if label is an ID (number as string) or already a name
+        if (/^\d+$/.test(label)) {
+          // It's an ID, resolve to name
+          try {
+            const customLabels = await storage.getCustomLabels(post.userId);
+            const labelObj = customLabels.find(l => l.id.toString() === label);
+            if (labelObj) {
+              labelNames.push(labelObj.name);
+            } else {
+              labelNames.push(label); // Keep original if not found
+            }
+          } catch (error) {
+            console.warn(`Failed to resolve label ID ${label}:`, error);
+            labelNames.push(label); // Keep original on error
+          }
+        } else {
+          // It's already a name
+          labelNames.push(label);
+        }
+      }
+      resolvedLabels = labelNames;
+      console.log('Resolved labels:', post.labels, '->', resolvedLabels);
+    }
+    
     let result;
     
     // Determine post type based on mediaType and publish accordingly
@@ -58,7 +87,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             account.accessToken,
             post.mediaUrl,
             post.content || undefined,
-            post.labels || undefined,
+            resolvedLabels || undefined,
             post.language || undefined
           );
           break;
@@ -70,7 +99,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             account.accessToken,
             post.mediaUrl,
             post.content || undefined,
-            post.labels || undefined,
+            resolvedLabels || undefined,
             post.language || undefined
           );
           break;
@@ -82,7 +111,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             account.accessToken,
             post.content || 'Check out this content!',
             post.mediaUrl,
-            post.labels || undefined,
+            resolvedLabels || undefined,
             post.language || undefined
           );
       }
@@ -93,7 +122,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
         account.accessToken,
         post.content!,
         post.link || undefined,
-        post.labels || undefined,
+        resolvedLabels || undefined,
         post.language || undefined
       );
     }
@@ -108,7 +137,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           postId: post.id,
           facebookPostId: result.postId,
           pageId: account.pageId,
-          customLabels: post.labels,
+          customLabels: resolvedLabels,
           language: post.language,
           mediaType: post.mediaType
         }
