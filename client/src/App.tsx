@@ -27,6 +27,7 @@ function Router() {
       <Route path="/history" component={PublishingHistory} />
       <Route path="/facebook-accounts" component={FacebookAccounts} />
       <Route path="/google-sheets" component={GoogleSheetsIntegration} />
+      <Route path="/excel-import" component={ExcelImport} />
       <Route path="/custom-labels" component={CustomLabels} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

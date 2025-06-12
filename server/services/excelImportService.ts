@@ -132,7 +132,7 @@ export class ExcelImportService {
           const result = await this.processPostsData(results.data, userId);
           resolve(result);
         },
-        error: (error) => {
+        error: (error: any) => {
           resolve({
             success: false,
             imported: 0,
