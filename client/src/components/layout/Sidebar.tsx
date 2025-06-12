@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { usePlatformAuth } from "@/hooks/usePlatformAuth";
+import UserMenu from "./UserMenu";
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -9,12 +10,7 @@ export default function Sidebar() {
   };
 
   // Fetch the current user data
-  const { data: authStatus } = useQuery({
-    queryKey: ['/api/auth/status'],
-    retry: false,
-  });
-
-  const user = (authStatus as any)?.user;
+  const { user } = usePlatformAuth();
 
   return (
     <aside className="w-64 bg-white shadow-md hidden md:block">
@@ -66,14 +62,17 @@ export default function Sidebar() {
       </nav>
       
       <div className="absolute bottom-0 w-64 border-t border-fb-gray p-4">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-            <i className="fa-solid fa-user text-gray-500"></i>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+              <i className="fa-solid fa-user text-gray-500"></i>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium">{user?.fullName || user?.username || "User"}</p>
+              <p className="text-xs text-gray-500">{user?.email || "No email"}</p>
+            </div>
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium">{user?.fullName || user?.username || "User"}</p>
-            <p className="text-xs text-gray-500">{user?.email || "No email"}</p>
-          </div>
+          <UserMenu />
         </div>
       </div>
     </aside>
