@@ -27,6 +27,7 @@ export interface IStorage {
   createPlatformUser(user: InsertPlatformUser): Promise<PlatformUser>;
   updatePlatformUser(id: number, data: Partial<PlatformUser>): Promise<PlatformUser | undefined>;
   updatePlatformUserLastLogin(id: number): Promise<void>;
+  getAllPlatformUsers(): Promise<PlatformUser[]>;
 
   // Facebook account operations
   getFacebookAccounts(userId: number): Promise<FacebookAccount[]>;
@@ -136,6 +137,10 @@ export class DatabaseStorage implements IStorage {
       .update(platformUsers)
       .set({ lastLoginAt: new Date() })
       .where(eq(platformUsers.id, id));
+  }
+
+  async getAllPlatformUsers(): Promise<PlatformUser[]> {
+    return await db.select().from(platformUsers).orderBy(desc(platformUsers.createdAt));
   }
 
   // Facebook account operations

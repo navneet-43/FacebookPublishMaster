@@ -16,7 +16,7 @@ import multer from "multer";
 import { uploadImage } from "./utils/cloudinary";
 import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
-import { setupPlatformAuthRoutes, requirePlatformAuth } from "./routes/platformAuth";
+import platformAuthRouter, { sessionMiddleware, requireAuth as requirePlatformAuth } from "./routes/platformAuth";
 import { GoogleSheetsService } from "./services/googleSheetsService";
 import { setupGoogleOAuthRoutes } from "./routes/googleOAuth";
 
@@ -33,8 +33,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // Setup session middleware for platform authentication
+  app.use(sessionMiddleware);
+  
   // Setup new platform authentication routes
-  setupPlatformAuthRoutes(app);
+  app.use('/api/platform/auth', platformAuthRouter);
   
   // Setup Google OAuth routes
   setupGoogleOAuthRoutes(app);

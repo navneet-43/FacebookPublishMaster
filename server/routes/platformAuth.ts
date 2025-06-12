@@ -1,279 +1,243 @@
-import type { Express, Request, Response } from "express";
-import { PlatformAuthService } from "../services/platformAuth";
-import { registerSchema, loginSchema } from "../../shared/schema";
+import { Request, Response, Router } from 'express';
+import session from 'express-session';
+import { AuthService } from '../services/authService';
+import { loginSchema, registerSchema } from '@shared/schema';
+import { z } from 'zod';
 
-// Session interface extension
-declare module 'express-session' {
-  interface SessionData {
-    platformUserId?: number;
-    platformUser?: {
-      id: number;
-      username: string;
-      email: string;
-      fullName: string;
-      role: string;
-    };
+const router = Router();
+
+// Session middleware
+export const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // Set to true in production with HTTPS
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  },
+});
+
+// Middleware to check authentication
+export function requireAuth(req: Request, res: Response, next: Function) {
+  if (req.session && (req.session as any).userId) {
+    return next();
   }
+  return res.status(401).json({ error: 'Authentication required' });
 }
 
-export function setupPlatformAuthRoutes(app: Express) {
-  // Register new platform user
-  app.post('/api/platform/auth/register', async (req: Request, res: Response) => {
-    try {
-      const result = await PlatformAuthService.register(req.body);
-      
-      if (result.success) {
-        // Auto-login after registration
-        req.session.platformUserId = result.user.id;
-        req.session.platformUser = {
-          id: result.user.id,
-          username: result.user.username,
-          email: result.user.email,
-          fullName: result.user.fullName,
-          role: result.user.role || 'user'
-        };
+// Register new user
+router.post('/register', async (req: Request, res: Response) => {
+  try {
+    const validatedData = registerSchema.parse(req.body);
+    const result = await AuthService.register(validatedData);
 
-        res.status(201).json({
-          success: true,
-          message: 'Registration successful',
-          user: {
-            id: result.user.id,
-            username: result.user.username,
-            email: result.user.email,
-            fullName: result.user.fullName,
-            role: result.user.role
-          }
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: result.error
-        });
-      }
-    } catch (error) {
-      console.error('Registration route error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error'
-      });
-    }
-  });
-
-  // Login platform user
-  app.post('/api/platform/auth/login', async (req: Request, res: Response) => {
-    try {
-      const result = await PlatformAuthService.login(req.body);
-      
-      if (result.success) {
-        // Set session data
-        req.session.platformUserId = result.user.id;
-        req.session.platformUser = {
-          id: result.user.id,
-          username: result.user.username,
-          email: result.user.email,
-          fullName: result.user.fullName,
-          role: result.user.role || 'user'
-        };
-
-        res.json({
-          success: true,
-          message: 'Login successful',
-          user: {
-            id: result.user.id,
-            username: result.user.username,
-            email: result.user.email,
-            fullName: result.user.fullName,
-            role: result.user.role
-          }
-        });
-      } else {
-        res.status(401).json({
-          success: false,
-          message: result.error
-        });
-      }
-    } catch (error) {
-      console.error('Login route error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error'
-      });
-    }
-  });
-
-  // Get current platform user
-  app.get('/api/platform/auth/me', async (req: Request, res: Response) => {
-    try {
-      const userId = req.session.platformUserId;
-      
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Not authenticated'
-        });
-      }
-
-      const user = await PlatformAuthService.getUserById(userId);
-      
-      if (!user) {
-        req.session.destroy(() => {});
-        return res.status(401).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
+    if (result.success && result.user) {
+      // Auto-login after registration
+      (req.session as any).userId = result.user.id;
+      (req.session as any).user = {
+        id: result.user.id,
+        username: result.user.username,
+        email: result.user.email,
+        fullName: result.user.fullName,
+        role: result.user.role
+      };
 
       res.json({
         success: true,
         user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role,
-          lastLoginAt: user.lastLoginAt,
-          createdAt: user.createdAt
-        }
-      });
-    } catch (error) {
-      console.error('Get user route error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error'
-      });
-    }
-  });
-
-  // Platform authentication status
-  app.get('/api/platform/auth/status', (req: Request, res: Response) => {
-    const isAuthenticated = !!req.session.platformUserId;
-    const user = req.session.platformUser;
-
-    res.json({
-      isAuthenticated,
-      user: isAuthenticated ? user : null
-    });
-  });
-
-  // Logout platform user
-  app.post('/api/platform/auth/logout', (req: Request, res: Response) => {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to logout'
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Logout successful'
-      });
-    });
-  });
-
-  // Update profile
-  app.put('/api/platform/auth/profile', async (req: Request, res: Response) => {
-    try {
-      const userId = req.session.platformUserId;
-      
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Not authenticated'
-        });
-      }
-
-      const result = await PlatformAuthService.updateProfile(userId, req.body);
-      
-      if (result.success) {
-        // Update session data
-        req.session.platformUser = {
           id: result.user.id,
           username: result.user.username,
           email: result.user.email,
           fullName: result.user.fullName,
-          role: result.user.role || 'user'
-        };
-
-        res.json({
-          success: true,
-          message: 'Profile updated successfully',
-          user: {
-            id: result.user.id,
-            username: result.user.username,
-            email: result.user.email,
-            fullName: result.user.fullName,
-            role: result.user.role
-          }
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: result.error
-        });
-      }
-    } catch (error) {
-      console.error('Update profile route error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error'
+          role: result.user.role
+        }
       });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
     }
-  });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ success: false, error: error.errors[0].message });
+    } else {
+      console.error('Registration error:', error);
+      res.status(500).json({ success: false, error: 'Registration failed' });
+    }
+  }
+});
 
-  // Change password
-  app.post('/api/platform/auth/change-password', async (req: Request, res: Response) => {
-    try {
-      const userId = req.session.platformUserId;
-      
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Not authenticated'
-        });
-      }
+// Login user
+router.post('/login', async (req: Request, res: Response) => {
+  try {
+    const validatedData = loginSchema.parse(req.body);
+    const result = await AuthService.login(validatedData);
 
-      const { currentPassword, newPassword } = req.body;
-      
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({
-          success: false,
-          message: 'Current password and new password are required'
-        });
-      }
+    if (result.success && result.user) {
+      (req.session as any).userId = result.user.id;
+      (req.session as any).user = {
+        id: result.user.id,
+        username: result.user.username,
+        email: result.user.email,
+        fullName: result.user.fullName,
+        role: result.user.role
+      };
 
-      const result = await PlatformAuthService.changePassword(userId, currentPassword, newPassword);
-      
-      if (result.success) {
-        res.json({
-          success: true,
-          message: 'Password changed successfully'
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: result.error
-        });
-      }
-    } catch (error) {
-      console.error('Change password route error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error'
+      res.json({
+        success: true,
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          email: result.user.email,
+          fullName: result.user.fullName,
+          role: result.user.role
+        }
       });
+    } else {
+      res.status(401).json({ success: false, error: result.error });
     }
-  });
-}
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ success: false, error: error.errors[0].message });
+    } else {
+      console.error('Login error:', error);
+      res.status(500).json({ success: false, error: 'Login failed' });
+    }
+  }
+});
 
-// Middleware to check platform authentication
-export function requirePlatformAuth(req: Request, res: Response, next: Function) {
-  if (!req.session.platformUserId) {
-    return res.status(401).json({
-      success: false,
-      message: 'Authentication required'
+// Get current user status
+router.get('/status', (req: Request, res: Response) => {
+  if (req.session && (req.session as any).userId) {
+    res.json({
+      isAuthenticated: true,
+      user: (req.session as any).user
+    });
+  } else {
+    res.json({
+      isAuthenticated: false,
+      user: null
     });
   }
-  next();
-}
+});
+
+// Logout user
+router.post('/logout', (req: Request, res: Response) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+      res.status(500).json({ success: false, error: 'Logout failed' });
+    } else {
+      res.clearCookie('connect.sid');
+      res.json({ success: true });
+    }
+  });
+});
+
+// Update user profile
+router.put('/profile', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.session as any).userId;
+    const { fullName, email } = req.body;
+
+    const result = await AuthService.updateUserProfile(userId, { fullName, email });
+
+    if (result.success) {
+      // Update session data
+      (req.session as any).user.fullName = fullName;
+      (req.session as any).user.email = email;
+
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ success: false, error: 'Profile update failed' });
+  }
+});
+
+// Change password
+router.put('/password', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.session as any).userId;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters' });
+    }
+
+    const result = await AuthService.changePassword(userId, currentPassword, newPassword);
+
+    if (result.success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ success: false, error: 'Password change failed' });
+  }
+});
+
+// Get team members (admin only)
+router.get('/team', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any).user;
+    
+    if (user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const teamMembers = await AuthService.getTeamMembers();
+    
+    // Remove sensitive data
+    const sanitizedMembers = teamMembers.map(member => ({
+      id: member.id,
+      username: member.username,
+      email: member.email,
+      fullName: member.fullName,
+      role: member.role,
+      isActive: member.isActive,
+      lastLoginAt: member.lastLoginAt,
+      createdAt: member.createdAt
+    }));
+
+    res.json(sanitizedMembers);
+  } catch (error) {
+    console.error('Get team members error:', error);
+    res.status(500).json({ error: 'Failed to fetch team members' });
+  }
+});
+
+// Deactivate user (admin only)
+router.put('/team/:id/deactivate', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any).user;
+    const targetUserId = parseInt(req.params.id);
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    if (user.id === targetUserId) {
+      return res.status(400).json({ error: 'Cannot deactivate your own account' });
+    }
+
+    const result = await AuthService.deactivateUser(targetUserId, user.id);
+
+    if (result.success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Deactivate user error:', error);
+    res.status(500).json({ success: false, error: 'User deactivation failed' });
+  }
+});
+
+export default router;

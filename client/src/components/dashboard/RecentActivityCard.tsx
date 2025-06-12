@@ -117,22 +117,22 @@ export default function RecentActivityCard() {
                     <div className="ml-3 flex-1">
                       <p className="text-sm text-gray-900">{activity.description}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-gray-500">{formatTime(activity.createdAt)}</p>
+                        <p className="text-xs text-gray-500">{activity.createdAt ? formatTime(activity.createdAt) : ''}</p>
                         {activity.metadata && activity.type === 'post_published' && (
                           <div className="flex items-center gap-2 text-xs text-gray-500">
-                            {activity.metadata.language && (
+                            {(activity.metadata as any)?.language && (
                               <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                                {activity.metadata.language.toUpperCase()}
+                                {((activity.metadata as any).language as string).toUpperCase()}
                               </span>
                             )}
-                            {activity.metadata.customLabels && activity.metadata.customLabels.length > 0 && (
+                            {(activity.metadata as any)?.customLabels && Array.isArray((activity.metadata as any).customLabels) && (
                               <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                                {activity.metadata.customLabels.join(', ')}
+                                {((activity.metadata as any).customLabels as string[]).join(', ')}
                               </span>
                             )}
-                            {activity.metadata.mediaType && activity.metadata.mediaType !== 'none' && (
+                            {(activity.metadata as any)?.mediaType && (activity.metadata as any).mediaType !== 'none' && (
                               <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                                {activity.metadata.mediaType}
+                                {(activity.metadata as any).mediaType}
                               </span>
                             )}
                           </div>
