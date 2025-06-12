@@ -37,6 +37,7 @@ export default function TeamLogin() {
       fullName: "",
       password: "",
     },
+    mode: "onChange",
   });
 
   const loginMutation = useMutation({
@@ -191,7 +192,12 @@ export default function TeamLogin() {
                       <FormItem>
                         <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter your full name" {...field} />
+                          <Input 
+                            placeholder="Enter your full name" 
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

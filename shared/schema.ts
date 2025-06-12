@@ -162,7 +162,7 @@ export const insertPostSchema = createInsertSchema(posts).pick({
 // Activities model
 export const activities = pgTable("activities", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
+  userId: integer("user_id").references(() => platformUsers.id),
   type: text("type").notNull(),
   description: text("description").notNull(),
   metadata: json("metadata"),
@@ -219,10 +219,14 @@ export const postsRelations = relations(posts, ({ one }) => ({
 }));
 
 export const activitiesRelations = relations(activities, ({ one }) => ({
-  user: one(users, {
+  user: one(platformUsers, {
     fields: [activities.userId],
-    references: [users.id],
+    references: [platformUsers.id],
   }),
+}));
+
+export const platformUsersRelations = relations(platformUsers, ({ many }) => ({
+  activities: many(activities),
 }));
 
 // Export all types
