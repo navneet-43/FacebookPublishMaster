@@ -29,6 +29,27 @@ const authenticateUser = async (req: Request) => {
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
+  // Configure multer for file uploads
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit for Excel/CSV files
+    },
+    fileFilter: (_req, file, cb) => {
+      const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'text/csv', // .csv
+        'application/csv'
+      ];
+      if (allowedTypes.includes(file.mimetype) || file.originalname.endsWith('.csv')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed'));
+      }
+    }
+  });
+  
   app.use((req: any, res, next) => {
     req.storage = storage;
     next();
@@ -405,6 +426,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error setting up Google Sheets integration:", error);
       res.status(500).json({ message: "Failed to set up Google Sheets integration" });
+    }
+  });
+
+  // Excel/CSV Import Routes (replacing Google Sheets)
+  app.get("/api/excel-import/template", requirePlatformAuth, async (req: Request, res: Response) => {
+    try {
+      const templateBuffer = ExcelImportService.generateTemplate();
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="posts-import-template.xlsx"');
+      res.send(templateBuffer);
+    } catch (error) {
+      console.error("Error generating template:", error);
+      res.status(500).json({ message: "Failed to generate template" });
+    }
+  });
+
+  app.post("/api/excel-import", requirePlatformAuth, upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+      const userId = (req.session as any)?.userId;
+      
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
+      const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'text/csv', // .csv
+        'application/csv'
+      ];
+      
+      if (!allowedTypes.includes(file.mimetype)) {
+        return res.status(400).json({ 
+          message: "Invalid file type. Please upload Excel (.xlsx, .xls) or CSV files only." 
+        });
+      }
+      
+      let result;
+      if (file.mimetype.includes('csv')) {
+        result = await ExcelImportService.parseCSVFile(file.buffer, userId);
+      } else {
+        result = await ExcelImportService.parseExcelFile(file.buffer, userId);
+      }
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: `Successfully imported ${result.imported} posts. ${result.failed > 0 ? `${result.failed} posts failed to import.` : ''}`,
+          imported: result.imported,
+          failed: result.failed,
+          errors: result.errors
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "Import failed",
+          errors: result.errors
+        });
+      }
+    } catch (error) {
+      console.error("Error importing file:", error);
+      res.status(500).json({ message: "Failed to process import file" });
     }
   });
 

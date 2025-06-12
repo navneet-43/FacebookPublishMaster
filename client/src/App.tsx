@@ -9,6 +9,7 @@ import PublishingCalendar from "@/pages/PublishingCalendar";
 import PublishingHistory from "@/pages/PublishingHistory";
 import FacebookAccounts from "@/pages/FacebookAccounts";
 import GoogleSheetsIntegration from "@/pages/GoogleSheetsIntegration";
+import ExcelImport from "@/pages/ExcelImport";
 import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
 import Sidebar from "@/components/layout/Sidebar";
