@@ -476,6 +476,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result = await ExcelImportService.parseExcelFile(file.buffer, userId);
       }
       
+      console.log("Import result:", result);
+      
       if (result.success) {
         res.json({
           success: true,
@@ -485,10 +487,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           errors: result.errors
         });
       } else {
+        console.error("Import failed with errors:", result.errors);
         res.status(400).json({
           success: false,
           message: "Import failed",
-          errors: result.errors
+          errors: result.errors,
+          imported: result.imported,
+          failed: result.failed
         });
       }
     } catch (error) {

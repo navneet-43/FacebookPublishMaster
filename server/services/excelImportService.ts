@@ -26,20 +26,40 @@ export class ExcelImportService {
   private static validatePostData(row: any, rowIndex: number): { isValid: boolean; errors: string[]; data?: ExcelPostData } {
     const errors: string[] = [];
     
+    console.log(`Validating row ${rowIndex + 1}:`, row);
+    
+    // Handle different possible field names (Excel headers can vary)
+    const content = row.content || row.Content || row.CONTENT || '';
+    const scheduledFor = row.scheduledFor || row.scheduledfor || row['Scheduled Date'] || row.scheduled_for || '';
+    const accountName = row.accountName || row.accountname || row['Account Name'] || row.account_name || '';
+    const customLabels = row.customLabels || row.customlabels || row['Custom Labels'] || row.custom_labels || '';
+    const language = row.language || row.Language || row.LANGUAGE || 'EN';
+    const mediaUrl = row.mediaUrl || row.mediaurl || row['Media URL'] || row.media_url || '';
+    const mediaType = row.mediaType || row.mediatype || row['Media Type'] || row.media_type || '';
+    
+    console.log(`Extracted fields for row ${rowIndex + 1}:`, {
+      content, scheduledFor, accountName, customLabels, language, mediaUrl, mediaType
+    });
+    
     // Required fields validation
-    if (!row.content || typeof row.content !== 'string' || row.content.trim() === '') {
+    if (!content || typeof content !== 'string' || content.trim() === '') {
       errors.push(`Row ${rowIndex + 1}: Content is required`);
     }
     
-    if (!row.scheduledFor) {
+    if (!scheduledFor || scheduledFor.toString().trim() === '') {
       errors.push(`Row ${rowIndex + 1}: Scheduled date is required`);
     } else {
-      // Validate date format
-      const date = new Date(row.scheduledFor);
+      // Validate date format - be more flexible with date parsing
+      let date: Date;
+      if (typeof scheduledFor === 'number') {
+        // Excel serial date number
+        date = new Date((scheduledFor - 25569) * 86400 * 1000);
+      } else {
+        date = new Date(scheduledFor);
+      }
+      
       if (isNaN(date.getTime())) {
-        errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor`);
-      } else if (date < new Date()) {
-        errors.push(`Row ${rowIndex + 1}: Scheduled date cannot be in the past`);
+        errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor. Use format: YYYY-MM-DD HH:MM:SS`);
       }
     }
     
@@ -47,14 +67,22 @@ export class ExcelImportService {
       return { isValid: false, errors };
     }
     
+    // Parse the date correctly
+    let parsedDate: Date;
+    if (typeof scheduledFor === 'number') {
+      parsedDate = new Date((scheduledFor - 25569) * 86400 * 1000);
+    } else {
+      parsedDate = new Date(scheduledFor);
+    }
+    
     const data: ExcelPostData = {
-      content: row.content.trim(),
-      scheduledFor: new Date(row.scheduledFor).toISOString(),
-      accountName: row.accountName || row.account_name || '',
-      customLabels: row.customLabels || row.custom_labels || '',
-      language: row.language || 'EN',
-      mediaUrl: row.mediaUrl || row.media_url || null,
-      mediaType: row.mediaType || row.media_type || null
+      content: content.trim(),
+      scheduledFor: parsedDate.toISOString(),
+      accountName: accountName.toString().trim(),
+      customLabels: customLabels.toString().trim(),
+      language: language.toString().trim() || 'EN',
+      mediaUrl: mediaUrl.toString().trim() || undefined,
+      mediaType: mediaType.toString().trim() || undefined
     };
     
     return { isValid: true, errors: [], data };
