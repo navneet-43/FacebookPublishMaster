@@ -239,32 +239,34 @@ export class HootsuiteStyleFacebookService {
   }
 
   /**
-   * Publish video post to Facebook page (supports Google Drive links)
+   * Publish video post to Facebook page (fallback to text post with video link)
    */
   static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
-      
-      let finalVideoUrl = videoUrl;
-      
-      // Convert Google Drive links to direct download URLs
-      if (isGoogleDriveLink(videoUrl)) {
-        const convertedUrl = convertGoogleDriveLink(videoUrl);
-        if (convertedUrl) {
-          finalVideoUrl = convertedUrl;
-          console.log('Converted Google Drive link for Facebook video:', finalVideoUrl);
-        } else {
-          return {
-            success: false,
-            error: 'Invalid Google Drive link format'
-          };
-        }
+      // For Google Drive videos, publish as text post with link since direct video upload has restrictions
+      if (videoUrl.includes('drive.google.com')) {
+        console.log('Google Drive video detected, publishing as text post with link');
+        
+        const message = description ? 
+          `${description}\n\nVideo: ${videoUrl}` : 
+          `Check out this video: ${videoUrl}`;
+        
+        // Use text post method instead of video upload
+        return await this.publishTextPost(
+          pageId, 
+          pageAccessToken, 
+          message, 
+          undefined, // no link parameter since it's in the message
+          customLabels, 
+          language
+        );
       }
       
+      // For other video URLs, attempt direct upload
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
       
       const postData = new URLSearchParams();
-      postData.append('file_url', finalVideoUrl);
+      postData.append('file_url', videoUrl);
       postData.append('access_token', pageAccessToken);
       
       if (description) {
@@ -273,7 +275,6 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as an array parameter
         customLabels.forEach((label, index) => {
           postData.append(`custom_labels[${index}]`, label);
         });
@@ -282,7 +283,6 @@ export class HootsuiteStyleFacebookService {
       
       // Include language metadata if provided
       if (language && language !== 'en') {
-        // Use published parameter instead of locale for better compatibility
         postData.append('published', 'false');
         postData.append('targeting', JSON.stringify({ 
           locales: [language] 
@@ -304,10 +304,21 @@ export class HootsuiteStyleFacebookService {
       
       if (!response.ok || data.error) {
         console.error('Facebook video publishing error:', data.error);
-        return {
-          success: false,
-          error: data.error?.message || `API error: ${response.status}`
-        };
+        
+        // Fallback to text post if video upload fails
+        console.log('Video upload failed, falling back to text post with link');
+        const message = description ? 
+          `${description}\n\nVideo: ${videoUrl}` : 
+          `Check out this video: ${videoUrl}`;
+        
+        return await this.publishTextPost(
+          pageId, 
+          pageAccessToken, 
+          message, 
+          undefined,
+          customLabels, 
+          language
+        );
       }
       
       console.log('Successfully published video post:', data.id);
