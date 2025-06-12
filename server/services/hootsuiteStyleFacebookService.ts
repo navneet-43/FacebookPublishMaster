@@ -95,14 +95,21 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array
-        postData.append('custom_labels', JSON.stringify(customLabels));
+        // Facebook expects custom labels as an array parameter
+        customLabels.forEach((label, index) => {
+          postData.append(`custom_labels[${index}]`, label);
+        });
         console.log('Adding custom labels to Facebook text post:', customLabels);
       }
       
       // Include language metadata if provided
-      if (language) {
-        postData.append('locale', language);
+      if (language && language !== 'en') {
+        // Use published parameter instead of locale for better compatibility
+        postData.append('published', 'false');
+        postData.append('targeting', JSON.stringify({ 
+          locales: [language] 
+        }));
+        console.log('Adding language targeting:', language);
       }
       
       if (link) {
@@ -179,14 +186,21 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array
-        postData.append('custom_labels', JSON.stringify(customLabels));
+        // Facebook expects custom labels as an array parameter
+        customLabels.forEach((label, index) => {
+          postData.append(`custom_labels[${index}]`, label);
+        });
         console.log('Adding custom labels to Facebook photo post:', customLabels);
       }
       
       // Include language metadata if provided
-      if (language) {
-        postData.append('locale', language);
+      if (language && language !== 'en') {
+        // Use published parameter instead of locale for better compatibility
+        postData.append('published', 'false');
+        postData.append('targeting', JSON.stringify({ 
+          locales: [language] 
+        }));
+        console.log('Adding language targeting:', language);
       }
       
       console.log(`Publishing photo post to page ${pageId}`);
@@ -259,14 +273,21 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array
-        postData.append('custom_labels', JSON.stringify(customLabels));
+        // Facebook expects custom labels as an array parameter
+        customLabels.forEach((label, index) => {
+          postData.append(`custom_labels[${index}]`, label);
+        });
         console.log('Adding custom labels to Facebook video post:', customLabels);
       }
       
       // Include language metadata if provided
-      if (language) {
-        postData.append('locale', language);
+      if (language && language !== 'en') {
+        // Use published parameter instead of locale for better compatibility
+        postData.append('published', 'false');
+        postData.append('targeting', JSON.stringify({ 
+          locales: [language] 
+        }));
+        console.log('Adding language targeting:', language);
       }
       
       console.log(`Publishing video post to page ${pageId}`);
