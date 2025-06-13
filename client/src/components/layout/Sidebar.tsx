@@ -1,6 +1,4 @@
 import { Link, useLocation } from "wouter";
-import { usePlatformAuth } from "@/hooks/usePlatformAuth";
-import UserMenu from "./UserMenu";
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -8,9 +6,6 @@ export default function Sidebar() {
   const isActive = (path: string) => {
     return location === path;
   };
-
-  // Fetch the current user data
-  const { user } = usePlatformAuth();
 
   return (
     <aside className="w-64 bg-white shadow-md hidden md:block">
@@ -72,11 +67,13 @@ export default function Sidebar() {
               <i className="fa-solid fa-user text-gray-500"></i>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium">{user?.fullName || user?.username || "User"}</p>
-              <p className="text-xs text-gray-500">{user?.email || "No email"}</p>
+              <p className="text-sm font-medium">Admin User</p>
+              <p className="text-xs text-gray-500">admin@socialflow.com</p>
             </div>
           </div>
-          <UserMenu />
+          <button className="text-gray-500 hover:text-gray-700">
+            <i className="fa-solid fa-ellipsis-v"></i>
+          </button>
         </div>
       </div>
     </aside>
