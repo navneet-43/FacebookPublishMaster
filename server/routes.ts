@@ -430,8 +430,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Excel/CSV Import Routes (replacing Google Sheets)
-  app.get("/api/excel-import/template", async (req: Request, res: Response) => {
+  app.get("/api/excel-import/template", requirePlatformAuth, async (req: Request, res: Response) => {
     try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
+      // Get user's Facebook accounts to include in template
+      const userAccounts = await storage.getFacebookAccounts(userId);
       const templateBuffer = ExcelImportService.generateTemplate();
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -443,13 +450,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/excel-import", upload.single('file'), async (req: Request, res: Response) => {
+  app.post("/api/excel-import", requirePlatformAuth, upload.single('file'), async (req: Request, res: Response) => {
     try {
       const file = req.file;
-      const userId = 3; // Use default user ID
+      const userId = (req.session as any)?.userId;
       
       if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
       }
       
       const allowedTypes = [
