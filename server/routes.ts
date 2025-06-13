@@ -451,10 +451,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/excel-import", upload.single('file'), async (req: Request, res: Response) => {
     try {
       const file = req.file;
+      const accountId = req.body.accountId;
       const userId = 3; // Use default user ID
       
       if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      if (!accountId) {
+        return res.status(400).json({ message: "Facebook account selection is required" });
       }
       
       const allowedTypes = [
@@ -472,9 +477,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let result;
       if (file.mimetype.includes('csv')) {
-        result = await ExcelImportService.parseCSVFile(file.buffer, userId);
+        result = await ExcelImportService.parseCSVFile(file.buffer, userId, parseInt(accountId));
       } else {
-        result = await ExcelImportService.parseExcelFile(file.buffer, userId);
+        result = await ExcelImportService.parseExcelFile(file.buffer, userId, parseInt(accountId));
       }
       
       console.log("Import result:", result);

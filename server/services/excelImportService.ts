@@ -88,7 +88,7 @@ export class ExcelImportService {
     return { isValid: true, errors: [], data };
   }
   
-  static async parseExcelFile(fileBuffer: Buffer, userId: number): Promise<ImportResult> {
+  static async parseExcelFile(fileBuffer: Buffer, userId: number, accountId?: number): Promise<ImportResult> {
     try {
       const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];

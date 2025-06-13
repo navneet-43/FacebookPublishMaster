@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { FileSpreadsheet, Upload, Download, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,11 +18,17 @@ interface ImportResult {
 
 export default function ExcelImport() {
   const [file, setFile] = useState<File | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch Facebook accounts
+  const { data: facebookAccounts = [], isLoading: accountsLoading } = useQuery({
+    queryKey: ["/api/facebook-accounts"],
+  });
 
   const downloadTemplateMutation = useMutation({
     mutationFn: async () => {
@@ -58,9 +66,10 @@ export default function ExcelImport() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (data: { file: File; accountId: string }) => {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", data.file);
+      formData.append("accountId", data.accountId);
 
       const response = await fetch("/api/excel-import", {
         method: "POST",
@@ -167,8 +176,14 @@ export default function ExcelImport() {
   };
 
   const handleImport = () => {
-    if (file) {
-      importMutation.mutate(file);
+    if (file && selectedAccountId) {
+      importMutation.mutate({ file, accountId: selectedAccountId });
+    } else {
+      toast({
+        title: "Missing information",
+        description: "Please select both a file and a Facebook page before importing.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -200,10 +215,10 @@ export default function ExcelImport() {
                 <ul className="text-sm text-blue-800 space-y-1">
                   <li>• Content (required)</li>
                   <li>• Scheduled Date & Time (required)</li>
-                  <li>• Facebook Account Name</li>
                   <li>• Custom Labels</li>
                   <li>• Language (EN, HI, etc.)</li>
                   <li>• Media URL & Type</li>
+                  <li>• Facebook Page will be selected below</li>
                 </ul>
               </div>
               
@@ -279,25 +294,50 @@ export default function ExcelImport() {
               </div>
 
               {file && (
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleImport}
-                    disabled={importMutation.isPending}
-                    className="flex-1"
-                  >
-                    {importMutation.isPending ? "Importing..." : "Import Posts"}
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => {
-                      setFile(null);
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = "";
-                      }
-                    }}
-                  >
-                    Remove
-                  </Button>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="facebook-account">Select Facebook Page</Label>
+                    <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Choose a Facebook page..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accountsLoading ? (
+                          <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
+                        ) : facebookAccounts.length === 0 ? (
+                          <SelectItem value="no-accounts" disabled>No Facebook accounts found</SelectItem>
+                        ) : (
+                          facebookAccounts.map((account: any) => (
+                            <SelectItem key={account.id} value={account.id.toString()}>
+                              {account.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleImport}
+                      disabled={importMutation.isPending || !selectedAccountId}
+                      className="flex-1"
+                    >
+                      {importMutation.isPending ? "Importing..." : "Import Posts"}
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        setFile(null);
+                        setSelectedAccountId("");
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = "";
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
