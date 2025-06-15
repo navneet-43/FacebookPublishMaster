@@ -7,15 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function RecentActivityCard() {
   const { data: activities, isLoading } = useQuery<Activity[]>({
     queryKey: ['/api/activities'],
-    queryFn: async ({ queryKey }) => {
-      const response = await fetch(`${queryKey[0]}?limit=3`, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch activities');
-      }
-      return response.json();
-    },
+    retry: 1,
+    retryDelay: 1000,
   });
 
   // Helper function to format the date
@@ -122,7 +115,7 @@ export default function RecentActivityCard() {
                           <div className="flex items-center gap-2 text-xs text-gray-500">
                             {(activity.metadata as any)?.language && (
                               <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                                {((activity.metadata as any).language as string).toUpperCase()}
+                                {String((activity.metadata as any).language).toUpperCase()}
                               </span>
                             )}
                             {(activity.metadata as any)?.customLabels && Array.isArray((activity.metadata as any).customLabels) && (
@@ -132,7 +125,7 @@ export default function RecentActivityCard() {
                             )}
                             {(activity.metadata as any)?.mediaType && (activity.metadata as any).mediaType !== 'none' && (
                               <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                                {(activity.metadata as any).mediaType}
+                                {String((activity.metadata as any).mediaType)}
                               </span>
                             )}
                           </div>
