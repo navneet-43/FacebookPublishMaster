@@ -138,14 +138,12 @@ export class ExcelImportService {
     console.log(`Row ${rowIndex + 1} - Local time: ${parsedDate.toLocaleString()}`);
     console.log(`Row ${rowIndex + 1} - Timezone offset: ${parsedDate.getTimezoneOffset()} minutes`);
 
-    // Store as local time string to avoid timezone conversion
-    const localTimeString = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')} ${String(parsedDate.getHours()).padStart(2, '0')}:${String(parsedDate.getMinutes()).padStart(2, '0')}:${String(parsedDate.getSeconds()).padStart(2, '0')}`;
-    
-    console.log(`Row ${rowIndex + 1} - Final stored time: ${localTimeString}`);
+    // Keep original input format for IST processing later
+    console.log(`Row ${rowIndex + 1} - Scheduling for: ${scheduledFor}`);
 
     const data: ExcelPostData = {
       content: content.trim(),
-      scheduledFor: localTimeString,
+      scheduledFor: scheduledFor.toString(),
       accountName: accountName.toString().trim(),
       customLabels: customLabels.toString().trim(),
       language: language.toString().trim() || 'EN',
