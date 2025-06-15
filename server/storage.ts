@@ -55,6 +55,7 @@ export interface IStorage {
   getAllPosts(): Promise<Post[]>; // Get all posts across all users
   getScheduledPosts(): Promise<Post[]>; // Get all scheduled posts
   getFailedPosts(): Promise<Post[]>; // Get all failed posts
+  getOverduePosts(): Promise<Post[]>; // Get posts that should have been published but are still scheduled
   getPostsByStatus(status: string): Promise<Post[]>; // Get posts by status
   getPost(id: number): Promise<Post | undefined>;
   createPost(post: InsertPost): Promise<Post>;
@@ -315,6 +316,18 @@ export class DatabaseStorage implements IStorage {
       .from(posts)
       .where(eq(posts.status, 'failed'))
       .orderBy(desc(posts.createdAt));
+  }
+  
+  async getOverduePosts(): Promise<Post[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(posts)
+      .where(and(
+        eq(posts.status, 'scheduled'),
+        lt(posts.scheduledFor, now)
+      ))
+      .orderBy(posts.scheduledFor);
   }
   
   async getPostsByStatus(status: string): Promise<Post[]> {
@@ -596,6 +609,18 @@ export class MemStorage implements IStorage {
     return Array.from(this.posts.values()).filter(
       (post) => post.status === 'failed'
     );
+  }
+  
+  async getOverduePosts(): Promise<Post[]> {
+    const now = new Date();
+    return Array.from(this.posts.values()).filter(
+      (post) => post.status === 'scheduled' && 
+                post.scheduledFor && 
+                post.scheduledFor < now
+    ).sort((a, b) => {
+      if (!a.scheduledFor || !b.scheduledFor) return 0;
+      return a.scheduledFor.getTime() - b.scheduledFor.getTime();
+    });
   }
   
   async getPostsByStatus(status: string): Promise<Post[]> {
