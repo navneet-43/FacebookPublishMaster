@@ -55,11 +55,26 @@ export class ExcelImportService {
         // Excel serial date number
         date = new Date((scheduledFor - 25569) * 86400 * 1000);
       } else {
-        date = new Date(scheduledFor);
+        const dateStr = scheduledFor.toString().trim();
+        
+        // Handle time-only format like "2:30 PM"
+        if (dateStr.match(/^\d{1,2}:\d{2}\s*(AM|PM)$/i)) {
+          const today = new Date();
+          const timeStr = dateStr.toUpperCase();
+          let [time, period] = timeStr.split(/\s+/);
+          let [hours, minutes] = time.split(':').map(Number);
+          
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
+          
+          date = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+        } else {
+          date = new Date(dateStr);
+        }
       }
       
       if (isNaN(date.getTime())) {
-        errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor. Use format: YYYY-MM-DD HH:MM:SS`);
+        errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor. Use format: YYYY-MM-DD HH:MM:SS or time format like 2:30 PM`);
       }
     }
     
@@ -67,21 +82,50 @@ export class ExcelImportService {
       return { isValid: false, errors };
     }
     
-    // Parse the date correctly
+    // Parse the date correctly with proper timezone handling
     let parsedDate: Date;
     if (typeof scheduledFor === 'number') {
+      // Excel serial date number
       parsedDate = new Date((scheduledFor - 25569) * 86400 * 1000);
     } else {
-      parsedDate = new Date(scheduledFor);
+      // Handle various date/time formats including "2:30 PM" format
+      const dateStr = scheduledFor.toString().trim();
+      
+      // If it's just a time like "2:30 PM", combine with today's date
+      if (dateStr.match(/^\d{1,2}:\d{2}\s*(AM|PM)$/i)) {
+        const today = new Date();
+        const timeStr = dateStr.toUpperCase();
+        let [time, period] = timeStr.split(/\s+/);
+        let [hours, minutes] = time.split(':').map(Number);
+        
+        if (period === 'PM' && hours !== 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        
+        parsedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+      } else {
+        parsedDate = new Date(dateStr);
+      }
     }
     
+    // Process Google Drive links to convert to direct download format
+    let processedMediaUrl = mediaUrl ? mediaUrl.toString().trim() : undefined;
+    if (processedMediaUrl && processedMediaUrl.includes('drive.google.com')) {
+      console.log(`Converting Google Drive link: ${processedMediaUrl}`);
+      processedMediaUrl = ExcelImportService.convertGoogleDriveLink(processedMediaUrl);
+      console.log(`Converted to: ${processedMediaUrl}`);
+    }
+
+    console.log(`Row ${rowIndex + 1} - Original scheduledFor: ${scheduledFor}`);
+    console.log(`Row ${rowIndex + 1} - Parsed date: ${parsedDate.toISOString()}`);
+    console.log(`Row ${rowIndex + 1} - Local time: ${parsedDate.toLocaleString()}`);
+
     const data: ExcelPostData = {
       content: content.trim(),
       scheduledFor: parsedDate.toISOString(),
       accountName: accountName.toString().trim(),
       customLabels: customLabels.toString().trim(),
       language: language.toString().trim() || 'EN',
-      mediaUrl: mediaUrl.toString().trim() || undefined,
+      mediaUrl: processedMediaUrl,
       mediaType: mediaType.toString().trim() || undefined
     };
     
@@ -304,25 +348,52 @@ export class ExcelImportService {
     };
   }
   
+  static convertGoogleDriveLink(url: string): string {
+    try {
+      // Extract file ID from various Google Drive URL formats
+      let fileId = '';
+      
+      if (url.includes('/file/d/')) {
+        // Format: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+        const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (match) fileId = match[1];
+      } else if (url.includes('id=')) {
+        // Format: https://drive.google.com/open?id=FILE_ID
+        const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+        if (match) fileId = match[1];
+      }
+      
+      if (fileId) {
+        // Convert to direct download link
+        return `https://drive.google.com/uc?export=download&id=${fileId}`;
+      }
+      
+      return url; // Return original if couldn't parse
+    } catch (error) {
+      console.error('Error converting Google Drive link:', error);
+      return url;
+    }
+  }
+
   static generateTemplate(): Buffer {
     const accountName = 'Your Facebook Page Name';
     
     const templateData = [
       {
         content: 'Your post content here - this is the text that will be published',
-        scheduledFor: '2024-12-15 14:00:00',
+        scheduledFor: '2:30 PM',
         customLabels: 'label1, label2',
         language: 'EN',
-        mediaUrl: 'https://example.com/image.jpg (optional)',
-        mediaType: 'image (optional)'
+        mediaUrl: 'https://drive.google.com/file/d/1ABC123/view?usp=sharing',
+        mediaType: 'image'
       },
       {
         content: 'Another example post with different scheduling',
-        scheduledFor: '2024-12-16 10:30:00',
+        scheduledFor: '10:30 AM',
         customLabels: 'promotion, sale',
         language: 'HI',
-        mediaUrl: '',
-        mediaType: ''
+        mediaUrl: 'https://drive.google.com/file/d/1XYZ789/view?usp=sharing',
+        mediaType: 'video'
       }
     ];
     
