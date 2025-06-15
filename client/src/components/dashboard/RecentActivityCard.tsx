@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+
+
 export default function RecentActivityCard() {
   const { data: activities, isLoading } = useQuery<Activity[]>({
     queryKey: ['/api/activities'],
@@ -111,25 +113,7 @@ export default function RecentActivityCard() {
                       <p className="text-sm text-gray-900">{activity.description}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-gray-500">{activity.createdAt ? formatTime(activity.createdAt) : ''}</p>
-                        {activity.metadata && activity.type === 'post_published' && (
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            {(activity.metadata as any)?.language && (
-                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                                {String((activity.metadata as any).language).toUpperCase()}
-                              </span>
-                            )}
-                            {(activity.metadata as any)?.customLabels && Array.isArray((activity.metadata as any).customLabels) && (
-                              <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                                {((activity.metadata as any).customLabels as string[]).join(', ')}
-                              </span>
-                            )}
-                            {(activity.metadata as any)?.mediaType && (activity.metadata as any).mediaType !== 'none' && (
-                              <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                                {String((activity.metadata as any).mediaType)}
-                              </span>
-                            )}
-                          </div>
-                        )}
+
                       </div>
                     </div>
                   </div>
