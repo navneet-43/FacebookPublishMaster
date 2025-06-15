@@ -138,9 +138,14 @@ export class ExcelImportService {
     console.log(`Row ${rowIndex + 1} - Local time: ${parsedDate.toLocaleString()}`);
     console.log(`Row ${rowIndex + 1} - Timezone offset: ${parsedDate.getTimezoneOffset()} minutes`);
 
+    // Store as local time string to avoid timezone conversion
+    const localTimeString = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')} ${String(parsedDate.getHours()).padStart(2, '0')}:${String(parsedDate.getMinutes()).padStart(2, '0')}:${String(parsedDate.getSeconds()).padStart(2, '0')}`;
+    
+    console.log(`Row ${rowIndex + 1} - Final stored time: ${localTimeString}`);
+
     const data: ExcelPostData = {
       content: content.trim(),
-      scheduledFor: parsedDate.toISOString(),
+      scheduledFor: localTimeString,
       accountName: accountName.toString().trim(),
       customLabels: customLabels.toString().trim(),
       language: language.toString().trim() || 'EN',
@@ -311,10 +316,16 @@ export class ExcelImportService {
           }
         }
         
-        // Create the post
+        // Create the post with proper date handling
+        const scheduledDate = typeof postData.scheduledFor === 'string' && postData.scheduledFor.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/) 
+          ? new Date(postData.scheduledFor + ' UTC') // Force UTC interpretation to avoid timezone shift
+          : new Date(postData.scheduledFor);
+        
+        console.log(`Creating post with scheduledFor: ${scheduledDate.toISOString()} (${scheduledDate.toLocaleString()})`);
+        
         const newPost = await storage.createPost({
           content: postData.content,
-          scheduledFor: new Date(postData.scheduledFor),
+          scheduledFor: scheduledDate,
           userId: userId,
           accountId: finalAccountId,
           status: 'scheduled',
