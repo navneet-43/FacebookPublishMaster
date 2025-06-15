@@ -69,7 +69,16 @@ export class ExcelImportService {
           
           date = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
         } else {
-          date = new Date(dateStr);
+          // Parse as local time to avoid timezone shifts
+          if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/)) {
+            // Format: YYYY-MM-DD HH:MM:SS - parse as local time
+            const [datePart, timePart] = dateStr.split(' ');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
+            date = new Date(year, month - 1, day, hours, minutes, seconds);
+          } else {
+            date = new Date(dateStr);
+          }
         }
       }
       
@@ -103,7 +112,16 @@ export class ExcelImportService {
         
         parsedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
       } else {
-        parsedDate = new Date(dateStr);
+        // Parse as local time to avoid timezone shifts
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/)) {
+          // Format: YYYY-MM-DD HH:MM:SS - parse as local time
+          const [datePart, timePart] = dateStr.split(' ');
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
+          parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
+        } else {
+          parsedDate = new Date(dateStr);
+        }
       }
     }
     
@@ -118,6 +136,7 @@ export class ExcelImportService {
     console.log(`Row ${rowIndex + 1} - Original scheduledFor: ${scheduledFor}`);
     console.log(`Row ${rowIndex + 1} - Parsed date: ${parsedDate.toISOString()}`);
     console.log(`Row ${rowIndex + 1} - Local time: ${parsedDate.toLocaleString()}`);
+    console.log(`Row ${rowIndex + 1} - Timezone offset: ${parsedDate.getTimezoneOffset()} minutes`);
 
     const data: ExcelPostData = {
       content: content.trim(),
