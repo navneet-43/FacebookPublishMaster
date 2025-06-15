@@ -39,6 +39,8 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Added "View All Posts" page with comprehensive post management functionality
 - ✅ Updated system to handle IST (Indian Standard Time) for scheduling
 - ✅ Modified Excel import to interpret times as IST and convert to UTC for storage
+- ✅ Fixed validation function conflicts preventing IST conversion
+- ✅ Corrected existing posts to proper UTC storage times
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified
