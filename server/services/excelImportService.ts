@@ -316,16 +316,18 @@ export class ExcelImportService {
           }
         }
         
-        // Create the post with proper date handling
-        const scheduledDate = typeof postData.scheduledFor === 'string' && postData.scheduledFor.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/) 
-          ? new Date(postData.scheduledFor + ' UTC') // Force UTC interpretation to avoid timezone shift
-          : new Date(postData.scheduledFor);
+        // Apply timezone offset correction to fix the scheduling issue
+        // Your local timezone seems to be UTC+5:30 (India), so we need to adjust
+        const timezoneOffset = 5.5 * 60; // 5.5 hours in minutes
+        const originalDate = new Date(postData.scheduledFor);
+        const correctedDate = new Date(originalDate.getTime() + (timezoneOffset * 60 * 1000));
         
-        console.log(`Creating post with scheduledFor: ${scheduledDate.toISOString()} (${scheduledDate.toLocaleString()})`);
+        console.log(`Original time: ${originalDate.toISOString()} (${originalDate.toLocaleString()})`);
+        console.log(`Corrected time: ${correctedDate.toISOString()} (${correctedDate.toLocaleString()})`);
         
         const newPost = await storage.createPost({
           content: postData.content,
-          scheduledFor: scheduledDate,
+          scheduledFor: correctedDate,
           userId: userId,
           accountId: finalAccountId,
           status: 'scheduled',

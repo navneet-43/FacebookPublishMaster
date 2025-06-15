@@ -129,7 +129,7 @@ export const posts = pgTable("posts", {
   link: text("link"),
   labels: json("labels").$type<string[]>().default([]),
   language: text("language").default("English"),
-  scheduledFor: timestamp("scheduled_for"),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: false }),
   publishedAt: timestamp("published_at"),
   status: text("status").notNull(),
   sheetRowId: text("sheet_row_id"),
