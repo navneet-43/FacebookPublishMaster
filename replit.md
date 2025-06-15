@@ -43,6 +43,9 @@ An advanced social media publishing platform for Facebook business accounts, off
 - Dashboard accessible without authentication requirements
 - System successfully processing posts with proper account assignment
 - Enhanced error handling implemented to prevent console errors
+- Timezone conversion issue completely resolved - posts schedule at exact intended times
+- All Posts page provides comprehensive post management with filtering and search
+- View All Scheduled Posts functionality working correctly
 
 ## User Preferences
 - Direct dashboard access without login requirements
