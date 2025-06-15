@@ -29,6 +29,9 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Completed feature testing - 2 posts successfully imported using page selector
 - ✅ User confirmed successful import of 2 posts with "Sivalik Vasudeva" page selection
 - 🔧 Improved query client error handling and retry logic for dashboard stability
+- ✅ Fixed time parsing to support "2:30 PM" format for same-day scheduling
+- ✅ Fixed Google Drive link processing to convert sharing URLs to direct download format
+- ✅ Fixed language metadata display in Recent Activity to show selected language properly
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified

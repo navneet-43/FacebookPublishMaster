@@ -314,7 +314,10 @@ export class ExcelImportService {
             source: 'excel_csv_import',
             scheduledFor: postData.scheduledFor,
             account: postData.accountName,
-            labels: postData.customLabels
+            labels: postData.customLabels,
+            language: postData.language || 'EN',
+            mediaType: postData.mediaType || 'none',
+            mediaUrl: postData.mediaUrl
           }
         });
         
