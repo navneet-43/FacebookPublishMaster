@@ -316,18 +316,30 @@ export class ExcelImportService {
           }
         }
         
-        // Apply timezone offset correction to fix the scheduling issue
-        // Subtract the timezone offset to keep the intended local time
-        const timezoneOffset = 5.5 * 60; // 5.5 hours in minutes
-        const originalDate = new Date(postData.scheduledFor);
-        const correctedDate = new Date(originalDate.getTime() - (timezoneOffset * 60 * 1000));
+        // Parse date manually to avoid timezone conversion
+        const dateMatch = postData.scheduledFor.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+        let scheduledDate: Date;
         
-        console.log(`Original time: ${originalDate.toISOString()} (${originalDate.toLocaleString()})`);
-        console.log(`Corrected time: ${correctedDate.toISOString()} (${correctedDate.toLocaleString()})`);
+        if (dateMatch) {
+          const [, year, month, day, hours, minutes, seconds] = dateMatch;
+          // Create date object manually in UTC to preserve the exact time
+          scheduledDate = new Date(Date.UTC(
+            parseInt(year), 
+            parseInt(month) - 1, 
+            parseInt(day), 
+            parseInt(hours), 
+            parseInt(minutes), 
+            parseInt(seconds)
+          ));
+          console.log(`Manual UTC creation: ${scheduledDate.toISOString()} for input ${postData.scheduledFor}`);
+        } else {
+          scheduledDate = new Date(postData.scheduledFor);
+          console.log(`Fallback date creation: ${scheduledDate.toISOString()}`);
+        }
         
         const newPost = await storage.createPost({
           content: postData.content,
-          scheduledFor: correctedDate,
+          scheduledFor: scheduledDate,
           userId: userId,
           accountId: finalAccountId,
           status: 'scheduled',
