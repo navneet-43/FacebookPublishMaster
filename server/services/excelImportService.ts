@@ -316,22 +316,28 @@ export class ExcelImportService {
           }
         }
         
-        // Parse date manually to avoid timezone conversion
+        // Parse date and convert from IST to UTC for storage
         const dateMatch = postData.scheduledFor.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
         let scheduledDate: Date;
         
         if (dateMatch) {
           const [, year, month, day, hours, minutes, seconds] = dateMatch;
-          // Create date object manually in UTC to preserve the exact time
-          scheduledDate = new Date(Date.UTC(
+          // Create date in IST and convert to UTC for storage
+          const istDate = new Date(
             parseInt(year), 
             parseInt(month) - 1, 
             parseInt(day), 
             parseInt(hours), 
             parseInt(minutes), 
             parseInt(seconds)
-          ));
-          console.log(`Manual UTC creation: ${scheduledDate.toISOString()} for input ${postData.scheduledFor}`);
+          );
+          
+          // Convert IST to UTC (subtract 5 hours 30 minutes)
+          scheduledDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000));
+          
+          console.log(`IST input: ${postData.scheduledFor}`);
+          console.log(`Local IST date: ${istDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+          console.log(`Stored as UTC: ${scheduledDate.toISOString()}`);
         } else {
           scheduledDate = new Date(postData.scheduledFor);
           console.log(`Fallback date creation: ${scheduledDate.toISOString()}`);

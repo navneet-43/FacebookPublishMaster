@@ -37,6 +37,8 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Fixed timezone correction direction to subtract offset instead of adding
 - ✅ Implemented manual UTC date creation to prevent timezone conversion entirely
 - ✅ Added "View All Posts" page with comprehensive post management functionality
+- ✅ Updated system to handle IST (Indian Standard Time) for scheduling
+- ✅ Modified Excel import to interpret times as IST and convert to UTC for storage
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified

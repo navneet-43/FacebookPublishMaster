@@ -216,7 +216,7 @@ export default function ExcelImport() {
                 <h4 className="font-medium text-blue-900 mb-2">Template includes:</h4>
                 <ul className="text-sm text-blue-800 space-y-1">
                   <li>• Content (required)</li>
-                  <li>• Scheduled Date & Time (required)</li>
+                  <li>• Scheduled Date & Time in IST (required)</li>
                   <li>• Custom Labels</li>
                   <li>• Language (EN, HI, etc.)</li>
                   <li>• Media URL & Type</li>
