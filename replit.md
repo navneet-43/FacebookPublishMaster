@@ -34,6 +34,7 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Fixed language metadata display in Recent Activity to show selected language properly
 - ✅ Fixed timezone conversion issue causing 5.5-hour scheduling shifts in Excel import
 - ✅ Applied UTC+5:30 timezone offset correction for accurate post scheduling
+- ✅ Fixed timezone correction direction to subtract offset instead of adding
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified

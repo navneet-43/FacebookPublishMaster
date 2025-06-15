@@ -317,10 +317,10 @@ export class ExcelImportService {
         }
         
         // Apply timezone offset correction to fix the scheduling issue
-        // Your local timezone seems to be UTC+5:30 (India), so we need to adjust
+        // Subtract the timezone offset to keep the intended local time
         const timezoneOffset = 5.5 * 60; // 5.5 hours in minutes
         const originalDate = new Date(postData.scheduledFor);
-        const correctedDate = new Date(originalDate.getTime() + (timezoneOffset * 60 * 1000));
+        const correctedDate = new Date(originalDate.getTime() - (timezoneOffset * 60 * 1000));
         
         console.log(`Original time: ${originalDate.toISOString()} (${originalDate.toLocaleString()})`);
         console.log(`Corrected time: ${correctedDate.toISOString()} (${correctedDate.toLocaleString()})`);
