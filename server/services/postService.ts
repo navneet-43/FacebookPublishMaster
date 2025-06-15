@@ -212,13 +212,17 @@ export function schedulePostPublication(post: Post): void {
   activeJobs[post.id] = schedule.scheduleJob(scheduledTime, async () => {
     try {
       console.log(`🚀 EXECUTING SCHEDULED POST: ${post.id} at ${new Date().toISOString()}`);
+      console.log(`🚀 IST TIME: ${new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}`);
       
       // Get latest post data
       const currentPost = await storage.getPost(post.id);
       if (!currentPost || currentPost.status !== 'scheduled') {
         console.warn(`❌ SCHEDULED EXECUTION FAILED: Post ${post.id} no longer exists or is not scheduled`);
+        console.warn(`❌ Current post status: ${currentPost?.status || 'NOT_FOUND'}`);
         return;
       }
+      
+      console.log(`📝 PUBLISHING POST: "${currentPost.content}" to Facebook...`);
       
       // Publish to Facebook
       const result = await publishPostToFacebook(currentPost);
@@ -287,6 +291,11 @@ export function schedulePostPublication(post: Post): void {
  */
 export async function initializeScheduledPosts(): Promise<void> {
   try {
+    console.log('Initializing scheduled posts system...');
+    
+    // First, process any overdue posts that should have already been published
+    await processOverduePosts();
+    
     // Get all scheduled posts
     const scheduledPosts = await storage.getScheduledPosts();
     let scheduledCount = 0;
@@ -298,8 +307,78 @@ export async function initializeScheduledPosts(): Promise<void> {
     }
     
     console.log(`Initialized ${scheduledCount} scheduled posts`);
+    
+    // Set up periodic check for overdue posts every 2 minutes
+    setInterval(async () => {
+      await processOverduePosts();
+    }, 2 * 60 * 1000);
+    
   } catch (error) {
     console.error("Error initializing scheduled posts:", error);
+  }
+}
+
+/**
+ * Process posts that should have already been published but are still scheduled
+ */
+async function processOverduePosts(): Promise<void> {
+  try {
+    const now = new Date();
+    console.log(`🔍 CHECKING OVERDUE POSTS at ${now.toISOString()}`);
+    
+    // Get posts that are scheduled but past their scheduled time
+    const overduePosts = await storage.getOverduePosts();
+    
+    if (overduePosts.length > 0) {
+      console.log(`📋 Found ${overduePosts.length} overdue posts to publish immediately`);
+      
+      for (const post of overduePosts) {
+        console.log(`⏰ PUBLISHING OVERDUE POST: ${post.id} (was scheduled for ${post.scheduledFor})`);
+        console.log(`⏰ Content: "${post.content}"`);
+        
+        try {
+          const result = await publishPostToFacebook(post);
+          
+          if (result.success) {
+            await storage.updatePost(post.id, {
+              status: 'published',
+              publishedAt: new Date()
+            });
+            
+            await storage.createActivity({
+              userId: post.userId || null,
+              type: 'post_published',
+              description: `Overdue post published to Facebook`,
+              metadata: { postId: post.id, wasOverdue: true }
+            });
+            
+            console.log(`✅ Successfully published overdue post ${post.id}`);
+          } else {
+            await storage.updatePost(post.id, {
+              status: 'failed',
+              errorMessage: result.error || 'Failed to publish overdue post'
+            });
+            
+            console.error(`❌ Failed to publish overdue post ${post.id}:`, result.error);
+          }
+        } catch (error) {
+          console.error(`❌ Error publishing overdue post ${post.id}:`, error);
+          
+          try {
+            await storage.updatePost(post.id, {
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+          } catch (updateError) {
+            console.error(`Error updating failed post ${post.id}:`, updateError);
+          }
+        }
+      }
+    } else {
+      console.log(`✅ No overdue posts found`);
+    }
+  } catch (error) {
+    console.error('Error processing overdue posts:', error);
   }
 }
 
