@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
+import AllPosts from "@/pages/AllPosts";
 import PublishingCalendar from "@/pages/PublishingCalendar";
 import PublishingHistory from "@/pages/PublishingHistory";
 import FacebookAccounts from "@/pages/FacebookAccounts";
@@ -22,6 +23,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/posts" component={AllPosts} />
       <Route path="/calendar" component={PublishingCalendar} />
       <Route path="/publishing-calendar" component={PublishingCalendar} />
       <Route path="/history" component={PublishingHistory} />

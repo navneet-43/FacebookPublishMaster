@@ -265,7 +265,11 @@ export default function UpcomingPostsCard() {
           </table>
         </div>
         <div className="flex justify-center mt-4">
-          <Button variant="link" className="text-fb-blue">
+          <Button 
+            variant="link" 
+            className="text-fb-blue"
+            onClick={() => window.location.href = '/posts'}
+          >
             View All Scheduled Posts
             <i className="fa-solid fa-arrow-right ml-1"></i>
           </Button>
