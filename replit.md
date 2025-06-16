@@ -47,6 +47,7 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Enhanced custom labels for Meta Insights reporting with Facebook API compliance
 - ✅ Implemented proper label validation (25 char limit, max 10 labels per post)
 - ✅ Custom labels from Excel imports now properly sent to Facebook's Meta Insights system
+- ✅ All scheduled posts cleared twice at user request - system maintains clean state
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified
