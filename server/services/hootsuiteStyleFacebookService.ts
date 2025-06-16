@@ -287,10 +287,8 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
-      // Include language metadata if provided
-      if (language) {
-        postData.append('locale', language);
-      }
+      // Remove locale parameter for videos as Facebook doesn't support it
+      // Language metadata is handled separately in Meta Insights
       
       console.log(`Publishing video post to page ${pageId}`);
       
