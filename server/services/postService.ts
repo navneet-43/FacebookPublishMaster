@@ -82,8 +82,6 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     if (post.mediaUrl && post.mediaType && post.mediaType !== 'none') {
       switch (post.mediaType) {
         case 'photo':
-        case 'photos':
-          console.log(`📸 PUBLISHING PHOTO: Post ${post.id} with media URL: ${post.mediaUrl}`);
           result = await HootsuiteStyleFacebookService.publishPhotoPost(
             account.pageId,
             account.accessToken,
@@ -95,11 +93,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           break;
           
         case 'video':
-        case 'videos':
         case 'reel':
-          console.log(`🎥 PUBLISHING VIDEO: Post ${post.id} with media URL: ${post.mediaUrl}`);
-          
-          // Try direct video upload first
           result = await HootsuiteStyleFacebookService.publishVideoPost(
             account.pageId,
             account.accessToken,
@@ -108,30 +102,6 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             resolvedLabels || undefined,
             post.language || undefined
           );
-          
-          // If video upload fails, fallback to text post with video link
-          if (!result.success && post.mediaUrl) {
-            console.log(`⚠️ Video upload failed, falling back to text post with link for post ${post.id}`);
-            console.log(`Error: ${result.error}`);
-            
-            // Create enhanced content with video information
-            const videoContent = post.content ? 
-              `${post.content}\n\n🎥 Watch the video: ${post.mediaUrl}` : 
-              `🎥 Check out this video: ${post.mediaUrl}`;
-            
-            result = await HootsuiteStyleFacebookService.publishTextPost(
-              account.pageId,
-              account.accessToken,
-              videoContent,
-              undefined, // Don't include link parameter to avoid double links
-              resolvedLabels || undefined,
-              post.language || undefined
-            );
-            
-            if (result.success) {
-              console.log(`✅ Successfully posted video as text post for post ${post.id}`);
-            }
-          }
           break;
           
         default:

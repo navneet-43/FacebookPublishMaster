@@ -241,25 +241,25 @@ export class HootsuiteStyleFacebookService {
   }
 
   /**
-   * Publish video post to Facebook page (supports Google Drive links with fallback)
+   * Publish video post to Facebook page (supports Google Drive links)
    */
   static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
       
       let finalVideoUrl = videoUrl;
-      const isGoogleDrive = isGoogleDriveLink(videoUrl);
       
       // Convert Google Drive links to direct download URLs
-      if (isGoogleDrive) {
+      if (isGoogleDriveLink(videoUrl)) {
         const convertedUrl = convertGoogleDriveLink(videoUrl);
         if (convertedUrl) {
           finalVideoUrl = convertedUrl;
           console.log('Converted Google Drive link for Facebook video:', finalVideoUrl);
         } else {
-          // If conversion fails, fallback to text post
-          console.log('⚠️ Google Drive link conversion failed, using fallback approach');
-          return await this.publishVideoAsTextPost(pageId, pageAccessToken, videoUrl, description, customLabels, language);
+          return {
+            success: false,
+            error: 'Invalid Google Drive link format'
+          };
         }
       }
       
@@ -287,6 +287,11 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
+      // Include language metadata if provided
+      if (language) {
+        postData.append('locale', language);
+      }
+      
       console.log(`Publishing video post to page ${pageId}`);
       
       const response = await fetch(endpoint, {
@@ -301,18 +306,6 @@ export class HootsuiteStyleFacebookService {
       
       if (!response.ok || data.error) {
         console.error('Facebook video publishing error:', data.error);
-        
-        // If it's a Google Drive video that failed, try fallback approach
-        if (isGoogleDrive && (
-          data.error?.code === 351 || // Video file error
-          data.error?.message?.includes('video file') ||
-          data.error?.message?.includes('corrupt') ||
-          data.error?.message?.includes('unreadable')
-        )) {
-          console.log('⚠️ Google Drive video upload failed, falling back to text post with video link');
-          return await this.publishVideoAsTextPost(pageId, pageAccessToken, videoUrl, description, customLabels, language);
-        }
-        
         return {
           success: false,
           error: data.error?.message || `API error: ${response.status}`
@@ -332,27 +325,6 @@ export class HootsuiteStyleFacebookService {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
-  }
-
-  /**
-   * Fallback method: Publish video as text post with enhanced content
-   */
-  static async publishVideoAsTextPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
-    console.log('📝 Using fallback: Publishing video as text post with link');
-    
-    // Create enhanced content with video information
-    const videoContent = description ? 
-      `${description}\n\n🎥 Watch the video: ${videoUrl}` : 
-      `🎥 Check out this video: ${videoUrl}`;
-    
-    return await this.publishTextPost(
-      pageId,
-      pageAccessToken,
-      videoContent,
-      undefined, // Don't include link parameter to avoid double links
-      customLabels,
-      language
-    );
   }
 
   /**
