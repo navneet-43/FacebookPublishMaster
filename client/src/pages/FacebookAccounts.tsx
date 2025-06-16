@@ -131,6 +131,29 @@ export default function FacebookAccounts() {
     }
   });
 
+  const refreshPagesMutation = useMutation({
+    mutationFn: () => {
+      return apiRequest('/api/facebook-accounts/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/facebook-accounts'] });
+      toast({
+        title: "Pages Refreshed",
+        description: `Successfully synced: ${data.newPages} new, ${data.updatedPages} updated`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Refresh Failed",
+        description: error.message || "Failed to refresh Facebook pages",
+        variant: "destructive"
+      });
+    }
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     addAccountMutation.mutate(newAccount);
@@ -208,9 +231,17 @@ export default function FacebookAccounts() {
                             </Button>
                             <Button 
                               variant="outline"
-                              onClick={() => window.location.href = '/api/facebook-pages/sync'}
+                              onClick={() => refreshPagesMutation.mutate()}
+                              disabled={refreshPagesMutation.isPending}
                             >
-                              Import Pages
+                              {refreshPagesMutation.isPending ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  Syncing...
+                                </>
+                              ) : (
+                                'Sync Facebook Pages'
+                              )}
                             </Button>
                             <Button 
                               variant="outline"
@@ -336,9 +367,17 @@ export default function FacebookAccounts() {
             <CardFooter>
               <Button 
                 variant="outline"
-                onClick={() => window.location.href = '/api/facebook-pages/sync'}
+                onClick={() => refreshPagesMutation.mutate()}
+                disabled={refreshPagesMutation.isPending}
               >
-                Refresh Pages from Facebook
+                {refreshPagesMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Syncing...
+                  </>
+                ) : (
+                  'Sync New Facebook Pages'
+                )}
               </Button>
             </CardFooter>
           )}

@@ -57,25 +57,27 @@ export class HootsuiteStyleFacebookService {
    */
   static async getUserManagedPages(userAccessToken: string): Promise<FacebookPageInfo[]> {
     try {
-      const url = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,perms&access_token=${userAccessToken}`;
+      // Updated API call without deprecated 'perms' field
+      const url = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token&access_token=${userAccessToken}`;
       
       const response = await fetch(url);
-      const data = await response.json() as FacebookPagesResponse;
+      const data = await response.json() as any;
       
       if (!response.ok || !data.data) {
         console.error('Failed to fetch pages:', data);
         return [];
       }
       
-      // Filter pages with publishing permissions
-      return data.data.filter(page => 
-        page.perms && (
-          page.perms.includes('MANAGE') || 
-          page.perms.includes('CREATE_CONTENT') ||
-          page.perms.includes('MODERATE') ||
-          page.perms.includes('ADVERTISE')
-        )
-      );
+      console.log(`✅ Successfully fetched ${data.data.length} Facebook pages`);
+      
+      // Return all pages since we can't check permissions directly anymore
+      // Facebook will reject publishing attempts if no permissions exist
+      return data.data.map((page: any) => ({
+        id: page.id,
+        name: page.name,
+        access_token: page.access_token,
+        perms: [] // Empty array since perms field is deprecated
+      }));
     } catch (error) {
       console.error('Error fetching user pages:', error);
       return [];

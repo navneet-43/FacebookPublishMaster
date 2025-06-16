@@ -323,6 +323,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/facebook-accounts/refresh", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get user's current Facebook accounts to find access token
+      const existingAccounts = await storage.getFacebookAccounts(user.id);
+      if (existingAccounts.length === 0) {
+        return res.status(400).json({ message: "No Facebook accounts found. Please connect your Facebook account first." });
+      }
+
+      // Use the first account's access token to fetch all pages
+      const userAccessToken = existingAccounts[0].accessToken;
+      
+      const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
+      const pages = await HootsuiteStyleFacebookService.getUserManagedPages(userAccessToken);
+      
+      let syncedCount = 0;
+      let updatedCount = 0;
+      
+      for (const page of pages) {
+        // Check if page already exists
+        const existingPage = existingAccounts.find(acc => acc.pageId === page.id);
+        
+        if (existingPage) {
+          // Update existing page
+          await storage.updateFacebookAccount(existingPage.id, {
+            name: page.name,
+            accessToken: page.access_token,
+            isActive: true
+          });
+          updatedCount++;
+        } else {
+          // Create new page
+          await storage.createFacebookAccount({
+            userId: user.id,
+            name: page.name,
+            pageId: page.id,
+            accessToken: page.access_token,
+            isActive: true
+          });
+          syncedCount++;
+        }
+      }
+
+      // Log activity
+      await storage.createActivity({
+        userId: user.id,
+        type: 'facebook_pages_synced',
+        description: `Facebook pages synchronized: ${syncedCount} new, ${updatedCount} updated`,
+        metadata: { newPages: syncedCount, updatedPages: updatedCount }
+      });
+
+      res.json({ 
+        success: true, 
+        message: `Successfully synced Facebook pages: ${syncedCount} new, ${updatedCount} updated`,
+        newPages: syncedCount,
+        updatedPages: updatedCount
+      });
+    } catch (error) {
+      console.error("Error refreshing Facebook pages:", error);
+      res.status(500).json({ message: "Failed to refresh Facebook pages" });
+    }
+  });
+
   app.get("/api/custom-labels", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
