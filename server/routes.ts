@@ -590,6 +590,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/posts/scheduled/all", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get all scheduled posts for this user
+      const scheduledPosts = await storage.getPostsByStatus(user.id, 'scheduled');
+      
+      // Delete all scheduled posts
+      let deletedCount = 0;
+      for (const post of scheduledPosts) {
+        await storage.deletePost(post.id);
+        deletedCount++;
+      }
+
+      // Log activity
+      await storage.createActivity({
+        userId: user.id,
+        type: 'bulk_posts_deleted',
+        description: `Deleted all ${deletedCount} scheduled posts`,
+        metadata: { deletedCount }
+      });
+
+      res.json({
+        success: true,
+        message: `Successfully deleted ${deletedCount} scheduled posts`,
+        deletedCount
+      });
+    } catch (error) {
+      console.error("Error deleting scheduled posts:", error);
+      res.status(500).json({ message: "Failed to delete scheduled posts" });
+    }
+  });
+
   app.post("/api/import-from-google-sheets", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
