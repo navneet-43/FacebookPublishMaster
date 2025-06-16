@@ -93,11 +93,14 @@ export class HootsuiteStyleFacebookService {
       postData.append('message', message);
       postData.append('access_token', pageAccessToken);
       
-      // Add custom labels for insights tracking (not visible in post)
+      // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array
-        postData.append('custom_labels', JSON.stringify(customLabels));
-        console.log('Adding custom labels to Facebook text post:', customLabels);
+        // Facebook expects custom labels as JSON array for insights reporting
+        const labelArray = customLabels.map(label => label.toString().trim()).filter(label => label.length > 0);
+        if (labelArray.length > 0) {
+          postData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('Adding custom labels to Facebook text post for Meta Insights:', labelArray);
+        }
       }
       
       // Include language metadata if provided
@@ -177,11 +180,14 @@ export class HootsuiteStyleFacebookService {
         postData.append('caption', caption);
       }
       
-      // Add custom labels for insights tracking (not visible in post)
+      // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array
-        postData.append('custom_labels', JSON.stringify(customLabels));
-        console.log('Adding custom labels to Facebook photo post:', customLabels);
+        // Facebook expects custom labels as JSON array for insights reporting
+        const labelArray = customLabels.map(label => label.toString().trim()).filter(label => label.length > 0);
+        if (labelArray.length > 0) {
+          postData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('Adding custom labels to Facebook photo post for Meta Insights:', labelArray);
+        }
       }
       
       // Include language metadata if provided
@@ -257,11 +263,14 @@ export class HootsuiteStyleFacebookService {
         postData.append('description', description);
       }
       
-      // Add custom labels for insights tracking (not visible in post)
+      // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array
-        postData.append('custom_labels', JSON.stringify(customLabels));
-        console.log('Adding custom labels to Facebook video post:', customLabels);
+        // Facebook expects custom labels as JSON array for insights reporting
+        const labelArray = customLabels.map(label => label.toString().trim()).filter(label => label.length > 0);
+        if (labelArray.length > 0) {
+          postData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('Adding custom labels to Facebook video post for Meta Insights:', labelArray);
+        }
       }
       
       // Include language metadata if provided

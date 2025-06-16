@@ -302,16 +302,12 @@ export class ExcelImportService {
           }
         }
         
-        // Process custom labels
-        const labelIds: number[] = [];
+        // Process custom labels - store as label names for Meta Insights
+        const labelNames: string[] = [];
         if (postData.customLabels) {
-          const labelNames = postData.customLabels.split(',').map(name => name.trim().toLowerCase());
-          for (const labelName of labelNames) {
-            const label = labelMap.get(labelName);
-            if (label) {
-              labelIds.push(label.id);
-            }
-          }
+          const rawLabels = postData.customLabels.split(',').map(name => name.trim()).filter(name => name.length > 0);
+          labelNames.push(...rawLabels);
+          console.log(`Row ${i + 1}: Processing custom labels for Meta Insights:`, rawLabels);
         }
         
         // Parse date and convert from IST to UTC for storage
@@ -349,7 +345,8 @@ export class ExcelImportService {
           status: 'scheduled',
           language: postData.language || 'EN',
           mediaUrl: postData.mediaUrl,
-          mediaType: postData.mediaType
+          mediaType: postData.mediaType,
+          labels: labelNames  // Store custom labels for Meta Insights
         });
         
         // Log import activity
