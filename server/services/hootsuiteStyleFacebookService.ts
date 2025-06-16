@@ -96,10 +96,14 @@ export class HootsuiteStyleFacebookService {
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
         // Facebook expects custom labels as JSON array for insights reporting
-        const labelArray = customLabels.map(label => label.toString().trim()).filter(label => label.length > 0);
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
+          .slice(0, 10); // Facebook limit: max 10 labels per post
+        
         if (labelArray.length > 0) {
           postData.append('custom_labels', JSON.stringify(labelArray));
-          console.log('Adding custom labels to Facebook text post for Meta Insights:', labelArray);
+          console.log('✅ META INSIGHTS: Adding custom labels to Facebook text post:', labelArray);
         }
       }
       
@@ -183,10 +187,14 @@ export class HootsuiteStyleFacebookService {
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
         // Facebook expects custom labels as JSON array for insights reporting
-        const labelArray = customLabels.map(label => label.toString().trim()).filter(label => label.length > 0);
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
+          .slice(0, 10); // Facebook limit: max 10 labels per post
+        
         if (labelArray.length > 0) {
           postData.append('custom_labels', JSON.stringify(labelArray));
-          console.log('Adding custom labels to Facebook photo post for Meta Insights:', labelArray);
+          console.log('✅ META INSIGHTS: Adding custom labels to Facebook photo post:', labelArray);
         }
       }
       
@@ -266,10 +274,14 @@ export class HootsuiteStyleFacebookService {
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
         // Facebook expects custom labels as JSON array for insights reporting
-        const labelArray = customLabels.map(label => label.toString().trim()).filter(label => label.length > 0);
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
+          .slice(0, 10); // Facebook limit: max 10 labels per post
+        
         if (labelArray.length > 0) {
           postData.append('custom_labels', JSON.stringify(labelArray));
-          console.log('Adding custom labels to Facebook video post for Meta Insights:', labelArray);
+          console.log('✅ META INSIGHTS: Adding custom labels to Facebook video post:', labelArray);
         }
       }
       

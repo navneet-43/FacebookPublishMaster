@@ -44,6 +44,9 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Implemented comprehensive Facebook publishing fix with overdue post processing
 - ✅ Added automatic recovery system for posts that miss scheduled execution
 - ✅ Verified Facebook API publishing working correctly with live posts
+- ✅ Enhanced custom labels for Meta Insights reporting with Facebook API compliance
+- ✅ Implemented proper label validation (25 char limit, max 10 labels per post)
+- ✅ Custom labels from Excel imports now properly sent to Facebook's Meta Insights system
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified
