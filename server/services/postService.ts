@@ -82,6 +82,8 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     if (post.mediaUrl && post.mediaType && post.mediaType !== 'none') {
       switch (post.mediaType) {
         case 'photo':
+        case 'photos':
+          console.log(`📸 PUBLISHING PHOTO: Post ${post.id} with media URL: ${post.mediaUrl}`);
           result = await HootsuiteStyleFacebookService.publishPhotoPost(
             account.pageId,
             account.accessToken,
@@ -93,7 +95,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           break;
           
         case 'video':
+        case 'videos':
         case 'reel':
+          console.log(`🎥 PUBLISHING VIDEO: Post ${post.id} with media URL: ${post.mediaUrl}`);
           result = await HootsuiteStyleFacebookService.publishVideoPost(
             account.pageId,
             account.accessToken,
