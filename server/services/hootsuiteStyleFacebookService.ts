@@ -271,15 +271,11 @@ export class HootsuiteStyleFacebookService {
       
       // Handle different strategies
       if (strategy.strategy === 'fallback') {
-        console.log('🔄 FALLBACK: Creating text post with video link due to media issues');
-        const fallbackPost = MediaOptimizer.createMediaFallbackPost(
-          description || 'Video content', 
-          videoUrl, 
-          strategy.reason
-        );
-        
-        // Publish as text post with link instead
-        return await this.publishTextPost(pageId, pageAccessToken, fallbackPost.content, fallbackPost.link, customLabels, language);
+        console.log('❌ MEDIA REJECTED: Video file too large or inaccessible');
+        return {
+          success: false,
+          error: `Video upload failed: ${strategy.reason}. ${strategy.recommendation || ''}`
+        };
       }
       
       if (!mediaInfo.isValid) {
@@ -343,15 +339,11 @@ export class HootsuiteStyleFacebookService {
                             data.error?.message?.includes('unreadable');
         
         if (isMediaError) {
-          console.log('🔄 MEDIA ERROR FALLBACK: Converting to text post with link');
-          const fallbackPost = MediaOptimizer.createMediaFallbackPost(
-            description || 'Video content', 
-            videoUrl, 
-            data.error?.message || 'Video upload failed'
-          );
-          
-          // Try publishing as text post with link instead
-          return await this.publishTextPost(pageId, pageAccessToken, fallbackPost.content, fallbackPost.link, customLabels, language);
+          console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
+          return {
+            success: false,
+            error: data.error?.message || 'Video upload failed - file may be too large, corrupt, or in unsupported format'
+          };
         }
         
         return {

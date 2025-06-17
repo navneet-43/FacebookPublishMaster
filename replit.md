@@ -50,6 +50,7 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ All scheduled posts cleared multiple times at user request - system maintains clean state
 - ✅ Fixed Facebook post visibility issue - all posts now publish with public "EVERYONE" privacy settings
 - ✅ Implemented comprehensive media optimization system with automatic fallback for large video files
+- ✅ Disabled automatic link posting per user request - videos either upload successfully or fail cleanly
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified
