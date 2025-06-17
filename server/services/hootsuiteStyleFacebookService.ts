@@ -122,6 +122,7 @@ export class HootsuiteStyleFacebookService {
       }
       
       console.log(`Publishing text post to page ${pageId}`);
+      console.log('Post data being sent:', Object.fromEntries(postData.entries()));
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -132,6 +133,7 @@ export class HootsuiteStyleFacebookService {
       });
       
       const data = await response.json() as any;
+      console.log('Facebook API response:', data);
       
       if (!response.ok || data.error) {
         console.error('Facebook publishing error:', data.error);
