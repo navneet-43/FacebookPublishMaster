@@ -95,6 +95,12 @@ export class HootsuiteStyleFacebookService {
       postData.append('message', message);
       postData.append('access_token', pageAccessToken);
       
+      // Set post to be publicly visible
+      postData.append('published', 'true');
+      postData.append('privacy', JSON.stringify({
+        value: 'EVERYONE'
+      }));
+      
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
         // Facebook expects custom labels as JSON array for insights reporting
@@ -182,6 +188,12 @@ export class HootsuiteStyleFacebookService {
       postData.append('url', finalPhotoUrl);
       postData.append('access_token', pageAccessToken);
       
+      // Set post to be publicly visible
+      postData.append('published', 'true');
+      postData.append('privacy', JSON.stringify({
+        value: 'EVERYONE'
+      }));
+      
       if (caption) {
         postData.append('caption', caption);
       }
@@ -268,6 +280,12 @@ export class HootsuiteStyleFacebookService {
       const postData = new URLSearchParams();
       postData.append('file_url', finalVideoUrl);
       postData.append('access_token', pageAccessToken);
+      
+      // Set post to be publicly visible
+      postData.append('published', 'true');
+      postData.append('privacy', JSON.stringify({
+        value: 'EVERYONE'
+      }));
       
       if (description) {
         postData.append('description', description);
