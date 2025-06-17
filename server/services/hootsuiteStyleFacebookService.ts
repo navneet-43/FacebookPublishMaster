@@ -253,22 +253,40 @@ export class HootsuiteStyleFacebookService {
    */
   static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
+      const { MediaOptimizer } = await import('./mediaOptimizer');
       
       let finalVideoUrl = videoUrl;
       
-      // Convert Google Drive links to direct download URLs
-      if (isGoogleDriveLink(videoUrl)) {
-        const convertedUrl = convertGoogleDriveLink(videoUrl);
-        if (convertedUrl) {
-          finalVideoUrl = convertedUrl;
-          console.log('Converted Google Drive link for Facebook video:', finalVideoUrl);
-        } else {
-          return {
-            success: false,
-            error: 'Invalid Google Drive link format'
-          };
-        }
+      // Optimize Google Drive links
+      if (videoUrl.includes('drive.google.com')) {
+        finalVideoUrl = MediaOptimizer.optimizeGoogleDriveUrl(videoUrl);
+        console.log('Optimized Google Drive link for Facebook video:', finalVideoUrl);
+      }
+
+      // Validate media before attempting upload
+      const mediaInfo = await MediaOptimizer.validateMediaUrl(finalVideoUrl);
+      const strategy = MediaOptimizer.getOptimizationStrategy(mediaInfo, 'video');
+      
+      console.log('📋 MEDIA STRATEGY:', strategy);
+      
+      // Handle different strategies
+      if (strategy.strategy === 'fallback') {
+        console.log('🔄 FALLBACK: Creating text post with video link due to media issues');
+        const fallbackPost = MediaOptimizer.createMediaFallbackPost(
+          description || 'Video content', 
+          videoUrl, 
+          strategy.reason
+        );
+        
+        // Publish as text post with link instead
+        return await this.publishTextPost(pageId, pageAccessToken, fallbackPost.content, fallbackPost.link, customLabels, language);
+      }
+      
+      if (!mediaInfo.isValid) {
+        return {
+          success: false,
+          error: `Media validation failed: ${mediaInfo.error}`
+        };
       }
       
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
@@ -317,6 +335,25 @@ export class HootsuiteStyleFacebookService {
       
       if (!response.ok || data.error) {
         console.error('Facebook video publishing error:', data.error);
+        
+        // Check if it's a media-related error that can be handled with fallback
+        const isMediaError = data.error?.code === 351 || 
+                            data.error?.message?.includes('video file') ||
+                            data.error?.message?.includes('corrupt') ||
+                            data.error?.message?.includes('unreadable');
+        
+        if (isMediaError) {
+          console.log('🔄 MEDIA ERROR FALLBACK: Converting to text post with link');
+          const fallbackPost = MediaOptimizer.createMediaFallbackPost(
+            description || 'Video content', 
+            videoUrl, 
+            data.error?.message || 'Video upload failed'
+          );
+          
+          // Try publishing as text post with link instead
+          return await this.publishTextPost(pageId, pageAccessToken, fallbackPost.content, fallbackPost.link, customLabels, language);
+        }
+        
         return {
           success: false,
           error: data.error?.message || `API error: ${response.status}`
