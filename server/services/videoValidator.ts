@@ -26,7 +26,16 @@ export class VideoValidator {
     
     // Convert cloud storage URLs to direct download format before validation
     let validationUrl = url;
-    if (url.includes('dropbox.com')) {
+    if (url.includes('vimeo.com')) {
+      const { VimeoHelper } = await import('./vimeoHelper');
+      const result = await VimeoHelper.getOptimizedVideoUrl(url);
+      if (result.workingUrl && result.method === 'direct') {
+        validationUrl = result.workingUrl;
+        console.log('🔄 Using converted Vimeo URL for validation');
+      } else {
+        console.log('⚠️ Vimeo direct URL not available, using original');
+      }
+    } else if (url.includes('dropbox.com')) {
       const { DropboxHelper } = await import('./dropboxHelper');
       validationUrl = DropboxHelper.convertToDirectUrl(url);
       console.log('🔄 Using converted Dropbox URL for validation');

@@ -274,7 +274,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                     form.setValue("mediaUrl", "");
                   }}
                 >
-                  📁 Dropbox Link
+                  🎬 Vimeo Link
                 </Button>
               </div>
               
@@ -313,7 +313,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                       <FormLabel>Media URL</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="Paste Dropbox or Google Drive share link here..."
+                          placeholder="Paste Vimeo, YouTube, or direct video URL here..."
                           {...field}
                         />
                       </FormControl>
@@ -321,49 +321,76 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                         {/* URL Recognition Indicator */}
                         {field.value && (
                           <div className="flex items-center gap-2 p-2 rounded-md bg-gray-50">
-                            {field.value.includes('dropbox.com') ? (
-                              <div className="flex items-center gap-1 text-green-600">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                Dropbox URL detected - Optimized for reliable uploads
+                            {field.value.includes('vimeo.com') ? (
+                              <div className="flex items-center gap-1 text-blue-600">
+                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                Vimeo URL detected - Professional video hosting with direct access
+                              </div>
+                            ) : field.value.includes('youtube.com') || field.value.includes('youtu.be') ? (
+                              <div className="flex items-center gap-1 text-red-600">
+                                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                YouTube URL detected - Reliable video platform
+                              </div>
+                            ) : field.value.includes('dropbox.com') ? (
+                              <div className="flex items-center gap-1 text-amber-600">
+                                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                                Dropbox URL detected - May have access limitations
                               </div>
                             ) : field.value.includes('drive.google.com') ? (
                               <div className="flex items-center gap-1 text-amber-600">
                                 <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
                                 Google Drive URL detected - May have limitations for large videos
                               </div>
+                            ) : field.value.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm|m4v)(\?|$)/i) ? (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                Direct video URL detected - Optimal for Facebook upload
+                              </div>
                             ) : (
                               <div className="flex items-center gap-1 text-gray-600">
                                 <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                                Direct URL detected
+                                URL detected - Validating format...
                               </div>
                             )}
                           </div>
                         )}
                         
                         <div className="text-gray-500 space-y-1">
-                          <div><strong>✅ Recommended:</strong> Dropbox links (automatic conversion to direct download)</div>
-                          <div><strong>⚠️ Limited:</strong> Google Drive links (may fail for large videos due to access restrictions)</div>
-                          <div>Ensure files are shared with "Anyone with the link" permissions</div>
+                          <div><strong>✅ Best:</strong> Vimeo links (professional hosting with direct access)</div>
+                          <div><strong>✅ Good:</strong> YouTube links (reliable platform integration)</div>
+                          <div><strong>⚠️ Limited:</strong> Cloud storage links (access restrictions may apply)</div>
                         </div>
                         
-                        {/* Working Video Hosting Solutions */}
+                        {/* Vimeo Setup Guide */}
                         {!field.value && (
-                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
-                            <div className="text-green-700 font-medium mb-1">Recommended Working Solutions:</div>
-                            <div className="text-green-600 text-xs space-y-1">
-                              <div><strong>1. Direct Hosting:</strong> Upload to your website hosting (ends in .mp4)</div>
-                              <div><strong>2. YouTube:</strong> Upload as unlisted, then share YouTube URL</div>
-                              <div><strong>3. Vimeo:</strong> Upload with direct download enabled</div>
-                              <div><strong>4. WeTransfer:</strong> Generate direct download links</div>
+                          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                            <div className="text-blue-700 font-medium mb-1">Vimeo Setup (Recommended):</div>
+                            <div className="text-blue-600 text-xs space-y-1">
+                              <div>1. Upload video to Vimeo (free account works)</div>
+                              <div>2. Set privacy to "Public" or "Unlisted"</div>
+                              <div>3. Enable "Allow downloads" in video settings</div>
+                              <div>4. Copy Vimeo URL (vimeo.com/123456789)</div>
                             </div>
                           </div>
                         )}
                         
-                        {/* Cloud Storage Limitations Warning */}
-                        {field.value && (field.value.includes('dropbox.com') || field.value.includes('drive.google.com')) && (
-                          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
-                            <div className="text-amber-700 text-xs">
-                              <strong>Cloud Storage Limitation:</strong> Both Dropbox and Google Drive have programmatic access restrictions that may prevent direct video downloads for Facebook uploads. Consider using the recommended hosting solutions above for reliable uploads.
+                        {/* Alternative Solutions */}
+                        {!field.value && (
+                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                            <div className="text-green-700 font-medium mb-1">Alternative Solutions:</div>
+                            <div className="text-green-600 text-xs space-y-1">
+                              <div><strong>YouTube:</strong> Upload as unlisted, share URL directly</div>
+                              <div><strong>Direct Hosting:</strong> Upload to website (URL ends in .mp4)</div>
+                              <div><strong>WeTransfer:</strong> Generate direct download links</div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Vimeo-specific guidance */}
+                        {field.value && field.value.includes('vimeo.com') && (
+                          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                            <div className="text-blue-700 text-xs">
+                              <strong>Vimeo Tip:</strong> Ensure "Allow downloads" is enabled in your video settings for optimal Facebook upload compatibility.
                             </div>
                           </div>
                         )}
