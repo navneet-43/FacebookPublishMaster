@@ -24,12 +24,21 @@ export class VideoValidator {
   }> {
     console.log('🔍 VALIDATING VIDEO FILE:', url);
     
-    // Convert Dropbox URLs to direct download format before validation
+    // Convert cloud storage URLs to direct download format before validation
     let validationUrl = url;
     if (url.includes('dropbox.com')) {
       const { DropboxHelper } = await import('./dropboxHelper');
       validationUrl = DropboxHelper.convertToDirectUrl(url);
       console.log('🔄 Using converted Dropbox URL for validation');
+    } else if (url.includes('drive.google.com')) {
+      const { GoogleDriveHelper } = await import('./googleDriveHelper');
+      const result = await GoogleDriveHelper.findWorkingVideoUrl(url);
+      if (result.workingUrl) {
+        validationUrl = result.workingUrl;
+        console.log('🔄 Using converted Google Drive URL for validation');
+      } else {
+        console.log('⚠️ Google Drive URL conversion failed, using original');
+      }
     }
     
     let tempFile: string | null = null;

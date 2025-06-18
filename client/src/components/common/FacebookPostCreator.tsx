@@ -346,18 +346,24 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           <div>Ensure files are shared with "Anyone with the link" permissions</div>
                         </div>
                         
-                        {/* Example URLs and Setup Instructions */}
+                        {/* Working Video Hosting Solutions */}
                         {!field.value && (
-                          <div className="mt-2 p-2 bg-blue-50 rounded-md">
-                            <div className="text-blue-700 font-medium mb-1">Dropbox Setup Guide:</div>
-                            <div className="text-blue-600 text-xs space-y-1">
-                              <div>1. Upload video to Dropbox</div>
-                              <div>2. Right-click → Share → "Anyone with the link"</div>
-                              <div>3. Copy sharing URL (dropbox.com/s/... format works best)</div>
-                              <div>4. Paste URL here - system will auto-convert for Facebook</div>
+                          <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                            <div className="text-green-700 font-medium mb-1">Recommended Working Solutions:</div>
+                            <div className="text-green-600 text-xs space-y-1">
+                              <div><strong>1. Direct Hosting:</strong> Upload to your website hosting (ends in .mp4)</div>
+                              <div><strong>2. YouTube:</strong> Upload as unlisted, then share YouTube URL</div>
+                              <div><strong>3. Vimeo:</strong> Upload with direct download enabled</div>
+                              <div><strong>4. WeTransfer:</strong> Generate direct download links</div>
                             </div>
-                            <div className="text-amber-600 text-xs mt-2">
-                              <strong>Note:</strong> New scl/fi format URLs may have limitations
+                          </div>
+                        )}
+                        
+                        {/* Cloud Storage Limitations Warning */}
+                        {field.value && (field.value.includes('dropbox.com') || field.value.includes('drive.google.com')) && (
+                          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                            <div className="text-amber-700 text-xs">
+                              <strong>Cloud Storage Limitation:</strong> Both Dropbox and Google Drive have programmatic access restrictions that may prevent direct video downloads for Facebook uploads. Consider using the recommended hosting solutions above for reliable uploads.
                             </div>
                           </div>
                         )}
