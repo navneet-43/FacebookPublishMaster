@@ -79,9 +79,9 @@ export class VideoProcessor {
         }
       }
       
-      // Handle YouTube URLs (highest priority - native Facebook support)
+      // Handle YouTube URLs - download and upload as video file
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
-        console.log('🎥 PROCESSING YOUTUBE URL for Facebook integration');
+        console.log('🎥 PROCESSING YOUTUBE URL for download and Facebook upload');
         
         const { YouTubeHelper } = await import('./youtubeHelper');
         
@@ -92,16 +92,25 @@ export class VideoProcessor {
         
         console.log(`🎥 YOUTUBE VIDEO ID: ${videoId}`);
         
-        // YouTube URLs work natively with Facebook - no conversion needed
-        const optimizedUrl = YouTubeHelper.normalizeUrl(url);
-        
-        analysisUrl = optimizedUrl;
-        finalSize = 0; // YouTube handles size internally
-        finalContentType = 'video/youtube';
-        
-        finalResponse = {
-          ok: true,
-          headers: {
+        // YouTube videos will be downloaded and uploaded as files
+        // Check if video is accessible first
+        try {
+          const validation = await YouTubeHelper.validateForFacebook(url);
+          if (!validation.isValid) {
+            throw new Error(validation.error || 'YouTube video cannot be accessed for download');
+          }
+          
+          // Return needs processing to trigger download
+          return {
+            needsProcessing: true,
+            reason: 'YouTube video will be downloaded and uploaded as video file',
+            estimatedSize: 0, // Will be determined during download
+            contentType: 'video/mp4'
+          };
+        } catch (error) {
+          throw new Error(`YouTube video access error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
             get: (name: string) => {
               if (name === 'content-type') return 'video/youtube';
               if (name === 'content-length') return '0';

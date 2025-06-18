@@ -1,6 +1,11 @@
+import ytdl from 'ytdl-core';
+import { createWriteStream, createReadStream, unlinkSync, statSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+
 /**
  * YouTube video helper for Facebook integration
- * Handles YouTube URLs and provides optimization for Facebook publishing
+ * Downloads YouTube videos and uploads them as actual video files
  */
 export class YouTubeHelper {
   
@@ -31,53 +36,112 @@ export class YouTubeHelper {
   }
 
   /**
-   * Get optimized YouTube URL for Facebook video integration
+   * Download YouTube video and get file path for Facebook upload
    */
-  static getOptimizedUrl(originalUrl: string): {
-    workingUrl: string;
+  static async downloadVideo(originalUrl: string): Promise<{
+    filePath: string;
     size: number;
     contentType: string;
     verified: boolean;
     videoId?: string;
-    method: 'youtube_native' | 'fallback';
+    method: 'youtube_download';
     isValid: boolean;
-  } {
-    console.log('🎥 OPTIMIZING YOUTUBE URL for Facebook integration');
+    cleanup: () => void;
+  }> {
+    console.log('🎥 DOWNLOADING YOUTUBE VIDEO for Facebook upload');
     
     const videoId = this.extractVideoId(originalUrl);
     
     if (!videoId) {
       console.log('❌ Could not extract YouTube video ID');
       return {
-        workingUrl: originalUrl,
+        filePath: '',
         size: 0,
-        contentType: 'text/html',
+        contentType: 'video/mp4',
         verified: false,
-        method: 'fallback',
-        isValid: false
+        method: 'youtube_download',
+        isValid: false,
+        cleanup: () => {}
       };
     }
 
-    console.log('🔍 YOUTUBE VIDEO ID:', videoId);
-
-    // Create standard YouTube URL format for Facebook
-    const standardUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    
-    console.log('✅ YOUTUBE URL OPTIMIZED for Facebook native integration');
-    
-    return {
-      workingUrl: standardUrl,
-      size: 0, // YouTube handles size internally
-      contentType: 'video/youtube',
-      verified: true,
-      videoId,
-      method: 'youtube_native',
-      isValid: true
-    };
+    try {
+      // Get video info first
+      const info = await ytdl.getInfo(originalUrl);
+      console.log('🔍 YOUTUBE VIDEO INFO:', info.videoDetails.title);
+      
+      // Choose best quality format
+      const format = ytdl.chooseFormat(info.formats, { 
+        quality: 'highest',
+        filter: 'videoandaudio'
+      });
+      
+      console.log('📹 SELECTED FORMAT:', format.qualityLabel, format.container);
+      
+      // Create temporary file path
+      const tempFilePath = join(tmpdir(), `youtube_${videoId}_${Date.now()}.mp4`);
+      
+      // Download video
+      await new Promise<void>((resolve, reject) => {
+        const stream = ytdl(originalUrl, { format });
+        const writeStream = createWriteStream(tempFilePath);
+        
+        stream.pipe(writeStream);
+        
+        stream.on('progress', (chunkLength, downloaded, total) => {
+          const percent = (downloaded / total * 100).toFixed(1);
+          console.log(`📥 DOWNLOAD PROGRESS: ${percent}% - ${(downloaded / 1024 / 1024).toFixed(1)}MB`);
+        });
+        
+        writeStream.on('finish', () => {
+          console.log('✅ YOUTUBE VIDEO DOWNLOADED:', tempFilePath);
+          resolve();
+        });
+        
+        stream.on('error', reject);
+        writeStream.on('error', reject);
+      });
+      
+      // Get file size
+      const stats = statSync(tempFilePath);
+      const fileSizeMB = stats.size / (1024 * 1024);
+      
+      console.log(`📊 DOWNLOADED FILE SIZE: ${fileSizeMB.toFixed(2)}MB`);
+      
+      return {
+        filePath: tempFilePath,
+        size: stats.size,
+        contentType: 'video/mp4',
+        verified: true,
+        videoId,
+        method: 'youtube_download',
+        isValid: true,
+        cleanup: () => {
+          try {
+            unlinkSync(tempFilePath);
+            console.log('🗑️ TEMP FILE CLEANED:', tempFilePath);
+          } catch (err) {
+            console.log('⚠️ CLEANUP WARNING:', err);
+          }
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ YOUTUBE DOWNLOAD ERROR:', error);
+      return {
+        filePath: '',
+        size: 0,
+        contentType: 'video/mp4',
+        verified: false,
+        method: 'youtube_download',
+        isValid: false,
+        cleanup: () => {}
+      };
+    }
   }
 
   /**
-   * Validate YouTube URL for Facebook compatibility
+   * Validate YouTube URL for download and Facebook upload
    */
   static async validateForFacebook(url: string): Promise<{
     isValid: boolean;
@@ -102,17 +166,44 @@ export class YouTubeHelper {
         };
       }
 
-      // YouTube URLs work natively with Facebook
-      recommendations.push('YouTube integration is natively supported by Facebook');
-      recommendations.push('Video will be embedded directly - no file size limits');
-      recommendations.push('Works with both public and unlisted videos');
-      recommendations.push('Recommended: Use unlisted videos for privacy until posting');
+      // Check if video is accessible for download
+      try {
+        const info = await ytdl.getInfo(url);
+        const formats = info.formats.filter(f => f.hasVideo && f.hasAudio);
+        
+        if (formats.length === 0) {
+          return {
+            isValid: false,
+            recommendations: [
+              'Video does not have downloadable formats',
+              'Try a different YouTube video',
+              'Ensure video is not age-restricted or private'
+            ],
+            error: 'No downloadable video formats available'
+          };
+        }
 
-      return {
-        isValid: true,
-        videoId,
-        recommendations
-      };
+        recommendations.push('Video will be downloaded and uploaded as actual file to Facebook');
+        recommendations.push('Supports large videos using Facebook resumable upload');
+        recommendations.push('Works with both public and unlisted videos');
+        recommendations.push('Note: Download time depends on video size and quality');
+
+        return {
+          isValid: true,
+          videoId,
+          recommendations
+        };
+      } catch (ytError) {
+        return {
+          isValid: false,
+          recommendations: [
+            'Video cannot be accessed for download',
+            'Check if video is private, deleted, or region-restricted',
+            'Try a different YouTube video URL'
+          ],
+          error: 'YouTube video access error: ' + (ytError instanceof Error ? ytError.message : 'Unknown error')
+        };
+      }
 
     } catch (error) {
       return {
@@ -131,7 +222,7 @@ export class YouTubeHelper {
    * Generate YouTube setup instructions
    */
   static getYouTubeInstructions(): string {
-    return `YOUTUBE VIDEO SETUP FOR FACEBOOK:
+    return `YOUTUBE VIDEO DOWNLOAD FOR FACEBOOK UPLOAD:
 
 1. **Upload to YouTube**:
    • Use any YouTube account (free works)
@@ -146,7 +237,7 @@ export class YouTubeHelper {
 3. **Privacy Settings**:
    • Public: Anyone can find and watch
    • Unlisted: Only people with link can access (recommended)
-   • Both work perfectly with Facebook integration
+   • Both work for download and Facebook upload
 
 4. **Supported Formats**:
    • youtube.com/watch?v=VIDEO_ID (standard)
@@ -154,16 +245,16 @@ export class YouTubeHelper {
    • youtube.com/embed/VIDEO_ID (embed)
 
 ✅ ADVANTAGES:
-• Native Facebook integration - no conversion needed
-• No file size limits (YouTube handles compression)
-• Reliable video delivery and playback
+• Video downloaded and uploaded as actual file to Facebook
+• Uses Facebook resumable upload for large videos (up to 1.75GB)
+• Maintains original video quality
 • Works with any video format uploaded to YouTube
-• No download permissions or special setup required
+• Automatic cleanup of temporary files
 
-⚡ INSTANT COMPATIBILITY:
-• Facebook recognizes YouTube URLs automatically
-• No processing delays or conversion failures
-• Works immediately upon posting`;
+⚡ PROCESSING NOTES:
+• Download time varies based on video size and quality
+• Large videos use Facebook's resumable upload method
+• Videos appear as native Facebook uploads, not links`;
   }
 
   /**
