@@ -37,42 +37,83 @@ export class VideoProcessor {
     try {
       console.log('🔍 ANALYZING VIDEO:', url);
       
-      // Optimize Google Drive URLs BEFORE analysis
+      // For Google Drive URLs, use comprehensive helper to find working access URL
       let analysisUrl = url;
+      let finalResponse = null;
+      let finalSize = 0;
+      let finalContentType = null;
+      
       if (url.includes('drive.google.com')) {
-        analysisUrl = this.optimizeGoogleDriveForVideo(url);
-        console.log('🔄 Using optimized URL for analysis');
+        const { GoogleDriveHelper } = await import('./googleDriveHelper');
+        const result = await GoogleDriveHelper.findWorkingVideoUrl(url);
+        
+        if (result.workingUrl) {
+          analysisUrl = result.workingUrl;
+          finalSize = result.size;
+          finalContentType = result.contentType;
+          
+          // Create a mock response object for compatibility
+          finalResponse = {
+            ok: true,
+            headers: {
+              get: (name: string) => {
+                if (name === 'content-type') return result.contentType;
+                if (name === 'content-length') return result.size.toString();
+                return null;
+              }
+            }
+          } as any;
+          
+          console.log('✅ Google Drive access successful');
+        } else {
+          // No working URL found, create detailed error
+          const fileId = GoogleDriveHelper.extractFileId(url);
+          const errorMessage = GoogleDriveHelper.generateErrorMessage(fileId || 'unknown', result.testedUrls);
+          
+          return {
+            needsProcessing: true,
+            reason: errorMessage,
+            estimatedSize: 0,
+            contentType: 'text/html'
+          };
+        }
       }
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      
-      const response = await fetch(analysisUrl, { 
-        method: 'HEAD',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; FacebookBot/1.0)',
-          'Accept': 'video/*'
-        }
-      });
-      
-      clearTimeout(timeoutId);
+      // If no Google Drive format worked, try original URL
+      if (!finalResponse) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch(analysisUrl, { 
+          method: 'HEAD',
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; FacebookBot/1.0)',
+            'Accept': 'video/*'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        finalResponse = response;
+        finalSize = response.headers.get('content-length') ? parseInt(response.headers.get('content-length') || '0', 10) : 0;
+        finalContentType = response.headers.get('content-type');
+      }
 
-      if (!response.ok) {
+      if (!finalResponse.ok) {
         return {
           needsProcessing: true,
-          reason: `Video URL not accessible: ${response.status}`
+          reason: `Video URL not accessible: ${finalResponse.status}`
         };
       }
 
-      const contentLength = response.headers.get('content-length');
-      const contentType = response.headers.get('content-type');
-      const size = contentLength ? parseInt(contentLength, 10) : 0;
+      const contentLength = finalResponse.headers.get('content-length');
+      const contentType = finalContentType;
+      const size = finalSize;
       
       console.log('📊 VIDEO ANALYSIS:', {
         size: `${(size / 1024 / 1024).toFixed(2)} MB`,
         type: contentType,
-        accessible: response.ok
+        accessible: finalResponse.ok
       });
 
       // Check if file exceeds Facebook's absolute limit
@@ -155,11 +196,18 @@ export class VideoProcessor {
         };
       }
       
-      // Use the same optimized URL from analysis
+      // Use the working URL found during analysis for Google Drive files
       let finalUrl = url;
       if (url.includes('drive.google.com')) {
-        finalUrl = this.optimizeGoogleDriveForVideo(url);
-        console.log('🔄 USING OPTIMIZED GOOGLE DRIVE URL for Facebook upload');
+        const { GoogleDriveHelper } = await import('./googleDriveHelper');
+        const result = await GoogleDriveHelper.findWorkingVideoUrl(url);
+        
+        if (result.workingUrl) {
+          finalUrl = result.workingUrl;
+          console.log('🔄 USING VERIFIED GOOGLE DRIVE URL for Facebook upload');
+        } else {
+          console.log('⚠️ No working Google Drive URL found, using original');
+        }
       }
       
       // For all other cases, allow upload with optional warnings
@@ -210,6 +258,24 @@ export class VideoProcessor {
   }
 
   /**
+   * Extract file ID from Google Drive URL
+   */
+  private static extractGoogleDriveFileId(url: string): string | null {
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /[?&]id=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
+    return null;
+  }
+
+  /**
    * Optimize Google Drive URL for better video access
    */
   private static optimizeGoogleDriveForVideo(url: string): string {
@@ -227,9 +293,18 @@ export class VideoProcessor {
         const fileId = match[1];
         console.log('✅ EXTRACTED FILE ID:', fileId);
         
-        // Use export format that's more compatible with Facebook
-        const optimizedUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
-        console.log('🔄 OPTIMIZED URL:', optimizedUrl);
+        // Try multiple Google Drive URL formats for maximum compatibility
+        const formats = [
+          `https://drive.google.com/uc?export=download&id=${fileId}`,
+          `https://drive.google.com/u/0/uc?id=${fileId}&export=download`,
+          `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`,
+          `https://docs.google.com/uc?export=download&id=${fileId}`
+        ];
+        
+        // Use the first format for now, but log all options
+        const optimizedUrl = formats[0];
+        console.log('🔄 TRYING PRIMARY URL:', optimizedUrl);
+        console.log('📋 BACKUP OPTIONS:', formats.slice(1));
         
         return optimizedUrl;
       }
