@@ -390,7 +390,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                         {field.value && (field.value.includes('youtube.com') || field.value.includes('youtu.be')) && (
                           <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
                             <div className="text-red-700 text-xs">
-                              <strong>YouTube Tip:</strong> Videos work with native Facebook integration. No size limits or conversion needed.
+                              <strong>YouTube Tip:</strong> Video will be downloaded and uploaded as actual file to Facebook. Supports large videos using resumable upload.
                             </div>
                           </div>
                         )}
