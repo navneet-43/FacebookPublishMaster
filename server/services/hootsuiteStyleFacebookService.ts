@@ -336,8 +336,38 @@ export class HootsuiteStyleFacebookService {
         if (isMediaError) {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
           
-          // Only show Google Drive specific error if we have clear indication of access issues
-          // Don't assume permission issues just based on file size
+          // Check if this is a video size issue for Google Drive files
+          if (videoUrl.includes('drive.google.com') && (!processingResult.originalSize || processingResult.originalSize < 1000)) {
+            console.log('🔍 GOOGLE DRIVE VIDEO SIZE ISSUE DETECTED');
+            
+            return {
+              success: false,
+              error: `Google Drive Video Size Issue Detected
+
+📊 PROBLEM IDENTIFIED:
+Large Google Drive videos may not be properly detected or may exceed Facebook's processing limits.
+
+🔧 SOLUTIONS TO TRY:
+
+OPTION 1 - Video Compression:
+• Use HandBrake or similar tool to reduce file size
+• Target under 100MB for reliable uploads
+• Maintain quality while reducing bitrate
+
+OPTION 2 - Direct Upload:
+• Download video from Google Drive
+• Upload directly through this system
+• Bypasses Google Drive size detection issues
+
+OPTION 3 - Alternative Hosting:
+• Upload to YouTube (unlisted) → Share link in Facebook
+• Use Vimeo for professional video hosting
+• Try Dropbox with direct download links
+
+🎯 RECOMMENDATION:
+For videos over 100MB, compress to smaller size or use YouTube hosting for best results.`
+            };
+          }
           
 
           

@@ -59,6 +59,8 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Verified Google Drive permission detection working correctly - system now properly identifies sharing restrictions
 - ✅ Updated Google Drive error messaging to accurately explain API limitations rather than permission issues
 - ✅ Restored Google Drive video upload functionality by removing overly restrictive permission blocking
+- ✅ Fixed Google Drive large video detection using range requests for accurate file size determination
+- ✅ Identified video size as root cause of upload failures rather than permission issues
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified

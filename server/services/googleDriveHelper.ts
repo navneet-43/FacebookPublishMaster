@@ -59,14 +59,15 @@ export class GoogleDriveHelper {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
-      // Try with redirect following for Google Drive
+      // Try with range request to get accurate size for large files
       const response = await fetch(url, { 
-        method: 'HEAD',
+        method: 'GET',
         signal: controller.signal,
         redirect: 'follow',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'video/*, application/octet-stream, */*'
+          'Accept': 'video/*, application/octet-stream, */*',
+          'Range': 'bytes=0-1023' // Get first 1KB to determine file type and size
         }
       });
       
@@ -74,7 +75,18 @@ export class GoogleDriveHelper {
       
       const contentType = response.headers.get('content-type');
       const contentLength = response.headers.get('content-length');
-      const size = contentLength ? parseInt(contentLength, 10) : 0;
+      const contentRange = response.headers.get('content-range');
+      
+      // For range requests, get total size from Content-Range header
+      let size = 0;
+      if (contentRange) {
+        const match = contentRange.match(/bytes \d+-\d+\/(\d+)/);
+        if (match) {
+          size = parseInt(match[1], 10);
+        }
+      } else if (contentLength) {
+        size = parseInt(contentLength, 10);
+      }
       
       // Check if this is an authentication/permission issue
       const needsAuth = Boolean(
