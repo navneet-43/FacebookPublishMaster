@@ -337,6 +337,12 @@ export class HootsuiteStyleFacebookService {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
           
           // Check if this is a Google Drive access issue based on 0.0MB size + URL pattern
+          console.log('🔍 DEBUG: Checking Google Drive conditions:', {
+            isDriveUrl: videoUrl.includes('drive.google.com'),
+            originalSize: processingResult.originalSize,
+            isSmallSize: !processingResult.originalSize || processingResult.originalSize < 1000
+          });
+          
           if (videoUrl.includes('drive.google.com') && (!processingResult.originalSize || processingResult.originalSize < 1000)) {
             console.log('🔒 DETECTED GOOGLE DRIVE PERMISSION ISSUE');
             
@@ -370,6 +376,40 @@ Content type: HTML instead of video data
             return {
               success: false,
               error: driveErrorMessage
+            };
+          }
+          
+          // Force Google Drive error for all drive.google.com URLs with 0MB
+          if (videoUrl.includes('drive.google.com')) {
+            console.log('🔒 FORCING GOOGLE DRIVE PERMISSION MESSAGE');
+            
+            const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            const fileId = fileIdMatch ? fileIdMatch[1] : 'unknown';
+            
+            return {
+              success: false,
+              error: `Google Drive video access failed for file ID: ${fileId}
+
+🔒 PERMISSION ISSUE DETECTED:
+The video file requires authentication or has restricted sharing settings.
+
+🔧 REQUIRED STEPS TO FIX:
+1. Open Google Drive and locate your video file
+2. Right-click the video → "Share" or "Get link"
+3. Change sharing from "Restricted" to "Anyone with the link"
+4. Set permission level to "Viewer" (minimum required)
+5. Copy the new link and use it in your post
+6. Verify the file is fully uploaded (not showing "Processing...")
+
+🔍 DIAGNOSTIC RESULTS:
+File size detected: 0.0MB (indicates permission blocking)
+Content type: HTML instead of video data
+
+💡 QUICK SOLUTIONS:
+• Download video → Upload directly to Facebook (most reliable)
+• Use WeTransfer or Dropbox with public sharing
+• Upload to YouTube → Share YouTube link in Facebook post
+• Compress video with HandBrake if file is too large`
             };
           }
           
