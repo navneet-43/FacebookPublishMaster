@@ -299,7 +299,10 @@ export class HootsuiteStyleFacebookService {
       }
       
       // Use upload method determined by Facebook validation
-      if (forcedUploadMethod === 'resumable') {
+      if (forcedUploadMethod === 'youtube_native') {
+        console.log('🎥 USING YOUTUBE NATIVE INTEGRATION per Facebook requirements');
+        return await HootsuiteStyleFacebookService.publishYouTubePost(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
+      } else if (forcedUploadMethod === 'resumable') {
         console.log('🚀 USING RESUMABLE UPLOAD per Facebook requirements');
         return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
       } else if (forcedUploadMethod === 'file_url') {
@@ -542,6 +545,85 @@ TROUBLESHOOTING:
     } catch (error) {
       console.error('Error validating page token:', error);
       return false;
+    }
+  }
+
+  /**
+   * Publish YouTube video to Facebook using native integration
+   */
+  static async publishYouTubePost(
+    pageId: string,
+    pageAccessToken: string,
+    youtubeUrl: string,
+    message?: string,
+    customLabels?: string[],
+    language?: string
+  ): Promise<{ success: boolean; postId?: string; error?: string }> {
+    try {
+      console.log('🎥 PUBLISHING YOUTUBE VIDEO to Facebook via native integration');
+      
+      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+      
+      const postData = new URLSearchParams();
+      postData.append('link', youtubeUrl);
+      postData.append('access_token', pageAccessToken);
+      postData.append('published', 'true');
+      
+      if (message) {
+        postData.append('message', message);
+      }
+      
+      // Add custom labels for Meta Insights tracking
+      if (customLabels && customLabels.length > 0) {
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25)
+          .slice(0, 10);
+        
+        if (labelArray.length > 0) {
+          postData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Adding custom labels to YouTube post:', labelArray);
+        }
+      }
+      
+      // Include language metadata if provided
+      if (language) {
+        postData.append('locale', language);
+      }
+      
+      console.log(`Publishing YouTube video to Facebook page ${pageId}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: postData.toString()
+      });
+      
+      const data = await response.json() as any;
+      
+      if (!response.ok || data.error) {
+        console.error('Facebook YouTube post error:', data.error);
+        return {
+          success: false,
+          error: `Failed to publish YouTube video: ${data.error?.message || 'Unknown error'}`
+        };
+      }
+      
+      console.log('✅ YOUTUBE VIDEO PUBLISHED successfully to Facebook:', data.id);
+      
+      return {
+        success: true,
+        postId: data.id
+      };
+      
+    } catch (error) {
+      console.error('Error publishing YouTube video to Facebook:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
     }
   }
 
