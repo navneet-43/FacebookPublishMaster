@@ -264,6 +264,18 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                   Add Video
                   <ChevronDown className="w-4 h-4" />
                 </Button>
+                
+                <Button 
+                  variant="outline" 
+                  type="button" 
+                  className="h-10 gap-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                  onClick={() => {
+                    form.setValue("mediaType", "video");
+                    form.setValue("mediaUrl", "");
+                  }}
+                >
+                  📁 Dropbox Link
+                </Button>
               </div>
               
               {/* Media Type Selection */}
@@ -291,22 +303,59 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                 )}
               />
 
-              {/* Google Drive Link Input */}
+              {/* Media URL Input with Cloud Storage Support */}
               {form.watch("mediaType") !== "none" && (
                 <FormField
                   control={form.control}
                   name="mediaUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Google Drive Link</FormLabel>
+                      <FormLabel>Media URL</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="Paste Google Drive share link here..."
+                          placeholder="Paste Dropbox or Google Drive share link here..."
                           {...field}
                         />
                       </FormControl>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Make sure the Google Drive file is publicly accessible or shared with viewing permissions
+                      <div className="text-xs mt-1 space-y-1">
+                        {/* URL Recognition Indicator */}
+                        {field.value && (
+                          <div className="flex items-center gap-2 p-2 rounded-md bg-gray-50">
+                            {field.value.includes('dropbox.com') ? (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                Dropbox URL detected - Optimized for reliable uploads
+                              </div>
+                            ) : field.value.includes('drive.google.com') ? (
+                              <div className="flex items-center gap-1 text-amber-600">
+                                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                                Google Drive URL detected - May have limitations for large videos
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-gray-600">
+                                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                Direct URL detected
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="text-gray-500 space-y-1">
+                          <div><strong>✅ Recommended:</strong> Dropbox links (automatic conversion to direct download)</div>
+                          <div><strong>⚠️ Limited:</strong> Google Drive links (may fail for large videos due to access restrictions)</div>
+                          <div>Ensure files are shared with "Anyone with the link" permissions</div>
+                        </div>
+                        
+                        {/* Example URLs */}
+                        {!field.value && (
+                          <div className="mt-2 p-2 bg-blue-50 rounded-md">
+                            <div className="text-blue-700 font-medium mb-1">Example URLs:</div>
+                            <div className="text-blue-600 text-xs space-y-1">
+                              <div>Dropbox: dropbox.com/s/abc123/video.mp4</div>
+                              <div>Google Drive: drive.google.com/file/d/xyz789/view</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <FormMessage />
                     </FormItem>
