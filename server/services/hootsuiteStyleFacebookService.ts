@@ -255,20 +255,23 @@ export class HootsuiteStyleFacebookService {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
-      // First validate the video file integrity and format
-      const { VideoValidator } = await import('./videoValidator');
-      const validation = await VideoValidator.validateVideoFile(videoUrl);
+      // Validate against Facebook Graph API requirements
+      const { FacebookVideoValidator } = await import('./facebookVideoValidator');
+      const fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
       
-      if (!validation.isValid) {
-        console.error('❌ VIDEO VALIDATION FAILED:', validation.error);
-        const report = VideoValidator.generateValidationReport(validation);
+      if (!fbValidation.isValid) {
+        console.error('❌ FACEBOOK VALIDATION FAILED:', fbValidation.violations);
+        const report = FacebookVideoValidator.generateFacebookValidationReport(fbValidation);
         return {
           success: false,
-          error: `Video validation failed: ${validation.error}\n\n${report}`
+          error: `Video does not meet Facebook requirements:\n\n${report}`
         };
       }
       
-      console.log('✅ VIDEO VALIDATION PASSED:', validation.actualFormat);
+      console.log('✅ FACEBOOK VALIDATION PASSED:', fbValidation.uploadMethod, fbValidation.detectedFormat);
+      
+      // Force upload method based on Facebook validation
+      const forcedUploadMethod = fbValidation.uploadMethod;
       
       const { VideoProcessor } = await import('./videoProcessor');
       
@@ -295,23 +298,19 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
-      // For Google Drive videos, always use resumable upload to bypass file_url limitations
-      if (videoUrl.includes('drive.google.com')) {
-        console.log('🚀 USING RESUMABLE UPLOAD for Google Drive video');
+      // Use upload method determined by Facebook validation
+      if (forcedUploadMethod === 'resumable') {
+        console.log('🚀 USING RESUMABLE UPLOAD per Facebook requirements');
         return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
-      }
-      
-      // For Dropbox videos, use appropriate upload method based on size
-      if (videoUrl.includes('dropbox.com')) {
-        const shouldUseResumable = processingResult.originalSize && processingResult.originalSize > 100 * 1024 * 1024; // 100MB threshold for Dropbox
-        
-        if (shouldUseResumable) {
-          console.log('🚀 USING RESUMABLE UPLOAD for large Dropbox video');
-          return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
-        } else {
-          console.log('📤 USING DIRECT UPLOAD for Dropbox video');
-          // Continue with standard file_url method for smaller Dropbox videos
-        }
+      } else if (forcedUploadMethod === 'file_url') {
+        console.log('📤 USING FILE_URL UPLOAD per Facebook requirements');
+        // Continue with standard file_url method
+      } else {
+        console.log('🚫 UPLOAD REJECTED by Facebook validation');
+        return {
+          success: false,
+          error: 'Video rejected by Facebook validation'
+        };
       }
       
       // For other videos, use resumable upload if they're large
