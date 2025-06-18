@@ -553,6 +553,17 @@ The resumable upload system supports Facebook's full 4GB limit when using direct
       
       console.log(`📊 VIDEO DOWNLOADED: ${(videoSize / 1024 / 1024).toFixed(2)}MB`);
       
+      // Check if we actually got video data
+      if (videoSize === 0) {
+        throw new Error('Downloaded video file is empty (0 bytes). This indicates Google Drive access restrictions or the file may not be a video.');
+      }
+      
+      // Check if we got HTML instead of video data
+      const contentType = videoResponse.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        throw new Error('Downloaded content is HTML instead of video data. Google Drive may be redirecting to a login page or the file is not publicly accessible.');
+      }
+      
       // Step 2: Initialize resumable upload session
       console.log('🚀 INITIALIZING RESUMABLE UPLOAD SESSION');
       
@@ -666,9 +677,40 @@ The resumable upload system supports Facebook's full 4GB limit when using direct
       
     } catch (error) {
       console.error('❌ RESUMABLE UPLOAD FAILED:', error);
+      
+      // Provide specific guidance for Google Drive access issues
+      const errorMessage = error instanceof Error ? error.message : 'Resumable upload failed';
+      
+      if (errorMessage.includes('empty') || errorMessage.includes('0 bytes') || errorMessage.includes('HTML')) {
+        return {
+          success: false,
+          error: `Google Drive Video Access Blocked
+
+The video was uploaded to Facebook but contains no content (0 bytes) because Google Drive blocks direct programmatic access to video files.
+
+WORKING SOLUTIONS:
+
+1. **Download & Direct Upload** (Recommended):
+   • Download video from Google Drive to your computer
+   • Use the file upload feature in this system instead of URL
+   • Guarantees full video content transfer
+
+2. **Alternative Video Hosting**:
+   • Upload to YouTube (set to unlisted)
+   • Share YouTube link directly in Facebook posts
+   • YouTube links work perfectly with Facebook
+
+3. **Public Cloud Storage**:
+   • Use Dropbox, OneDrive, or AWS S3 with public links
+   • These services allow direct video access
+
+Google Drive's security policies prevent external applications from downloading video content, even with public sharing enabled.`
+        };
+      }
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Resumable upload failed'
+        error: errorMessage
       };
     }
   }
