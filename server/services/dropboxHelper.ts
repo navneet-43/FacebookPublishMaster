@@ -47,7 +47,6 @@ export class DropboxHelper {
         
         console.log('✅ Converted new Dropbox scl/fi format to dl.dropboxusercontent.com');
         console.log('🔍 CONVERSION DEBUG:', {
-          original: originalUrl,
           converted: directUrl,
           filePath,
           rlkey
