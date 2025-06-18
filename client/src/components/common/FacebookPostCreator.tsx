@@ -346,13 +346,18 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           <div>Ensure files are shared with "Anyone with the link" permissions</div>
                         </div>
                         
-                        {/* Example URLs */}
+                        {/* Example URLs and Setup Instructions */}
                         {!field.value && (
                           <div className="mt-2 p-2 bg-blue-50 rounded-md">
-                            <div className="text-blue-700 font-medium mb-1">Example URLs:</div>
+                            <div className="text-blue-700 font-medium mb-1">Dropbox Setup Guide:</div>
                             <div className="text-blue-600 text-xs space-y-1">
-                              <div>Dropbox: dropbox.com/s/abc123/video.mp4</div>
-                              <div>Google Drive: drive.google.com/file/d/xyz789/view</div>
+                              <div>1. Upload video to Dropbox</div>
+                              <div>2. Right-click → Share → "Anyone with the link"</div>
+                              <div>3. Copy sharing URL (dropbox.com/s/... format works best)</div>
+                              <div>4. Paste URL here - system will auto-convert for Facebook</div>
+                            </div>
+                            <div className="text-amber-600 text-xs mt-2">
+                              <strong>Note:</strong> New scl/fi format URLs may have limitations
                             </div>
                           </div>
                         )}

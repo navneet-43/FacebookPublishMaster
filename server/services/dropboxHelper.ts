@@ -26,43 +26,24 @@ export class DropboxHelper {
     
     // Handle dropbox.com/scl/fi/ new sharing format
     if (url.includes('dropbox.com/scl/fi/')) {
-      // Extract file path and parameters from the new format
-      const match = url.match(/dropbox\.com\/scl\/fi\/([^?]+)/);
-      if (match) {
-        const filePath = match[1];
-        
-        // Extract rlkey parameter if present
-        const rlkeyMatch = url.match(/rlkey=([^&]+)/);
-        const rlkey = rlkeyMatch ? rlkeyMatch[1] : '';
-        
-        // Build direct download URL using dl.dropboxusercontent.com
-        let directUrl = `https://dl.dropboxusercontent.com/scl/fi/${filePath}`;
-        
-        // Add rlkey if present and ensure dl=1 for direct download
-        if (rlkey) {
-          directUrl += `?rlkey=${rlkey}&dl=1`;
-        } else {
-          directUrl += '?dl=1';
-        }
-        
-        console.log('✅ Converted new Dropbox scl/fi format to dl.dropboxusercontent.com');
-        console.log('🔍 CONVERSION DEBUG:', {
-          converted: directUrl,
-          filePath,
-          rlkey
-        });
-        return directUrl;
-      }
-      
-      // Fallback: just modify dl parameter
+      // For the new scl/fi format, we need to keep the original domain but change parameters
+      // Change dl=0 to dl=1 and remove st parameter that causes issues
       let directUrl = url.replace(/&dl=0/g, '&dl=1').replace(/\?dl=0/g, '?dl=1');
       
-      if (!directUrl.includes('dl=')) {
+      // Remove st parameter which can cause authentication issues
+      directUrl = directUrl.replace(/&st=[^&]+/g, '').replace(/\?st=[^&]+&/g, '?').replace(/\?st=[^&]+$/g, '');
+      
+      // Ensure dl=1 parameter exists
+      if (!directUrl.includes('dl=1')) {
         const separator = directUrl.includes('?') ? '&' : '?';
         directUrl = directUrl + separator + 'dl=1';
       }
       
-      console.log('✅ Modified Dropbox URL parameters for direct download');
+      console.log('✅ Converted new Dropbox scl/fi format for direct download');
+      console.log('🔍 CONVERSION DEBUG:', {
+        original: url,
+        converted: directUrl
+      });
       return directUrl;
     }
     

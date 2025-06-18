@@ -24,11 +24,19 @@ export class VideoValidator {
   }> {
     console.log('🔍 VALIDATING VIDEO FILE:', url);
     
+    // Convert Dropbox URLs to direct download format before validation
+    let validationUrl = url;
+    if (url.includes('dropbox.com')) {
+      const { DropboxHelper } = await import('./dropboxHelper');
+      validationUrl = DropboxHelper.convertToDirectUrl(url);
+      console.log('🔄 Using converted Dropbox URL for validation');
+    }
+    
     let tempFile: string | null = null;
     
     try {
       // Download first portion of video for validation
-      const response = await fetch(url, {
+      const response = await fetch(validationUrl, {
         headers: {
           'Range': `bytes=0-${this.MAX_SAMPLE_SIZE - 1}`,
           'User-Agent': 'Mozilla/5.0 (compatible; FacebookBot/1.0)'
