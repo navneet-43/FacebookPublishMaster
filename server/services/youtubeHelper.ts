@@ -91,6 +91,12 @@ export class YouTubeHelper {
         throw new Error('No video formats with both video and audio available');
       }
       
+      // Log all available formats for debugging
+      console.log('📊 AVAILABLE FORMATS:');
+      formats.forEach((f, index) => {
+        console.log(`  ${index + 1}. ${f.qualityLabel || 'unknown'} - ${f.container} - ${f.hasVideo ? 'V' : ''}${f.hasAudio ? 'A' : ''} - ${f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'size unknown'}`);
+      });
+      
       // Choose highest quality from available formats
       format = formats.reduce((best, current) => {
         const bestHeight = parseInt(String(best.height || '0'));
@@ -102,7 +108,8 @@ export class YouTubeHelper {
         quality: format.qualityLabel || 'unknown',
         container: format.container || 'unknown',
         hasVideo: format.hasVideo,
-        hasAudio: format.hasAudio
+        hasAudio: format.hasAudio,
+        estimatedSize: format.contentLength ? (parseInt(format.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'unknown'
       });
       
       // Create temporary file path
