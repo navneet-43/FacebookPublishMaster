@@ -61,6 +61,8 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Restored Google Drive video upload functionality by removing overly restrictive permission blocking
 - ✅ Fixed Google Drive large video detection using range requests for accurate file size determination
 - ✅ Identified video size as root cause of upload failures rather than permission issues
+- ✅ Implemented Facebook resumable upload API for large videos (>50MB) to support full 4GB limit
+- ✅ Fixed Google Drive large video uploads by bypassing file_url method limitations
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified

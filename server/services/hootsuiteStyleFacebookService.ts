@@ -280,6 +280,14 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
+      // For large videos, use resumable upload instead of file_url
+      const shouldUseResumableUpload = processingResult.originalSize && processingResult.originalSize > 50 * 1024 * 1024; // 50MB threshold
+      
+      if (shouldUseResumableUpload) {
+        console.log('🚀 USING RESUMABLE UPLOAD for large video');
+        return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
+      }
+      
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
       
       const postData = new URLSearchParams();
@@ -336,36 +344,32 @@ export class HootsuiteStyleFacebookService {
         if (isMediaError) {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
           
-          // Check if this is a video size issue for Google Drive files
-          if (videoUrl.includes('drive.google.com') && (!processingResult.originalSize || processingResult.originalSize < 1000)) {
-            console.log('🔍 GOOGLE DRIVE VIDEO SIZE ISSUE DETECTED');
+          // For Google Drive videos that failed, provide specific guidance
+          if (videoUrl.includes('drive.google.com')) {
+            console.log('🔍 GOOGLE DRIVE VIDEO UPLOAD FAILED');
             
             return {
               success: false,
-              error: `Google Drive Video Size Issue Detected
+              error: `Google Drive Video Upload Failed
 
-📊 PROBLEM IDENTIFIED:
-Large Google Drive videos may not be properly detected or may exceed Facebook's processing limits.
+The system attempted both standard and resumable upload methods for your Google Drive video.
 
-🔧 SOLUTIONS TO TRY:
+SOLUTIONS:
 
-OPTION 1 - Video Compression:
-• Use HandBrake or similar tool to reduce file size
-• Target under 100MB for reliable uploads
-• Maintain quality while reducing bitrate
+1. **Download and Re-upload**:
+   • Download video from Google Drive to your computer
+   • Use the direct file upload option in this system
+   • Most reliable method for large videos
 
-OPTION 2 - Direct Upload:
-• Download video from Google Drive
-• Upload directly through this system
-• Bypasses Google Drive size detection issues
+2. **Check Video Format**:
+   • Ensure video is in MP4, MOV, or AVI format
+   • Some formats may cause Facebook's "corrupt video" error
 
-OPTION 3 - Alternative Hosting:
-• Upload to YouTube (unlisted) → Share link in Facebook
-• Use Vimeo for professional video hosting
-• Try Dropbox with direct download links
+3. **Alternative Hosting**:
+   • Upload to YouTube (unlisted) and share the link
+   • Use Dropbox or WeTransfer with direct download links
 
-🎯 RECOMMENDATION:
-For videos over 100MB, compress to smaller size or use YouTube hosting for best results.`
+The resumable upload system supports Facebook's full 4GB limit when using direct file uploads.`
             };
           }
           
@@ -504,6 +508,150 @@ For videos over 100MB, compress to smaller size or use YouTube hosting for best 
     } catch (error) {
       console.error('Error getting page permissions:', error);
       return [];
+    }
+  }
+
+  /**
+   * Upload large video using Facebook's resumable upload API
+   */
+  static async uploadLargeVideoResumable(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+    try {
+      // Step 1: Download video data from Google Drive
+      console.log('📥 DOWNLOADING VIDEO DATA for resumable upload');
+      
+      const videoResponse = await fetch(videoUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      });
+      
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video: ${videoResponse.status}`);
+      }
+      
+      const videoBuffer = await videoResponse.arrayBuffer();
+      const videoSize = videoBuffer.byteLength;
+      
+      console.log(`📊 VIDEO DOWNLOADED: ${(videoSize / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Step 2: Initialize resumable upload session
+      console.log('🚀 INITIALIZING RESUMABLE UPLOAD SESSION');
+      
+      const initEndpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const initData = new URLSearchParams();
+      initData.append('upload_phase', 'start');
+      initData.append('file_size', videoSize.toString());
+      initData.append('access_token', pageAccessToken);
+      
+      const initResponse = await fetch(initEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: initData.toString()
+      });
+      
+      const initResult = await initResponse.json() as any;
+      
+      if (!initResponse.ok || initResult.error) {
+        throw new Error(`Upload initialization failed: ${initResult.error?.message || 'Unknown error'}`);
+      }
+      
+      const sessionId = initResult.video_id;
+      const uploadSessionId = initResult.upload_session_id;
+      
+      console.log(`✅ UPLOAD SESSION CREATED: ${sessionId}`);
+      
+      // Step 3: Upload video data in chunks
+      console.log('📤 UPLOADING VIDEO DATA');
+      
+      const chunkSize = 8 * 1024 * 1024; // 8MB chunks
+      const totalChunks = Math.ceil(videoSize / chunkSize);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, videoSize);
+        const chunk = videoBuffer.slice(start, end);
+        
+        console.log(`📤 UPLOADING CHUNK ${i + 1}/${totalChunks} (${(chunk.byteLength / 1024 / 1024).toFixed(2)}MB)`);
+        
+        const uploadData = new FormData();
+        uploadData.append('upload_phase', 'transfer');
+        uploadData.append('start_offset', start.toString());
+        uploadData.append('upload_session_id', uploadSessionId);
+        uploadData.append('video_file_chunk', new Blob([chunk]), 'chunk.bin');
+        uploadData.append('access_token', pageAccessToken);
+        
+        const uploadResponse = await fetch(initEndpoint, {
+          method: 'POST',
+          body: uploadData
+        });
+        
+        const uploadResult = await uploadResponse.json() as any;
+        
+        if (!uploadResponse.ok || uploadResult.error) {
+          throw new Error(`Chunk upload failed: ${uploadResult.error?.message || 'Unknown error'}`);
+        }
+      }
+      
+      // Step 4: Finalize upload with metadata
+      console.log('🏁 FINALIZING VIDEO UPLOAD');
+      
+      const finalizeData = new URLSearchParams();
+      finalizeData.append('upload_phase', 'finish');
+      finalizeData.append('upload_session_id', uploadSessionId);
+      finalizeData.append('access_token', pageAccessToken);
+      finalizeData.append('published', 'true');
+      
+      if (description) {
+        finalizeData.append('description', description);
+      }
+      
+      // Add custom labels for Meta Insights
+      if (customLabels && customLabels.length > 0) {
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25)
+          .slice(0, 10);
+        
+        if (labelArray.length > 0) {
+          finalizeData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Adding custom labels to resumable video upload:', labelArray);
+        }
+      }
+      
+      if (language) {
+        finalizeData.append('locale', language);
+      }
+      
+      const finalizeResponse = await fetch(initEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: finalizeData.toString()
+      });
+      
+      const finalResult = await finalizeResponse.json() as any;
+      
+      if (!finalizeResponse.ok || finalResult.error) {
+        throw new Error(`Upload finalization failed: ${finalResult.error?.message || 'Unknown error'}`);
+      }
+      
+      console.log('✅ RESUMABLE UPLOAD COMPLETED:', finalResult.id || sessionId);
+      
+      return {
+        success: true,
+        postId: finalResult.id || sessionId
+      };
+      
+    } catch (error) {
+      console.error('❌ RESUMABLE UPLOAD FAILED:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Resumable upload failed'
+      };
     }
   }
 }
