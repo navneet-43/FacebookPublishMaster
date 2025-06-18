@@ -29,14 +29,14 @@ export class GoogleDriveHelper {
    */
   static generateAccessUrls(fileId: string): string[] {
     return [
-      // Direct download formats
+      // Direct usercontent URLs (bypass redirects)
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0`,
+      
+      // Standard download formats
       `https://drive.google.com/uc?export=download&id=${fileId}`,
       `https://drive.google.com/u/0/uc?id=${fileId}&export=download`,
       `https://docs.google.com/uc?export=download&id=${fileId}`,
-      
-      // Streaming formats that might work with Facebook
-      `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk`,
-      `https://drive.google.com/open?id=${fileId}`,
       
       // Alternative formats
       `https://drive.google.com/uc?id=${fileId}&authuser=0&export=download`,
@@ -52,15 +52,18 @@ export class GoogleDriveHelper {
     size: number;
     contentType: string | null;
     isVideo: boolean;
+    needsAuth: boolean;
     error?: string;
   }> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
+      // Try with redirect following for Google Drive
       const response = await fetch(url, { 
         method: 'HEAD',
         signal: controller.signal,
+        redirect: 'follow',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
           'Accept': 'video/*, application/octet-stream, */*'
@@ -73,10 +76,19 @@ export class GoogleDriveHelper {
       const contentLength = response.headers.get('content-length');
       const size = contentLength ? parseInt(contentLength, 10) : 0;
       
+      // Check if this is an authentication/permission issue
+      const needsAuth = Boolean(
+        contentType?.includes('text/html') && 
+        (response.url.includes('accounts.google.com') || 
+         response.url.includes('drive.google.com/file') ||
+         size < 10000)
+      );
+      
       // Determine if this looks like video data
       const isVideo = Boolean(
         contentType?.includes('video') ||
         contentType?.includes('application/octet-stream') ||
+        contentType?.includes('binary') ||
         (size > 100000 && !contentType?.includes('text/html'))
       );
       
@@ -85,6 +97,7 @@ export class GoogleDriveHelper {
         size,
         contentType,
         isVideo,
+        needsAuth,
       };
       
     } catch (error) {
@@ -93,6 +106,7 @@ export class GoogleDriveHelper {
         size: 0,
         contentType: null,
         isVideo: false,
+        needsAuth: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
@@ -158,27 +172,37 @@ export class GoogleDriveHelper {
    * Generate detailed error message with Google Drive troubleshooting steps
    */
   static generateErrorMessage(fileId: string, testedUrls: { url: string; result: any }[]): string {
+    const hasAuthIssues = testedUrls.some(t => t.result.needsAuth);
+    
     let message = `Google Drive video access failed for file ID: ${fileId}\n\n`;
     
-    message += `🔧 TROUBLESHOOTING STEPS:\n`;
-    message += `1. Right-click the video in Google Drive\n`;
-    message += `2. Select "Get link" or "Share"\n`;
-    message += `3. Change access to "Anyone with the link can view"\n`;
-    message += `4. Make sure the file is fully uploaded (not still processing)\n`;
-    message += `5. Try downloading the file manually to test access\n\n`;
+    if (hasAuthIssues) {
+      message += `🔒 PERMISSION ISSUE DETECTED:\n`;
+      message += `The video file requires authentication or has restricted sharing settings.\n\n`;
+    }
     
-    message += `🔍 TESTED URL FORMATS:\n`;
+    message += `🔧 REQUIRED STEPS TO FIX:\n`;
+    message += `1. Open Google Drive and locate your video file\n`;
+    message += `2. Right-click the video → "Share" or "Get link"\n`;
+    message += `3. Change sharing from "Restricted" to "Anyone with the link"\n`;
+    message += `4. Set permission level to "Viewer" (minimum required)\n`;
+    message += `5. Copy the new link and use it in your post\n`;
+    message += `6. Verify the file is fully uploaded (not showing "Processing...")\n\n`;
+    
+    message += `🔍 DIAGNOSTIC RESULTS:\n`;
     testedUrls.forEach(({ url, result }, i) => {
       const status = result.success ? '✅' : '❌';
       const size = (result.size / 1024 / 1024).toFixed(2);
-      message += `${i + 1}. ${status} ${size}MB - ${result.contentType || 'unknown'}\n`;
+      const authStatus = result.needsAuth ? '🔒 AUTH REQUIRED' : '';
+      const videoStatus = result.isVideo ? '📹 VIDEO' : '📄 NOT VIDEO';
+      message += `${i + 1}. ${status} ${size}MB - ${result.contentType || 'unknown'} ${authStatus} ${videoStatus}\n`;
     });
     
-    message += `\n💡 ALTERNATIVE SOLUTIONS:\n`;
-    message += `• Upload video directly to Facebook instead of using Google Drive\n`;
-    message += `• Use YouTube or Vimeo for hosting large videos\n`;
-    message += `• Compress the video using HandBrake before uploading\n`;
-    message += `• Share the Google Drive folder with wider permissions\n`;
+    message += `\n💡 QUICK SOLUTIONS:\n`;
+    message += `• Download video → Upload directly to Facebook (most reliable)\n`;
+    message += `• Use WeTransfer or Dropbox with public sharing\n`;
+    message += `• Upload to YouTube → Share YouTube link in Facebook post\n`;
+    message += `• Compress video with HandBrake if file is too large\n`;
     
     return message;
   }
