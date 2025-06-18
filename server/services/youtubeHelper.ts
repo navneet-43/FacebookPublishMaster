@@ -75,34 +75,86 @@ export class YouTubeHelper {
       // Find best available format with fallback options
       let format;
       
-      // Try MP4 with video and audio first
-      let formats = info.formats.filter(format => 
-        format.hasVideo && format.hasAudio && format.container === 'mp4'
-      );
+      // Enhanced quality selection - try multiple strategies to get best quality
+      console.log('🔍 ANALYZING ALL AVAILABLE FORMATS...');
       
-      if (formats.length === 0) {
-        // Fallback: try any format with video and audio
-        formats = info.formats.filter(format => 
-          format.hasVideo && format.hasAudio
-        );
-      }
-      
-      if (formats.length === 0) {
-        throw new Error('No video formats with both video and audio available');
-      }
-      
-      // Log all available formats for debugging
-      console.log('📊 AVAILABLE FORMATS:');
-      formats.forEach((f, index) => {
-        console.log(`  ${index + 1}. ${f.qualityLabel || 'unknown'} - ${f.container} - ${f.hasVideo ? 'V' : ''}${f.hasAudio ? 'A' : ''} - ${f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'size unknown'}`);
+      // Log all formats first for transparency
+      info.formats.forEach((f, index) => {
+        const size = f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'unknown';
+        const type = f.hasVideo && f.hasAudio ? 'V+A' : f.hasVideo ? 'V' : f.hasAudio ? 'A' : '?';
+        const quality = f.qualityLabel || f.height + 'p' || 'unknown';
+        console.log(`  ${index + 1}. ${quality} | ${f.container || 'unknown'} | ${type} | ${size}`);
       });
       
-      // Choose highest quality from available formats
-      format = formats.reduce((best, current) => {
-        const bestHeight = parseInt(String(best.height || '0'));
-        const currentHeight = parseInt(String(current.height || '0'));
-        return currentHeight > bestHeight ? current : best;
+      // Strategy 1: Look for adaptive formats with separate video and audio (often highest quality)
+      const adaptiveVideoFormats = info.formats.filter(f => 
+        f.hasVideo && !f.hasAudio && (f.container === 'mp4' || f.container === 'webm')
+      ).sort((a, b) => (parseInt(b.height || '0') - parseInt(a.height || '0')));
+      
+      const adaptiveAudioFormats = info.formats.filter(f => 
+        !f.hasVideo && f.hasAudio && (f.container === 'm4a' || f.container === 'webm')
+      ).sort((a, b) => (parseInt(b.audioBitrate || '0') - parseInt(a.audioBitrate || '0')));
+      
+      console.log(`📊 ADAPTIVE FORMATS: ${adaptiveVideoFormats.length} video, ${adaptiveAudioFormats.length} audio`);
+      
+      // Strategy 2: Combined video+audio formats (easier but usually lower quality)
+      const combinedFormats = info.formats.filter(format => 
+        format.hasVideo && format.hasAudio
+      ).sort((a, b) => {
+        // Sort by quality (height) and then by file size
+        const heightDiff = parseInt(b.height || '0') - parseInt(a.height || '0');
+        if (heightDiff !== 0) return heightDiff;
+        return parseInt(b.contentLength || '0') - parseInt(a.contentLength || '0');
       });
+      
+      console.log(`📊 COMBINED FORMATS: ${combinedFormats.length} available`);
+      
+      // Enhanced quality selection with better prioritization
+      let selectedFormat = null;
+      let selectionMethod = '';
+      
+      // Priority 1: Look for high-quality combined formats (720p+ preferred)
+      const highQualityCombined = combinedFormats.filter(f => {
+        const height = parseInt(f.height || '0');
+        return height >= 720; // 720p or higher
+      });
+      
+      if (highQualityCombined.length > 0) {
+        selectedFormat = highQualityCombined[0];
+        selectionMethod = `HIGH-QUALITY COMBINED (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
+      }
+      // Priority 2: Any combined format available
+      else if (combinedFormats.length > 0) {
+        selectedFormat = combinedFormats[0];
+        selectionMethod = `BEST COMBINED (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
+      }
+      // Priority 3: Try to use progressive download formats (often better quality)
+      else {
+        const progressiveFormats = info.formats.filter(f => 
+          f.hasVideo && f.hasAudio && f.url && !f.url.includes('googlevideo.com/videoplayback')
+        ).sort((a, b) => parseInt(b.height || '0') - parseInt(a.height || '0'));
+        
+        if (progressiveFormats.length > 0) {
+          selectedFormat = progressiveFormats[0];
+          selectionMethod = `PROGRESSIVE (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
+        }
+      }
+      
+      // Fallback: Use any video+audio format
+      if (!selectedFormat) {
+        const anyVideoAudio = info.formats.filter(f => f.hasVideo && f.hasAudio);
+        if (anyVideoAudio.length > 0) {
+          selectedFormat = anyVideoAudio[0];
+          selectionMethod = `FALLBACK (${selectedFormat.qualityLabel || 'unknown'})`;
+        }
+      }
+      
+      if (!selectedFormat) {
+        throw new Error('No suitable video formats found');
+      }
+      
+      format = selectedFormat;
+      console.log(`✅ SELECTED: ${selectionMethod}`);
       
       console.log('📹 SELECTED FORMAT:', {
         quality: format.qualityLabel || 'unknown',
@@ -122,11 +174,18 @@ export class YouTubeHelper {
           begin: 0,
           requestOptions: {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'video/mp4,video/webm,video/*;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.5',
+              'Accept-Encoding': 'identity',
+              'Range': 'bytes=0-'
             },
-            maxRedirects: 5,
-            timeout: 30000
-          }
+            maxRedirects: 10,
+            timeout: 60000
+          },
+          // Try to get better quality streams
+          quality: 'highest',
+          filter: format => format.container === 'mp4'
         };
         
         let stream;
