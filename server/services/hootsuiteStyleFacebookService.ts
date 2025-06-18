@@ -286,6 +286,19 @@ export class HootsuiteStyleFacebookService {
         return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
       }
       
+      // For Dropbox videos, use appropriate upload method based on size
+      if (videoUrl.includes('dropbox.com')) {
+        const shouldUseResumable = processingResult.originalSize && processingResult.originalSize > 100 * 1024 * 1024; // 100MB threshold for Dropbox
+        
+        if (shouldUseResumable) {
+          console.log('🚀 USING RESUMABLE UPLOAD for large Dropbox video');
+          return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
+        } else {
+          console.log('📤 USING DIRECT UPLOAD for Dropbox video');
+          // Continue with standard file_url method for smaller Dropbox videos
+        }
+      }
+      
       // For other videos, use resumable upload if they're large
       const shouldUseResumableUpload = processingResult.originalSize && processingResult.originalSize > 50 * 1024 * 1024; // 50MB threshold
       
@@ -350,7 +363,7 @@ export class HootsuiteStyleFacebookService {
         if (isMediaError) {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
           
-          // For Google Drive videos that failed, provide specific guidance
+          // Provide specific guidance based on video source
           if (videoUrl.includes('drive.google.com')) {
             console.log('🔍 GOOGLE DRIVE VIDEO UPLOAD FAILED');
             
@@ -358,24 +371,44 @@ export class HootsuiteStyleFacebookService {
               success: false,
               error: `Google Drive Video Upload Failed
 
-The system attempted both standard and resumable upload methods for your Google Drive video.
+Google Drive blocks programmatic video access due to security policies.
 
-SOLUTIONS:
+RECOMMENDED SOLUTION - Switch to Dropbox:
 
-1. **Download and Re-upload**:
-   • Download video from Google Drive to your computer
-   • Use the direct file upload option in this system
-   • Most reliable method for large videos
+1. **Upload to Dropbox**:
+   • Upload your video to Dropbox
+   • Right-click → Share → "Anyone with the link"
+   • Copy the sharing link
 
-2. **Check Video Format**:
-   • Ensure video is in MP4, MOV, or AVI format
-   • Some formats may cause Facebook's "corrupt video" error
+2. **Use Dropbox Link**:
+   • Replace Google Drive URLs with Dropbox URLs in your Excel
+   • System automatically converts to direct download format
+   • Supports videos up to 4GB
 
-3. **Alternative Hosting**:
-   • Upload to YouTube (unlisted) and share the link
-   • Use Dropbox or WeTransfer with direct download links
+3. **Alternative Options**:
+   • Download and upload directly through this system
+   • Use YouTube (unlisted) and share the link
 
-The resumable upload system supports Facebook's full 4GB limit when using direct file uploads.`
+Dropbox provides reliable programmatic access for automated video posting.`
+            };
+          }
+          
+          if (videoUrl.includes('dropbox.com')) {
+            console.log('🔍 DROPBOX VIDEO UPLOAD FAILED');
+            
+            const { DropboxHelper } = await import('./dropboxHelper');
+            
+            return {
+              success: false,
+              error: `Dropbox Video Upload Failed
+
+${DropboxHelper.getDropboxInstructions()}
+
+TROUBLESHOOTING:
+• Ensure video is fully uploaded to Dropbox
+• Check that sharing is set to "Anyone with the link"
+• Verify video format is supported (MP4, MOV, AVI)
+• Try downloading and re-uploading if issues persist`
             };
           }
           
@@ -525,7 +558,7 @@ The resumable upload system supports Facebook's full 4GB limit when using direct
       // Step 1: Find working Google Drive URL and download video data
       console.log('📥 DOWNLOADING VIDEO DATA for resumable upload');
       
-      // Convert Google Drive sharing URL to direct download format
+      // Convert cloud storage URLs to direct download format
       let workingUrl = videoUrl;
       
       if (videoUrl.includes('drive.google.com')) {
@@ -535,6 +568,9 @@ The resumable upload system supports Facebook's full 4GB limit when using direct
           workingUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download`;
           console.log('🔄 Converted Google Drive URL for direct download');
         }
+      } else if (videoUrl.includes('dropbox.com')) {
+        const { DropboxHelper } = await import('./dropboxHelper');
+        workingUrl = DropboxHelper.convertToDirectUrl(videoUrl);
       }
       
       const videoResponse = await fetch(workingUrl, {

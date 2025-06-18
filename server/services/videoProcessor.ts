@@ -79,6 +79,30 @@ export class VideoProcessor {
         }
       }
       
+      // Handle Dropbox URLs
+      if (url.includes('dropbox.com')) {
+        const { DropboxHelper } = await import('./dropboxHelper');
+        const result = await DropboxHelper.getOptimizedVideoUrl(url);
+        
+        analysisUrl = result.workingUrl;
+        finalSize = result.size;
+        finalContentType = result.contentType;
+        
+        // Create a mock response object for compatibility
+        finalResponse = {
+          ok: true,
+          headers: {
+            get: (name: string) => {
+              if (name === 'content-type') return result.contentType;
+              if (name === 'content-length') return result.size.toString();
+              return null;
+            }
+          }
+        } as any;
+        
+        console.log(`✅ Dropbox access configured: ${result.verified ? 'verified' : 'unverified'}`);
+      }
+      
       // If no Google Drive format worked, try original URL
       if (!finalResponse) {
         const controller = new AbortController();
