@@ -1,5 +1,7 @@
 import fetch from 'node-fetch';
 import { storage } from '../storage';
+import { createReadStream, statSync } from 'fs';
+import FormData from 'form-data';
 
 interface FacebookPageInfo {
   id: string;
@@ -295,6 +297,17 @@ export class HootsuiteStyleFacebookService {
         if (processingResult.originalSize) {
           const sizeMB = (processingResult.originalSize / 1024 / 1024).toFixed(2);
           console.log(`📊 VIDEO SIZE: ${sizeMB}MB (proceeding with upload)`);
+        }
+      }
+      
+      // Handle YouTube downloads as file uploads
+      if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+        console.log('🎥 YOUTUBE VIDEO: Using downloaded file for upload');
+        
+        // For YouTube videos, processVideo returns a file path, not a URL
+        if (processingResult.processedUrl && !processingResult.skipProcessing) {
+          // This is a downloaded file path, use file upload
+          return await HootsuiteStyleFacebookService.uploadVideoFile(pageId, pageAccessToken, processingResult.processedUrl, description, customLabels, language, processingResult.cleanup);
         }
       }
       
@@ -843,6 +856,257 @@ Google Drive's security policies prevent external applications from downloading 
       return {
         success: false,
         error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Upload video file directly to Facebook (for downloaded YouTube videos)
+   */
+  static async uploadVideoFile(pageId: string, pageAccessToken: string, filePath: string, description?: string, customLabels?: string[], language?: string, cleanup?: () => void): Promise<{success: boolean, postId?: string, error?: string}> {
+    try {
+      console.log('📤 UPLOADING VIDEO FILE to Facebook:', filePath);
+      
+      // Get file size to determine upload method
+      const stats = statSync(filePath);
+      const fileSizeMB = stats.size / (1024 * 1024);
+      
+      console.log(`📊 FILE SIZE: ${fileSizeMB.toFixed(2)}MB`);
+      
+      // Use resumable upload for files larger than 50MB
+      if (stats.size > 50 * 1024 * 1024) {
+        console.log('🚀 Using resumable upload for large file');
+        return await this.uploadLargeVideoFileResumable(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+      }
+      
+      // Use standard multipart upload for smaller files
+      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      
+      const formData = new FormData();
+      formData.append('source', createReadStream(filePath));
+      formData.append('access_token', pageAccessToken);
+      formData.append('published', 'true');
+      
+      if (description) {
+        formData.append('description', description);
+      }
+      
+      // Add custom labels for Meta Insights tracking
+      if (customLabels && customLabels.length > 0) {
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25)
+          .slice(0, 10);
+        
+        if (labelArray.length > 0) {
+          formData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Adding custom labels to Facebook video upload:', labelArray);
+        }
+      }
+      
+      if (language) {
+        formData.append('locale', language);
+      }
+      
+      console.log(`📤 Uploading video file to page ${pageId}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await response.json() as any;
+      
+      // Clean up temporary file
+      if (cleanup) {
+        cleanup();
+      }
+      
+      if (!response.ok || data.error) {
+        console.error('Facebook video file upload error:', data.error);
+        return {
+          success: false,
+          error: data.error?.message || `Upload failed: ${response.status}`
+        };
+      }
+      
+      console.log('✅ Video file uploaded successfully:', data.id);
+      return {
+        success: true,
+        postId: data.id
+      };
+      
+    } catch (error) {
+      console.error('❌ Video file upload error:', error);
+      
+      // Clean up temporary file on error
+      if (cleanup) {
+        cleanup();
+      }
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Video file upload failed'
+      };
+    }
+  }
+
+  /**
+   * Upload large video file using resumable upload (for downloaded YouTube videos)
+   */
+  static async uploadLargeVideoFileResumable(pageId: string, pageAccessToken: string, filePath: string, description?: string, customLabels?: string[], language?: string, cleanup?: () => void): Promise<{success: boolean, postId?: string, error?: string}> {
+    try {
+      console.log('🚀 RESUMABLE UPLOAD: Starting large video file upload');
+      
+      const stats = statSync(filePath);
+      const fileSize = stats.size;
+      
+      // Step 1: Initialize resumable upload session
+      const initEndpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      
+      const initData = new URLSearchParams();
+      initData.append('upload_phase', 'start');
+      initData.append('file_size', fileSize.toString());
+      initData.append('access_token', pageAccessToken);
+      
+      const initResponse = await fetch(initEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: initData.toString()
+      });
+      
+      const initResult = await initResponse.json() as any;
+      
+      if (!initResponse.ok || initResult.error) {
+        throw new Error(`Upload initialization failed: ${initResult.error?.message || 'Unknown error'}`);
+      }
+      
+      const sessionId = initResult.video_id;
+      const uploadSessionId = initResult.upload_session_id;
+      
+      console.log('✅ RESUMABLE UPLOAD: Session initialized:', sessionId);
+      
+      // Step 2: Upload file in chunks
+      const chunkSize = 8 * 1024 * 1024; // 8MB chunks
+      const fileStream = createReadStream(filePath);
+      
+      let bytesUploaded = 0;
+      const chunks: Buffer[] = [];
+      
+      // Read file into chunks
+      await new Promise<void>((resolve, reject) => {
+        fileStream.on('data', (chunk: Buffer) => {
+          chunks.push(chunk);
+        });
+        
+        fileStream.on('end', () => {
+          resolve();
+        });
+        
+        fileStream.on('error', (error) => {
+          reject(error);
+        });
+      });
+      
+      // Upload each chunk
+      for (let i = 0; i < chunks.length; i += chunkSize) {
+        const chunkData = Buffer.concat(chunks.slice(i, Math.min(i + chunkSize, chunks.length)));
+        const startOffset = bytesUploaded;
+        const endOffset = bytesUploaded + chunkData.length - 1;
+        
+        const uploadData = new URLSearchParams();
+        uploadData.append('upload_phase', 'transfer');
+        uploadData.append('upload_session_id', uploadSessionId);
+        uploadData.append('start_offset', startOffset.toString());
+        uploadData.append('video_file_chunk', chunkData.toString('base64'));
+        uploadData.append('access_token', pageAccessToken);
+        
+        const uploadResponse = await fetch(initEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: uploadData.toString()
+        });
+        
+        const uploadResult = await uploadResponse.json() as any;
+        
+        if (!uploadResponse.ok || uploadResult.error) {
+          throw new Error(`Chunk upload failed: ${uploadResult.error?.message || 'Unknown error'}`);
+        }
+        
+        bytesUploaded += chunkData.length;
+        const progress = (bytesUploaded / fileSize * 100).toFixed(1);
+        console.log(`📤 UPLOAD PROGRESS: ${progress}% (${bytesUploaded}/${fileSize} bytes)`);
+      }
+      
+      // Step 3: Finalize upload
+      const finalizeData = new URLSearchParams();
+      finalizeData.append('upload_phase', 'finish');
+      finalizeData.append('upload_session_id', uploadSessionId);
+      finalizeData.append('access_token', pageAccessToken);
+      finalizeData.append('published', 'true');
+      
+      if (description) {
+        finalizeData.append('description', description);
+      }
+      
+      // Add custom labels for Meta Insights tracking
+      if (customLabels && customLabels.length > 0) {
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25)
+          .slice(0, 10);
+        
+        if (labelArray.length > 0) {
+          finalizeData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Adding custom labels to resumable video upload:', labelArray);
+        }
+      }
+      
+      if (language) {
+        finalizeData.append('locale', language);
+      }
+      
+      const finalizeResponse = await fetch(initEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: finalizeData.toString()
+      });
+      
+      const finalResult = await finalizeResponse.json() as any;
+      
+      // Clean up temporary file
+      if (cleanup) {
+        cleanup();
+      }
+      
+      if (!finalizeResponse.ok || finalResult.error) {
+        throw new Error(`Upload finalization failed: ${finalResult.error?.message || 'Unknown error'}`);
+      }
+      
+      console.log('✅ RESUMABLE FILE UPLOAD COMPLETED:', finalResult.id || sessionId);
+      
+      return {
+        success: true,
+        postId: finalResult.id || sessionId
+      };
+      
+    } catch (error) {
+      console.error('❌ RESUMABLE FILE UPLOAD FAILED:', error);
+      
+      // Clean up temporary file on error
+      if (cleanup) {
+        cleanup();
+      }
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Resumable file upload failed'
       };
     }
   }
