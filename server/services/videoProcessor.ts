@@ -212,7 +212,7 @@ export class VideoProcessor {
           if (!downloadResult.isValid || !downloadResult.filePath) {
             return {
               success: false,
-              error: 'Failed to download YouTube video. Please ensure the video is public or unlisted and accessible for download.'
+              error: downloadResult.error || 'Failed to download YouTube video. Please ensure the video is public or unlisted and accessible for download.'
             };
           }
           

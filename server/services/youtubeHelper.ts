@@ -1,4 +1,4 @@
-import ytdl from 'ytdl-core';
+import ytdl from '@distube/ytdl-core';
 import { createWriteStream, createReadStream, unlinkSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -47,6 +47,7 @@ export class YouTubeHelper {
     method: 'youtube_download';
     isValid: boolean;
     cleanup: () => void;
+    error?: string;
   }> {
     console.log('🎥 DOWNLOADING YOUTUBE VIDEO for Facebook upload');
     
@@ -66,31 +67,73 @@ export class YouTubeHelper {
     }
 
     try {
-      // Get video info first
+      // Get video info first with improved error handling
+      console.log('🔍 Fetching YouTube video info...');
       const info = await ytdl.getInfo(originalUrl);
       console.log('🔍 YOUTUBE VIDEO INFO:', info.videoDetails.title);
       
-      // Choose best quality format
-      const format = ytdl.chooseFormat(info.formats, { 
-        quality: 'highest',
-        filter: 'videoandaudio'
+      // Find best available format with fallback options
+      let format;
+      
+      // Try MP4 with video and audio first
+      let formats = info.formats.filter(format => 
+        format.hasVideo && format.hasAudio && format.container === 'mp4'
+      );
+      
+      if (formats.length === 0) {
+        // Fallback: try any format with video and audio
+        formats = info.formats.filter(format => 
+          format.hasVideo && format.hasAudio
+        );
+      }
+      
+      if (formats.length === 0) {
+        throw new Error('No video formats with both video and audio available');
+      }
+      
+      // Choose highest quality from available formats
+      format = formats.reduce((best, current) => {
+        const bestHeight = parseInt(String(best.height || '0'));
+        const currentHeight = parseInt(String(current.height || '0'));
+        return currentHeight > bestHeight ? current : best;
       });
       
-      console.log('📹 SELECTED FORMAT:', format.qualityLabel, format.container);
+      console.log('📹 SELECTED FORMAT:', {
+        quality: format.qualityLabel || 'unknown',
+        container: format.container || 'unknown',
+        hasVideo: format.hasVideo,
+        hasAudio: format.hasAudio
+      });
       
       // Create temporary file path
       const tempFilePath = join(tmpdir(), `youtube_${videoId}_${Date.now()}.mp4`);
       
-      // Download video
+      // Download video with improved error handling
       await new Promise<void>((resolve, reject) => {
-        const stream = ytdl(originalUrl, { format });
+        const downloadOptions: any = { 
+          format: format,
+          requestOptions: {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+          }
+        };
+        
+        const stream = ytdl(originalUrl, downloadOptions);
         const writeStream = createWriteStream(tempFilePath);
+        
+        let downloadStarted = false;
         
         stream.pipe(writeStream);
         
         stream.on('progress', (chunkLength, downloaded, total) => {
+          downloadStarted = true;
           const percent = (downloaded / total * 100).toFixed(1);
           console.log(`📥 DOWNLOAD PROGRESS: ${percent}% - ${(downloaded / 1024 / 1024).toFixed(1)}MB`);
+        });
+        
+        stream.on('response', () => {
+          console.log('📡 Download stream started');
         });
         
         writeStream.on('finish', () => {
@@ -98,8 +141,24 @@ export class YouTubeHelper {
           resolve();
         });
         
-        stream.on('error', reject);
-        writeStream.on('error', reject);
+        stream.on('error', (error) => {
+          console.error('❌ Download stream error:', error.message);
+          reject(new Error(`YouTube download failed: ${error.message}`));
+        });
+        
+        writeStream.on('error', (error) => {
+          console.error('❌ Write stream error:', error.message);
+          reject(new Error(`File write failed: ${error.message}`));
+        });
+        
+        // Timeout if download doesn't start within 30 seconds
+        setTimeout(() => {
+          if (!downloadStarted) {
+            stream.destroy();
+            writeStream.destroy();
+            reject(new Error('Download timeout - video may be restricted or unavailable'));
+          }
+        }, 30000);
       });
       
       // Get file size
@@ -128,6 +187,24 @@ export class YouTubeHelper {
       
     } catch (error) {
       console.error('❌ YOUTUBE DOWNLOAD ERROR:', error);
+      
+      // Provide specific error messages for common issues
+      let errorMessage = 'YouTube download failed';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Could not extract functions')) {
+          errorMessage = 'YouTube video extraction failed - this video may be restricted or require different access methods. Try using a different YouTube video or contact support for assistance.';
+        } else if (error.message.includes('Video unavailable')) {
+          errorMessage = 'YouTube video is unavailable - it may be private, deleted, or region-restricted';
+        } else if (error.message.includes('Sign in to confirm')) {
+          errorMessage = 'YouTube video requires age verification or sign-in - try a different video';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'YouTube download timed out - the video may be too large or server is busy';
+        } else {
+          errorMessage = `YouTube download failed: ${error.message}`;
+        }
+      }
+      
       return {
         filePath: '',
         size: 0,
@@ -135,6 +212,7 @@ export class YouTubeHelper {
         verified: false,
         method: 'youtube_download',
         isValid: false,
+        error: errorMessage,
         cleanup: () => {}
       };
     }
