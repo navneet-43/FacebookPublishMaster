@@ -55,6 +55,7 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ Fixed Google Drive URL processing to convert sharing links to direct download format for Facebook compatibility
 - ✅ Resolved URL optimization timing issue - Google Drive URLs now converted during analysis phase for proper video detection
 - ✅ Implemented comprehensive Google Drive permission diagnostics with specific sharing guidance for restricted files
+- ✅ Fixed error message routing to properly show Google Drive permission guidance instead of incorrect compression advice
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified

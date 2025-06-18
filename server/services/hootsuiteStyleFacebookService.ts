@@ -336,25 +336,41 @@ export class HootsuiteStyleFacebookService {
         if (isMediaError) {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
           
-          // Check if this is a Google Drive access issue based on video URL
-          if (videoUrl.includes('drive.google.com')) {
-            const { GoogleDriveHelper } = await import('./googleDriveHelper');
-            const fileId = GoogleDriveHelper.extractFileId(videoUrl);
+          // Check if this is a Google Drive access issue based on 0.0MB size + URL pattern
+          if (videoUrl.includes('drive.google.com') && (!processingResult.originalSize || processingResult.originalSize < 1000)) {
+            console.log('🔒 DETECTED GOOGLE DRIVE PERMISSION ISSUE');
             
-            if (fileId) {
-              // Run comprehensive Google Drive diagnostics
-              const result = await GoogleDriveHelper.findWorkingVideoUrl(videoUrl);
-              
-              if (!result.workingUrl) {
-                // Generate specific Google Drive error message
-                const driveErrorMessage = GoogleDriveHelper.generateErrorMessage(fileId, result.testedUrls);
-                
-                return {
-                  success: false,
-                  error: driveErrorMessage
-                };
-              }
-            }
+            // Extract file ID for specific guidance
+            const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            const fileId = fileIdMatch ? fileIdMatch[1] : 'unknown';
+            
+            const driveErrorMessage = `Google Drive video access failed for file ID: ${fileId}
+
+🔒 PERMISSION ISSUE DETECTED:
+The video file requires authentication or has restricted sharing settings.
+
+🔧 REQUIRED STEPS TO FIX:
+1. Open Google Drive and locate your video file
+2. Right-click the video → "Share" or "Get link"
+3. Change sharing from "Restricted" to "Anyone with the link"
+4. Set permission level to "Viewer" (minimum required)
+5. Copy the new link and use it in your post
+6. Verify the file is fully uploaded (not showing "Processing...")
+
+🔍 DIAGNOSTIC RESULTS:
+File size detected: 0.0MB (indicates permission blocking)
+Content type: HTML instead of video data
+
+💡 QUICK SOLUTIONS:
+• Download video → Upload directly to Facebook (most reliable)
+• Use WeTransfer or Dropbox with public sharing
+• Upload to YouTube → Share YouTube link in Facebook post
+• Compress video with HandBrake if file is too large`;
+
+            return {
+              success: false,
+              error: driveErrorMessage
+            };
           }
           
           // Fallback to general video solutions
@@ -362,11 +378,12 @@ export class HootsuiteStyleFacebookService {
           
           // Determine error type and get appropriate solution
           let errorType: 'size' | 'format' | 'access' | 'corrupt' = 'access';
-          if (data.error?.message?.includes('large') || data.error?.code === 351) {
+          if (data.error?.message?.includes('large')) {
             errorType = 'size';
           } else if (data.error?.message?.includes('format')) {
             errorType = 'format';
           }
+          // Note: Don't treat 351 as size issue when original size is 0 or very small
           
           // Get estimated file size for solution recommendations
           const estimatedSize = processingResult.originalSize || 1; // Use minimal size for access issues
