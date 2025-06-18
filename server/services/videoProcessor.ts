@@ -150,17 +150,27 @@ export class VideoProcessor {
         };
       }
 
+      // Special handling for Dropbox URLs - force video type if extension matches
+      let actualContentType = contentType;
+      if (url.includes('dropbox.com') && !contentType?.includes('video')) {
+        const hasVideoExtension = url.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm|m4v)(\?|$)/i);
+        if (hasVideoExtension) {
+          actualContentType = 'video/mp4'; // Force video content type
+          console.log('🎬 FORCING VIDEO TYPE for Dropbox file based on extension');
+        }
+      }
+
       // Check if optimization is recommended (but not required)
       const needsOptimization = 
         size > this.RECOMMENDED_SIZE || 
-        !contentType?.includes('video') ||
-        (contentType && !this.isOptimalFormat(contentType));
+        !actualContentType?.includes('video') ||
+        (actualContentType && !this.isOptimalFormat(actualContentType));
 
       return {
         needsProcessing: false, // Allow upload but log warnings
-        reason: needsOptimization ? `Large file warning: ${this.getProcessingReason(size, contentType || undefined)}` : undefined,
+        reason: needsOptimization ? `Large file warning: ${this.getProcessingReason(size, actualContentType || undefined)}` : undefined,
         estimatedSize: size,
-        contentType: contentType || undefined
+        contentType: actualContentType || undefined
       };
 
     } catch (error) {

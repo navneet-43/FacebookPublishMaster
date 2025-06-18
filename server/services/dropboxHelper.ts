@@ -26,14 +26,45 @@ export class DropboxHelper {
     
     // Handle dropbox.com/scl/fi/ new sharing format
     if (url.includes('dropbox.com/scl/fi/')) {
-      // Extract the file path and convert to direct download
+      // Extract file path and parameters from the new format
       const match = url.match(/dropbox\.com\/scl\/fi\/([^?]+)/);
       if (match) {
         const filePath = match[1];
-        const directUrl = `https://dl.dropboxusercontent.com/scl/fi/${filePath}`;
-        console.log('✅ Converted new Dropbox sharing format to direct download');
+        
+        // Extract rlkey parameter if present
+        const rlkeyMatch = url.match(/rlkey=([^&]+)/);
+        const rlkey = rlkeyMatch ? rlkeyMatch[1] : '';
+        
+        // Build direct download URL using dl.dropboxusercontent.com
+        let directUrl = `https://dl.dropboxusercontent.com/scl/fi/${filePath}`;
+        
+        // Add rlkey if present and ensure dl=1 for direct download
+        if (rlkey) {
+          directUrl += `?rlkey=${rlkey}&dl=1`;
+        } else {
+          directUrl += '?dl=1';
+        }
+        
+        console.log('✅ Converted new Dropbox scl/fi format to dl.dropboxusercontent.com');
+        console.log('🔍 CONVERSION DEBUG:', {
+          original: originalUrl,
+          converted: directUrl,
+          filePath,
+          rlkey
+        });
         return directUrl;
       }
+      
+      // Fallback: just modify dl parameter
+      let directUrl = url.replace(/&dl=0/g, '&dl=1').replace(/\?dl=0/g, '?dl=1');
+      
+      if (!directUrl.includes('dl=')) {
+        const separator = directUrl.includes('?') ? '&' : '?';
+        directUrl = directUrl + separator + 'dl=1';
+      }
+      
+      console.log('✅ Modified Dropbox URL parameters for direct download');
+      return directUrl;
     }
     
     // Handle existing dl.dropboxusercontent.com URLs
@@ -84,6 +115,9 @@ export class DropboxHelper {
       const isVideo = Boolean(
         contentType?.includes('video') ||
         contentType?.includes('application/octet-stream') ||
+        // For Dropbox, if we get HTML, it might mean the URL isn't properly converted
+        // Check file extension from URL to help determine if it's a video
+        (url.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm|m4v)(\?|$)/i)) ||
         (size > 100000 && !contentType?.includes('text/html'))
       );
       
@@ -128,6 +162,37 @@ export class DropboxHelper {
         size: testResult.size,
         contentType: testResult.contentType,
         verified: true
+      };
+    }
+    
+    // If initial conversion didn't work, try alternative conversion methods
+    console.log('⚠️ Initial Dropbox conversion failed, trying alternative methods');
+    
+    // Try raw=1 parameter instead of dl=1
+    if (originalUrl.includes('dropbox.com/scl/fi/')) {
+      const rawUrl = directUrl.replace('dl=1', 'raw=1');
+      const rawTest = await this.testDropboxAccess(rawUrl);
+      
+      if (rawTest.success && rawTest.isVideo) {
+        console.log('✅ DROPBOX RAW URL WORKS');
+        return {
+          workingUrl: rawUrl,
+          size: rawTest.size,
+          contentType: rawTest.contentType,
+          verified: true
+        };
+      }
+    }
+    
+    // Force video content type if URL has video extension
+    const hasVideoExtension = originalUrl.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm|m4v)(\?|$)/i);
+    if (hasVideoExtension) {
+      console.log('🎬 FORCING VIDEO TYPE based on file extension');
+      return {
+        workingUrl: directUrl,
+        size: testResult.size || 50000000, // Assume 50MB if unknown
+        contentType: 'video/mp4', // Force video content type
+        verified: false
       };
     }
     
