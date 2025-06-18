@@ -148,6 +148,13 @@ export class VideoProcessor {
         };
       }
       
+      // Always optimize Google Drive URLs for direct download
+      let finalUrl = url;
+      if (url.includes('drive.google.com')) {
+        finalUrl = this.optimizeGoogleDriveForVideo(url);
+        console.log('🔄 GOOGLE DRIVE URL OPTIMIZED for direct download');
+      }
+      
       // For all other cases, allow upload with optional warnings
       if (analysis.reason && analysis.reason.includes('Large file warning')) {
         console.log('⚠️ LARGE VIDEO WARNING:', analysis.reason);
@@ -157,7 +164,7 @@ export class VideoProcessor {
       
       return {
         success: true,
-        processedUrl: url,
+        processedUrl: finalUrl,
         skipProcessing: true,
         originalSize: analysis.estimatedSize
       };
@@ -199,6 +206,8 @@ export class VideoProcessor {
    * Optimize Google Drive URL for better video access
    */
   private static optimizeGoogleDriveForVideo(url: string): string {
+    console.log('🔗 PROCESSING GOOGLE DRIVE URL:', url);
+    
     // Extract file ID from various Google Drive URL formats
     const patterns = [
       /\/file\/d\/([a-zA-Z0-9_-]+)/,
@@ -209,11 +218,17 @@ export class VideoProcessor {
       const match = url.match(pattern);
       if (match) {
         const fileId = match[1];
+        console.log('✅ EXTRACTED FILE ID:', fileId);
+        
         // Use export format that's more compatible with Facebook
-        return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+        const optimizedUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+        console.log('🔄 OPTIMIZED URL:', optimizedUrl);
+        
+        return optimizedUrl;
       }
     }
 
+    console.log('⚠️ Could not extract file ID, returning original URL');
     return url;
   }
 
