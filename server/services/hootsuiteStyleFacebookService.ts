@@ -253,9 +253,24 @@ export class HootsuiteStyleFacebookService {
    */
   static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const { VideoProcessor } = await import('./videoProcessor');
-      
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
+      
+      // First validate the video file integrity and format
+      const { VideoValidator } = await import('./videoValidator');
+      const validation = await VideoValidator.validateVideoFile(videoUrl);
+      
+      if (!validation.isValid) {
+        console.error('❌ VIDEO VALIDATION FAILED:', validation.error);
+        const report = VideoValidator.generateValidationReport(validation);
+        return {
+          success: false,
+          error: `Video validation failed: ${validation.error}\n\n${report}`
+        };
+      }
+      
+      console.log('✅ VIDEO VALIDATION PASSED:', validation.actualFormat);
+      
+      const { VideoProcessor } = await import('./videoProcessor');
       
       // Process video for optimal Facebook compatibility
       const processingResult = await VideoProcessor.processVideo(videoUrl);
