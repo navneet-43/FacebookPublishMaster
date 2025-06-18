@@ -228,6 +228,7 @@ export class VimeoHelper {
     embedUrl?: string;
     videoInfo?: any;
     method: 'direct' | 'embed' | 'fallback';
+    error?: string;
   }> {
     console.log('🎬 OPTIMIZING VIMEO URL for video access');
     
@@ -240,67 +241,86 @@ export class VimeoHelper {
         size: 0,
         contentType: null,
         verified: false,
-        method: 'fallback'
+        method: 'fallback',
+        error: 'Could not extract video ID from Vimeo URL'
       };
     }
 
     console.log('🔍 VIMEO VIDEO ID:', videoId);
 
-    // Get video information
+    // Get video information first
     const videoInfo = await this.getVideoInfo(videoId);
     
     if (!videoInfo.success) {
       console.log('⚠️ Failed to get Vimeo video info:', videoInfo.error);
+      return {
+        workingUrl: originalUrl,
+        size: 0,
+        contentType: null,
+        verified: false,
+        method: 'fallback',
+        error: `Video info unavailable: ${videoInfo.error}`
+      };
     }
+
+    console.log('✅ VIMEO VIDEO INFO OBTAINED:', {
+      title: videoInfo.title,
+      duration: videoInfo.duration,
+      resolution: `${videoInfo.width}x${videoInfo.height}`
+    });
 
     // Try to get direct video URL
     const directResult = await this.getDirectVideoUrl(videoId);
     
     if (directResult.success && directResult.directUrl) {
-      console.log('✅ VIMEO DIRECT URL FOUND');
+      console.log('✅ VIMEO DIRECT URL FOUND:', directResult.directUrl);
       
-      // Test the direct URL
+      // Test the direct URL to verify it's actually a video file
       try {
-        const testResponse = await fetch(directResult.directUrl, { method: 'HEAD' });
+        const testResponse = await fetch(directResult.directUrl, { 
+          method: 'HEAD',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; FacebookBot/1.0)'
+          }
+        });
+        
         const contentLength = testResponse.headers.get('content-length');
         const contentType = testResponse.headers.get('content-type');
         
-        return {
-          workingUrl: directResult.directUrl,
-          size: contentLength ? parseInt(contentLength, 10) : 0,
-          contentType,
-          verified: testResponse.ok,
-          embedUrl: videoInfo.embedUrl,
-          videoInfo,
-          method: 'direct'
-        };
+        // Ensure it's actually a video content type
+        if (contentType && contentType.startsWith('video/')) {
+          console.log('✅ VERIFIED VIMEO DIRECT VIDEO URL');
+          return {
+            workingUrl: directResult.directUrl,
+            size: contentLength ? parseInt(contentLength, 10) : 0,
+            contentType,
+            verified: testResponse.ok,
+            embedUrl: videoInfo.embedUrl,
+            videoInfo,
+            method: 'direct'
+          };
+        } else {
+          console.log('⚠️ Direct URL content type not video:', contentType);
+        }
       } catch (error) {
         console.log('⚠️ Direct URL test failed:', error);
       }
+    } else {
+      console.log('⚠️ Could not get direct Vimeo URL:', directResult.error);
     }
 
-    // Fallback to embed URL if available
-    if (videoInfo.embedUrl) {
-      console.log('📺 USING VIMEO EMBED URL as fallback');
-      return {
-        workingUrl: videoInfo.embedUrl,
-        size: 0,
-        contentType: 'text/html',
-        verified: false,
-        embedUrl: videoInfo.embedUrl,
-        videoInfo,
-        method: 'embed'
-      };
-    }
-
-    // Final fallback
-    console.log('⚠️ Using original Vimeo URL as fallback');
+    // Since direct video access failed, return with clear guidance
+    console.log('❌ VIMEO DIRECT ACCESS UNAVAILABLE');
+    
     return {
       workingUrl: originalUrl,
       size: 0,
-      contentType: null,
+      contentType: 'text/html',
       verified: false,
-      method: 'fallback'
+      embedUrl: videoInfo.embedUrl,
+      videoInfo,
+      method: 'fallback',
+      error: 'Direct video access not available - video owner needs to enable download permissions'
     };
   }
 

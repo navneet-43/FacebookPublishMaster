@@ -79,28 +79,78 @@ export class VideoProcessor {
         }
       }
       
-      // Handle Vimeo URLs
+      // Handle Vimeo URLs with early validation
       if (url.includes('vimeo.com')) {
+        console.log('🎬 PROCESSING VIMEO URL for Facebook upload');
+        
         const { VimeoHelper } = await import('./vimeoHelper');
-        const result = await VimeoHelper.getOptimizedVideoUrl(url);
         
-        analysisUrl = result.workingUrl;
-        finalSize = result.size;
-        finalContentType = result.contentType;
+        // First check if we can get video info
+        const videoId = VimeoHelper.extractVideoId(url);
+        if (!videoId) {
+          throw new Error('Invalid Vimeo URL format. Please ensure the URL contains a valid video ID.');
+        }
         
-        // Create a mock response object for compatibility
-        finalResponse = {
-          ok: true,
-          headers: {
-            get: (name: string) => {
-              if (name === 'content-type') return result.contentType;
-              if (name === 'content-length') return result.size.toString();
-              return null;
+        // Get video information to verify it exists
+        const videoInfo = await VimeoHelper.getVideoInfo(videoId);
+        if (!videoInfo.success) {
+          throw new Error(`Vimeo video not accessible: ${videoInfo.error}\n\nPlease ensure:\n1. Video exists and is public/unlisted\n2. Video is not private or password protected`);
+        }
+        
+        console.log(`📹 VIMEO VIDEO FOUND: "${videoInfo.title}" (${videoInfo.duration}s)`);
+        
+        // Try to get direct video URL
+        const directResult = await VimeoHelper.getDirectVideoUrl(videoId);
+        
+        if (directResult.success && directResult.directUrl) {
+          // Test if the direct URL actually provides video content
+          try {
+            const testResponse = await fetch(directResult.directUrl, { 
+              method: 'HEAD',
+              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FacebookBot/1.0)' }
+            });
+            
+            const contentType = testResponse.headers.get('content-type');
+            if (contentType && contentType.startsWith('video/')) {
+              console.log('✅ VIMEO DIRECT VIDEO ACCESS CONFIRMED');
+              
+              analysisUrl = directResult.directUrl;
+              finalSize = parseInt(testResponse.headers.get('content-length') || '0');
+              finalContentType = contentType;
+              
+              finalResponse = {
+                ok: true,
+                headers: {
+                  get: (name: string) => {
+                    if (name === 'content-type') return contentType;
+                    if (name === 'content-length') return finalSize.toString();
+                    return null;
+                  }
+                }
+              } as any;
+            } else {
+              throw new Error('Direct video access not available');
             }
+          } catch (error) {
+            throw new Error('Direct video access not available');
           }
-        } as any;
-        
-        console.log(`✅ Vimeo access configured: ${result.verified ? 'verified' : 'unverified'} (${result.method})`);
+        } else {
+          // Direct access failed - provide clear guidance
+          throw new Error(`Vimeo video setup required for Facebook upload.\n\n` +
+            `🎬 VIMEO SETUP INSTRUCTIONS:\n` +
+            `1. Go to your video settings on Vimeo\n` +
+            `2. Under "Privacy" section, enable "Allow downloads"\n` +
+            `3. Ensure video is set to "Public" or "Unlisted"\n` +
+            `4. Save settings and try uploading again\n\n` +
+            `📹 VIDEO DETAILS:\n` +
+            `• Title: ${videoInfo.title || 'Unknown'}\n` +
+            `• Duration: ${videoInfo.duration || 'Unknown'}s\n` +
+            `• Resolution: ${videoInfo.width}x${videoInfo.height || 'Unknown'}\n\n` +
+            `💡 ALTERNATIVES:\n` +
+            `• Upload to YouTube as unlisted video\n` +
+            `• Use direct video hosting (.mp4 URLs)\n` +
+            `• Upload to your website hosting`);
+        }
       }
       
       // Handle Dropbox URLs (keeping as fallback)
