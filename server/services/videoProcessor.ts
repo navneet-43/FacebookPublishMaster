@@ -37,10 +37,17 @@ export class VideoProcessor {
     try {
       console.log('🔍 ANALYZING VIDEO:', url);
       
+      // Optimize Google Drive URLs BEFORE analysis
+      let analysisUrl = url;
+      if (url.includes('drive.google.com')) {
+        analysisUrl = this.optimizeGoogleDriveForVideo(url);
+        console.log('🔄 Using optimized URL for analysis');
+      }
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
       
-      const response = await fetch(url, { 
+      const response = await fetch(analysisUrl, { 
         method: 'HEAD',
         signal: controller.signal,
         headers: {
@@ -148,11 +155,11 @@ export class VideoProcessor {
         };
       }
       
-      // Always optimize Google Drive URLs for direct download
+      // Use the same optimized URL from analysis
       let finalUrl = url;
       if (url.includes('drive.google.com')) {
         finalUrl = this.optimizeGoogleDriveForVideo(url);
-        console.log('🔄 GOOGLE DRIVE URL OPTIMIZED for direct download');
+        console.log('🔄 USING OPTIMIZED GOOGLE DRIVE URL for Facebook upload');
       }
       
       // For all other cases, allow upload with optional warnings
