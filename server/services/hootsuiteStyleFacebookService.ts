@@ -280,7 +280,13 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
-      // For large videos, use resumable upload instead of file_url
+      // For Google Drive videos, always use resumable upload to bypass file_url limitations
+      if (videoUrl.includes('drive.google.com')) {
+        console.log('🚀 USING RESUMABLE UPLOAD for Google Drive video');
+        return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
+      }
+      
+      // For other videos, use resumable upload if they're large
       const shouldUseResumableUpload = processingResult.originalSize && processingResult.originalSize > 50 * 1024 * 1024; // 50MB threshold
       
       if (shouldUseResumableUpload) {
@@ -516,10 +522,22 @@ The resumable upload system supports Facebook's full 4GB limit when using direct
    */
   static async uploadLargeVideoResumable(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      // Step 1: Download video data from Google Drive
+      // Step 1: Find working Google Drive URL and download video data
       console.log('📥 DOWNLOADING VIDEO DATA for resumable upload');
       
-      const videoResponse = await fetch(videoUrl, {
+      // Convert Google Drive sharing URL to direct download format
+      let workingUrl = videoUrl;
+      
+      if (videoUrl.includes('drive.google.com')) {
+        const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (fileIdMatch) {
+          const fileId = fileIdMatch[1];
+          workingUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download`;
+          console.log('🔄 Converted Google Drive URL for direct download');
+        }
+      }
+      
+      const videoResponse = await fetch(workingUrl, {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
