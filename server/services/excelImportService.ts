@@ -3,6 +3,8 @@ import Papa from 'papaparse';
 import { storage } from '../storage';
 import { insertPostSchema, insertActivitySchema } from '@shared/schema';
 import { z } from 'zod';
+import { YouTubeHelper } from './youtubeHelper';
+import { VideoProcessor } from './videoProcessor';
 
 export interface ExcelPostData {
   content: string;
@@ -310,6 +312,41 @@ export class ExcelImportService {
           console.log(`Row ${i + 1}: Processing custom labels for Meta Insights:`, rawLabels);
         }
         
+        // Process YouTube videos during import - download and prepare for Facebook upload
+        let processedMediaUrl = postData.mediaUrl;
+        let processedMediaType = postData.mediaType;
+        
+        if (postData.mediaUrl && YouTubeHelper.isYouTubeUrl(postData.mediaUrl)) {
+          console.log(`🎥 Row ${i + 1}: Processing YouTube video for CSV import: ${postData.mediaUrl}`);
+          
+          try {
+            // Use the video processor to handle YouTube download
+            const videoResult = await VideoProcessor.processVideo(postData.mediaUrl);
+            
+            if (videoResult.success && videoResult.processedUrl) {
+              console.log(`✅ Row ${i + 1}: YouTube video processed successfully`);
+              processedMediaUrl = videoResult.processedUrl;
+              processedMediaType = 'video';
+              
+              // Add cleanup function to the post metadata for later cleanup
+              if (videoResult.cleanup) {
+                // Store cleanup info in metadata for scheduled cleanup
+                console.log(`📋 Row ${i + 1}: Video file will be cleaned up after Facebook upload`);
+              }
+            } else {
+              console.log(`❌ Row ${i + 1}: YouTube video processing failed: ${videoResult.error}`);
+              errors.push(`Row ${i + 1}: YouTube video processing failed: ${videoResult.error || 'Unknown video processing error'}`);
+              failed++;
+              continue;
+            }
+          } catch (videoError) {
+            console.error(`Row ${i + 1}: Video processing error:`, videoError);
+            errors.push(`Row ${i + 1}: Failed to process YouTube video: ${videoError instanceof Error ? videoError.message : 'Unknown error'}`);
+            failed++;
+            continue;
+          }
+        }
+        
         // Parse date and convert from IST to UTC for storage
         const dateMatch = postData.scheduledFor.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
         let scheduledDate: Date;
@@ -344,16 +381,21 @@ export class ExcelImportService {
           accountId: finalAccountId,
           status: 'scheduled',
           language: postData.language || 'EN',
-          mediaUrl: postData.mediaUrl,
-          mediaType: postData.mediaType,
+          mediaUrl: processedMediaUrl,
+          mediaType: processedMediaType,
           labels: labelNames  // Store custom labels for Meta Insights
         });
         
         // Log import activity
+        const isYouTubeVideo = postData.mediaUrl && YouTubeHelper.isYouTubeUrl(postData.mediaUrl);
+        const activityDescription = isYouTubeVideo 
+          ? `Post imported from Excel/CSV with YouTube video: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`
+          : `Post imported from Excel/CSV: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`;
+          
         await storage.createActivity({
           userId: userId,
           type: 'bulk_import',
-          description: `Post imported from Excel/CSV: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`,
+          description: activityDescription,
           metadata: {
             postId: newPost.id,
             source: 'excel_csv_import',
@@ -361,8 +403,10 @@ export class ExcelImportService {
             account: postData.accountName,
             labels: postData.customLabels,
             language: postData.language || 'EN',
-            mediaType: postData.mediaType || 'none',
-            mediaUrl: postData.mediaUrl
+            mediaType: processedMediaType || 'none',
+            originalMediaUrl: postData.mediaUrl,
+            processedMediaUrl: processedMediaUrl,
+            youtubeProcessed: isYouTubeVideo
           }
         });
         
