@@ -388,28 +388,35 @@ Content type: HTML instead of video data
             
             return {
               success: false,
-              error: `Google Drive video access failed for file ID: ${fileId}
+              error: `Google Drive Direct Video Upload Not Supported
 
-🔒 PERMISSION ISSUE DETECTED:
-The video file requires authentication or has restricted sharing settings.
+🚫 GOOGLE DRIVE LIMITATION:
+Facebook cannot directly access videos from Google Drive URLs, even with proper sharing permissions.
+This is a limitation of Google Drive's API, not your sharing settings.
 
-🔧 REQUIRED STEPS TO FIX:
-1. Open Google Drive and locate your video file
-2. Right-click the video → "Share" or "Get link"
-3. Change sharing from "Restricted" to "Anyone with the link"
-4. Set permission level to "Viewer" (minimum required)
-5. Copy the new link and use it in your post
-6. Verify the file is fully uploaded (not showing "Processing...")
+✅ YOUR SHARING IS CORRECT:
+✓ "Anyone with the link" permission set
+✓ "Viewer" access configured properly
+✓ File accessible via sharing link
 
-🔍 DIAGNOSTIC RESULTS:
-File size detected: 0.0MB (indicates permission blocking)
-Content type: HTML instead of video data
+🔧 WORKING SOLUTIONS:
 
-💡 QUICK SOLUTIONS:
-• Download video → Upload directly to Facebook (most reliable)
-• Use WeTransfer or Dropbox with public sharing
-• Upload to YouTube → Share YouTube link in Facebook post
-• Compress video with HandBrake if file is too large`
+OPTION 1 - Direct Upload (Recommended):
+1. Download the video from Google Drive to your computer
+2. Upload directly to Facebook using this system
+3. Delete local copy after successful upload
+
+OPTION 2 - Alternative Hosting:
+• Upload to YouTube (unlisted) → Share YouTube link in Facebook
+• Use Dropbox with direct download links
+• Use WeTransfer for temporary sharing
+
+OPTION 3 - Video Processing:
+• Compress with HandBrake if file is large
+• Convert to MP4 format for better compatibility
+
+🎯 RECOMMENDATION:
+Download your video and upload directly for best results. Google Drive sharing links work for viewing but not for Facebook's automated video processing.`
             };
           }
           
