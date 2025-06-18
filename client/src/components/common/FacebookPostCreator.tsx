@@ -268,13 +268,13 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                 <Button 
                   variant="outline" 
                   type="button" 
-                  className="h-10 gap-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                  className="h-10 gap-2 bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
                   onClick={() => {
                     form.setValue("mediaType", "video");
                     form.setValue("mediaUrl", "");
                   }}
                 >
-                  🎬 Vimeo Link
+                  🎥 YouTube Link
                 </Button>
               </div>
               
@@ -313,7 +313,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                       <FormLabel>Media URL</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="Paste Vimeo, YouTube, or direct video URL here..."
+                          placeholder="Paste YouTube URL or direct video link here..."
                           {...field}
                         />
                       </FormControl>
@@ -321,15 +321,20 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                         {/* URL Recognition Indicator */}
                         {field.value && (
                           <div className="flex items-center gap-2 p-2 rounded-md bg-gray-50">
-                            {field.value.includes('vimeo.com') ? (
-                              <div className="flex items-center gap-1 text-blue-600">
-                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                                Vimeo URL detected - Professional video hosting with direct access
-                              </div>
-                            ) : field.value.includes('youtube.com') || field.value.includes('youtu.be') ? (
+                            {field.value.includes('youtube.com') || field.value.includes('youtu.be') ? (
                               <div className="flex items-center gap-1 text-red-600">
                                 <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                                YouTube URL detected - Reliable video platform
+                                YouTube URL detected - Native Facebook integration (recommended)
+                              </div>
+                            ) : field.value.includes('vimeo.com') ? (
+                              <div className="flex items-center gap-1 text-blue-600">
+                                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                Vimeo URL detected - Requires download permissions
+                              </div>
+                            ) : field.value.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm|m4v)(\?|$)/i) ? (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                Direct video URL detected - Optimal for Facebook upload
                               </div>
                             ) : field.value.includes('dropbox.com') ? (
                               <div className="flex items-center gap-1 text-amber-600">
@@ -341,11 +346,6 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                                 <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
                                 Google Drive URL detected - May have limitations for large videos
                               </div>
-                            ) : field.value.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm|m4v)(\?|$)/i) ? (
-                              <div className="flex items-center gap-1 text-green-600">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                Direct video URL detected - Optimal for Facebook upload
-                              </div>
                             ) : (
                               <div className="flex items-center gap-1 text-gray-600">
                                 <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
@@ -356,20 +356,20 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                         )}
                         
                         <div className="text-gray-500 space-y-1">
-                          <div><strong>✅ Best:</strong> Vimeo links (professional hosting with direct access)</div>
-                          <div><strong>✅ Good:</strong> YouTube links (reliable platform integration)</div>
+                          <div><strong>✅ Best:</strong> YouTube links (native Facebook integration, no size limits)</div>
+                          <div><strong>✅ Good:</strong> Direct video URLs (website hosting ending in .mp4)</div>
                           <div><strong>⚠️ Limited:</strong> Cloud storage links (access restrictions may apply)</div>
                         </div>
                         
-                        {/* Vimeo Setup Guide */}
+                        {/* YouTube Setup Guide */}
                         {!field.value && (
-                          <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                            <div className="text-blue-700 font-medium mb-1">Vimeo Setup (Recommended):</div>
-                            <div className="text-blue-600 text-xs space-y-1">
-                              <div>1. Upload video to Vimeo (free account works)</div>
-                              <div>2. Set privacy to "Public" or "Unlisted"</div>
-                              <div>3. Enable "Allow downloads" in video settings</div>
-                              <div>4. Copy Vimeo URL (vimeo.com/123456789)</div>
+                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                            <div className="text-red-700 font-medium mb-1">YouTube Setup (Recommended):</div>
+                            <div className="text-red-600 text-xs space-y-1">
+                              <div>1. Upload video to YouTube (free account works)</div>
+                              <div>2. Set privacy to "Public" or "Unlisted" (recommended)</div>
+                              <div>3. Copy YouTube URL (youtube.com/watch?v=VIDEO_ID)</div>
+                              <div>4. Works instantly - no file size limits or setup required</div>
                             </div>
                           </div>
                         )}
@@ -379,9 +379,18 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md">
                             <div className="text-green-700 font-medium mb-1">Alternative Solutions:</div>
                             <div className="text-green-600 text-xs space-y-1">
-                              <div><strong>YouTube:</strong> Upload as unlisted, share URL directly</div>
                               <div><strong>Direct Hosting:</strong> Upload to website (URL ends in .mp4)</div>
+                              <div><strong>Vimeo:</strong> Enable download permissions in settings</div>
                               <div><strong>WeTransfer:</strong> Generate direct download links</div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* YouTube-specific guidance */}
+                        {field.value && (field.value.includes('youtube.com') || field.value.includes('youtu.be')) && (
+                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                            <div className="text-red-700 text-xs">
+                              <strong>YouTube Tip:</strong> Videos work with native Facebook integration. No size limits or conversion needed.
                             </div>
                           </div>
                         )}
