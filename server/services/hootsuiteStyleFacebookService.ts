@@ -336,11 +336,32 @@ export class HootsuiteStyleFacebookService {
         if (isMediaError) {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
           
-          // Import video solutions for detailed guidance
+          // Check if this is a Google Drive access issue based on video URL
+          if (videoUrl.includes('drive.google.com')) {
+            const { GoogleDriveHelper } = await import('./googleDriveHelper');
+            const fileId = GoogleDriveHelper.extractFileId(videoUrl);
+            
+            if (fileId) {
+              // Run comprehensive Google Drive diagnostics
+              const result = await GoogleDriveHelper.findWorkingVideoUrl(videoUrl);
+              
+              if (!result.workingUrl) {
+                // Generate specific Google Drive error message
+                const driveErrorMessage = GoogleDriveHelper.generateErrorMessage(fileId, result.testedUrls);
+                
+                return {
+                  success: false,
+                  error: driveErrorMessage
+                };
+              }
+            }
+          }
+          
+          // Fallback to general video solutions
           const { VideoSolutions } = await import('../utils/videoSolutions');
           
           // Determine error type and get appropriate solution
-          let errorType: 'size' | 'format' | 'access' | 'corrupt' = 'corrupt';
+          let errorType: 'size' | 'format' | 'access' | 'corrupt' = 'access';
           if (data.error?.message?.includes('large') || data.error?.code === 351) {
             errorType = 'size';
           } else if (data.error?.message?.includes('format')) {
@@ -348,7 +369,7 @@ export class HootsuiteStyleFacebookService {
           }
           
           // Get estimated file size for solution recommendations
-          const estimatedSize = processingResult.originalSize || 150; // Default estimate
+          const estimatedSize = processingResult.originalSize || 1; // Use minimal size for access issues
           const sizeMB = estimatedSize / 1024 / 1024;
           
           const detailedSolution = VideoSolutions.createSolutionMessage(sizeMB, errorType);
