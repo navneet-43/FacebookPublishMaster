@@ -108,57 +108,96 @@ export class YouTubeHelper {
       // Create temporary file path
       const tempFilePath = join(tmpdir(), `youtube_${videoId}_${Date.now()}.mp4`);
       
-      // Download video with improved error handling
+      // Download video with robust error handling
       await new Promise<void>((resolve, reject) => {
         const downloadOptions: any = { 
           format: format,
+          begin: 0,
           requestOptions: {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            maxRedirects: 5,
+            timeout: 30000
           }
         };
         
-        const stream = ytdl(originalUrl, downloadOptions);
-        const writeStream = createWriteStream(tempFilePath);
-        
+        let stream;
+        let writeStream;
         let downloadStarted = false;
+        let totalSize = 0;
         
-        stream.pipe(writeStream);
-        
-        stream.on('progress', (chunkLength, downloaded, total) => {
-          downloadStarted = true;
-          const percent = (downloaded / total * 100).toFixed(1);
-          console.log(`📥 DOWNLOAD PROGRESS: ${percent}% - ${(downloaded / 1024 / 1024).toFixed(1)}MB`);
-        });
-        
-        stream.on('response', () => {
-          console.log('📡 Download stream started');
-        });
-        
-        writeStream.on('finish', () => {
-          console.log('✅ YOUTUBE VIDEO DOWNLOADED:', tempFilePath);
-          resolve();
-        });
-        
-        stream.on('error', (error) => {
-          console.error('❌ Download stream error:', error.message);
-          reject(new Error(`YouTube download failed: ${error.message}`));
-        });
-        
-        writeStream.on('error', (error) => {
-          console.error('❌ Write stream error:', error.message);
-          reject(new Error(`File write failed: ${error.message}`));
-        });
-        
-        // Timeout if download doesn't start within 30 seconds
-        setTimeout(() => {
-          if (!downloadStarted) {
-            stream.destroy();
-            writeStream.destroy();
-            reject(new Error('Download timeout - video may be restricted or unavailable'));
-          }
-        }, 30000);
+        try {
+          stream = ytdl(originalUrl, downloadOptions);
+          writeStream = createWriteStream(tempFilePath);
+          
+          stream.pipe(writeStream);
+          
+          stream.on('info', (videoInfo, videoFormat) => {
+            console.log('📡 Download stream initialized');
+            totalSize = parseInt(videoFormat.contentLength || '0');
+            if (totalSize > 0) {
+              console.log(`📊 Video size: ${(totalSize / 1024 / 1024).toFixed(1)}MB`);
+            }
+          });
+          
+          stream.on('progress', (chunkLength, downloaded, total) => {
+            downloadStarted = true;
+            const percent = total > 0 ? (downloaded / total * 100).toFixed(1) : '0';
+            console.log(`📥 DOWNLOAD PROGRESS: ${percent}% - ${(downloaded / 1024 / 1024).toFixed(1)}MB`);
+          });
+          
+          stream.on('response', () => {
+            console.log('📡 Download response received');
+          });
+          
+          writeStream.on('finish', () => {
+            console.log('✅ YOUTUBE VIDEO DOWNLOADED:', tempFilePath);
+            resolve();
+          });
+          
+          stream.on('error', (error) => {
+            console.error('❌ Download stream error:', error.message);
+            
+            // Clean up streams
+            if (writeStream && !writeStream.destroyed) {
+              writeStream.destroy();
+            }
+            
+            // Provide specific error handling for "Could not extract functions"
+            if (error.message.includes('Could not extract functions')) {
+              reject(new Error('YouTube video extraction failed - this video may have restricted access or requires different download methods. Please try a different video or use a direct video hosting service like Dropbox or Vimeo.'));
+            } else {
+              reject(new Error(`YouTube download failed: ${error.message}`));
+            }
+          });
+          
+          writeStream.on('error', (error) => {
+            console.error('❌ Write stream error:', error.message);
+            if (stream && !stream.destroyed) {
+              stream.destroy();
+            }
+            reject(new Error(`File write failed: ${error.message}`));
+          });
+          
+          // Extended timeout for larger videos
+          setTimeout(() => {
+            if (!downloadStarted) {
+              console.log('⏱️ Download timeout - cleaning up streams');
+              if (stream && !stream.destroyed) {
+                stream.destroy();
+              }
+              if (writeStream && !writeStream.destroyed) {
+                writeStream.destroy();
+              }
+              reject(new Error('Download timeout - video may be restricted, too large, or server is busy. Try a shorter video or different hosting service.'));
+            }
+          }, 60000); // Increased to 60 seconds
+          
+        } catch (initError) {
+          console.error('❌ Stream initialization error:', initError);
+          reject(new Error(`Failed to initialize download: ${initError.message}`));
+        }
       });
       
       // Get file size
