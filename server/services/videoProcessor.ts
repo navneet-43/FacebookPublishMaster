@@ -79,6 +79,48 @@ export class VideoProcessor {
         }
       }
       
+      // Handle YouTube URLs (highest priority - native Facebook support)
+      if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        console.log('🎥 PROCESSING YOUTUBE URL for Facebook integration');
+        
+        const { YouTubeHelper } = await import('./youtubeHelper');
+        
+        const videoId = YouTubeHelper.extractVideoId(url);
+        if (!videoId) {
+          throw new Error('Invalid YouTube URL format. Please ensure the URL contains a valid video ID.\n\nSupported formats:\n• youtube.com/watch?v=VIDEO_ID\n• youtu.be/VIDEO_ID');
+        }
+        
+        console.log(`🎥 YOUTUBE VIDEO ID: ${videoId}`);
+        
+        // YouTube URLs work natively with Facebook - no conversion needed
+        const optimizedUrl = YouTubeHelper.normalizeUrl(url);
+        
+        analysisUrl = optimizedUrl;
+        finalSize = 0; // YouTube handles size internally
+        finalContentType = 'video/youtube';
+        
+        finalResponse = {
+          ok: true,
+          headers: {
+            get: (name: string) => {
+              if (name === 'content-type') return 'video/youtube';
+              if (name === 'content-length') return '0';
+              return null;
+            }
+          }
+        } as any;
+        
+        console.log('✅ YOUTUBE URL OPTIMIZED - Native Facebook integration enabled');
+        
+        return {
+          success: true,
+          processedUrl: optimizedUrl,
+          originalSize: 0,
+          processedSize: 0,
+          skipProcessing: true
+        };
+      }
+      
       // Handle Vimeo URLs with early validation
       if (url.includes('vimeo.com')) {
         console.log('🎬 PROCESSING VIMEO URL for Facebook upload');

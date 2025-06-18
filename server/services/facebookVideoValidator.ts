@@ -50,7 +50,7 @@ export class FacebookVideoValidator {
    */
   static async validateForFacebook(videoUrl: string): Promise<{
     isValid: boolean;
-    uploadMethod: 'file_url' | 'resumable' | 'rejected';
+    uploadMethod: 'file_url' | 'resumable' | 'rejected' | 'youtube_native';
     violations: string[];
     recommendations: string[];
     fileSize: number;
@@ -58,6 +58,41 @@ export class FacebookVideoValidator {
     detectedFormat?: string;
   }> {
     console.log('🔍 VALIDATING VIDEO FOR FACEBOOK GRAPH API:', videoUrl);
+    
+    // Handle YouTube URLs with native support
+    if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+      console.log('🎥 YOUTUBE URL DETECTED - Using native Facebook integration');
+      
+      const { YouTubeHelper } = await import('./youtubeHelper');
+      const videoId = YouTubeHelper.extractVideoId(videoUrl);
+      
+      if (!videoId) {
+        return {
+          isValid: false,
+          uploadMethod: 'rejected',
+          violations: ['Invalid YouTube URL format'],
+          recommendations: [
+            'Use standard YouTube URL format: youtube.com/watch?v=VIDEO_ID',
+            'Ensure the URL contains a valid video ID'
+          ],
+          fileSize: 0
+        };
+      }
+      
+      return {
+        isValid: true,
+        uploadMethod: 'youtube_native',
+        violations: [],
+        recommendations: [
+          'YouTube videos work natively with Facebook',
+          'No file size limits - YouTube handles compression',
+          'Instant compatibility with Facebook posting',
+          'Video can be public or unlisted'
+        ],
+        fileSize: 0,
+        detectedFormat: 'YouTube Video'
+      };
+    }
     
     const violations: string[] = [];
     const recommendations: string[] = [];
