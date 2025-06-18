@@ -68,15 +68,25 @@ export class VideoProcessor {
         accessible: response.ok
       });
 
-      // Check if processing is needed
-      const needsProcessing = 
+      // Check if file exceeds Facebook's absolute limit
+      if (size > this.MAX_VIDEO_SIZE) {
+        return {
+          needsProcessing: true,
+          reason: `Video exceeds Facebook's 4GB limit: ${(size / 1024 / 1024 / 1024).toFixed(2)}GB`,
+          estimatedSize: size,
+          contentType: contentType || undefined
+        };
+      }
+
+      // Check if optimization is recommended (but not required)
+      const needsOptimization = 
         size > this.RECOMMENDED_SIZE || 
         !contentType?.includes('video') ||
         (contentType && !this.isOptimalFormat(contentType));
 
       return {
-        needsProcessing,
-        reason: needsProcessing ? this.getProcessingReason(size, contentType) : undefined,
+        needsProcessing: false, // Allow upload but log warnings
+        reason: needsOptimization ? `Large file warning: ${this.getProcessingReason(size, contentType || undefined)}` : undefined,
         estimatedSize: size,
         contentType: contentType || undefined
       };
@@ -125,16 +135,32 @@ export class VideoProcessor {
     try {
       const analysis = await this.analyzeVideo(url);
       
-      if (!analysis.needsProcessing) {
-        console.log('✅ VIDEO OK: No processing needed');
+      // Only block videos that exceed Facebook's 4GB absolute limit
+      if (analysis.needsProcessing && analysis.reason?.includes('4GB limit')) {
+        console.log('❌ VIDEO EXCEEDS 4GB LIMIT');
+        const sizeMB = (analysis.estimatedSize || 0) / 1024 / 1024;
+        const recommendations = this.getProcessingRecommendations(analysis);
+        
         return {
-          success: true,
-          processedUrl: url,
-          skipProcessing: true
+          success: false,
+          error: `Video exceeds Facebook's 4GB limit (${sizeMB.toFixed(1)}MB):\n\n${recommendations}`,
+          originalSize: analysis.estimatedSize
         };
       }
-
-      console.log('🔧 PROCESSING NEEDED:', analysis.reason);
+      
+      // For all other cases, allow upload with optional warnings
+      if (analysis.reason && analysis.reason.includes('Large file warning')) {
+        console.log('⚠️ LARGE VIDEO WARNING:', analysis.reason);
+      } else {
+        console.log('✅ VIDEO READY: Proceeding with upload');
+      }
+      
+      return {
+        success: true,
+        processedUrl: url,
+        skipProcessing: true,
+        originalSize: analysis.estimatedSize
+      };
 
       // Strategy 1: Try optimized URL parameters for Google Drive
       if (url.includes('drive.google.com')) {

@@ -261,10 +261,10 @@ export class HootsuiteStyleFacebookService {
       const processingResult = await VideoProcessor.processVideo(videoUrl);
       
       if (!processingResult.success) {
-        console.log('❌ VIDEO PROCESSING FAILED');
+        console.log('❌ VIDEO EXCEEDS 4GB LIMIT');
         return {
           success: false,
-          error: processingResult.error || 'Video processing failed'
+          error: processingResult.error || 'Video exceeds Facebook\'s 4GB limit'
         };
       }
       
@@ -273,11 +273,10 @@ export class HootsuiteStyleFacebookService {
       if (processingResult.skipProcessing) {
         console.log('✅ VIDEO READY: No processing needed');
       } else {
-        console.log('✅ VIDEO PROCESSED: Ready for Facebook upload');
-        if (processingResult.originalSize && processingResult.processedSize) {
-          const originalMB = (processingResult.originalSize / 1024 / 1024).toFixed(2);
-          const processedMB = (processingResult.processedSize / 1024 / 1024).toFixed(2);
-          console.log(`📊 SIZE OPTIMIZATION: ${originalMB}MB → ${processedMB}MB`);
+        console.log('✅ VIDEO OPTIMIZED: Ready for Facebook upload');
+        if (processingResult.originalSize) {
+          const sizeMB = (processingResult.originalSize / 1024 / 1024).toFixed(2);
+          console.log(`📊 VIDEO SIZE: ${sizeMB}MB (proceeding with upload)`);
         }
       }
       
