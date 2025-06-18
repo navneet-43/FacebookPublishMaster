@@ -253,36 +253,32 @@ export class HootsuiteStyleFacebookService {
    */
   static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const { MediaOptimizer } = await import('./mediaOptimizer');
+      const { VideoProcessor } = await import('./videoProcessor');
       
-      let finalVideoUrl = videoUrl;
+      console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
-      // Optimize Google Drive links
-      if (videoUrl.includes('drive.google.com')) {
-        finalVideoUrl = MediaOptimizer.optimizeGoogleDriveUrl(videoUrl);
-        console.log('Optimized Google Drive link for Facebook video:', finalVideoUrl);
-      }
-
-      // Validate media before attempting upload
-      const mediaInfo = await MediaOptimizer.validateMediaUrl(finalVideoUrl);
-      const strategy = MediaOptimizer.getOptimizationStrategy(mediaInfo, 'video');
+      // Process video for optimal Facebook compatibility
+      const processingResult = await VideoProcessor.processVideo(videoUrl);
       
-      console.log('📋 MEDIA STRATEGY:', strategy);
-      
-      // Handle different strategies
-      if (strategy.strategy === 'fallback') {
-        console.log('❌ MEDIA REJECTED: Video file too large or inaccessible');
+      if (!processingResult.success) {
+        console.log('❌ VIDEO PROCESSING FAILED');
         return {
           success: false,
-          error: `Video upload failed: ${strategy.reason}. ${strategy.recommendation || ''}`
+          error: processingResult.error || 'Video processing failed'
         };
       }
       
-      if (!mediaInfo.isValid) {
-        return {
-          success: false,
-          error: `Media validation failed: ${mediaInfo.error}`
-        };
+      const finalVideoUrl = processingResult.processedUrl || videoUrl;
+      
+      if (processingResult.skipProcessing) {
+        console.log('✅ VIDEO READY: No processing needed');
+      } else {
+        console.log('✅ VIDEO PROCESSED: Ready for Facebook upload');
+        if (processingResult.originalSize && processingResult.processedSize) {
+          const originalMB = (processingResult.originalSize / 1024 / 1024).toFixed(2);
+          const processedMB = (processingResult.processedSize / 1024 / 1024).toFixed(2);
+          console.log(`📊 SIZE OPTIMIZATION: ${originalMB}MB → ${processedMB}MB`);
+        }
       }
       
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
@@ -340,9 +336,27 @@ export class HootsuiteStyleFacebookService {
         
         if (isMediaError) {
           console.log('❌ VIDEO UPLOAD FAILED: Facebook rejected the video file');
+          
+          // Import video solutions for detailed guidance
+          const { VideoSolutions } = await import('../utils/videoSolutions');
+          
+          // Determine error type and get appropriate solution
+          let errorType: 'size' | 'format' | 'access' | 'corrupt' = 'corrupt';
+          if (data.error?.message?.includes('large') || data.error?.code === 351) {
+            errorType = 'size';
+          } else if (data.error?.message?.includes('format')) {
+            errorType = 'format';
+          }
+          
+          // Get estimated file size for solution recommendations
+          const estimatedSize = processingResult.originalSize || 150; // Default estimate
+          const sizeMB = estimatedSize / 1024 / 1024;
+          
+          const detailedSolution = VideoSolutions.createSolutionMessage(sizeMB, errorType);
+          
           return {
             success: false,
-            error: data.error?.message || 'Video upload failed - file may be too large, corrupt, or in unsupported format'
+            error: detailedSolution
           };
         }
         
