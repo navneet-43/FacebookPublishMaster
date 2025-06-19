@@ -2,12 +2,124 @@ import ytdl from '@distube/ytdl-core';
 import { createWriteStream, createReadStream, unlinkSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { spawn } from 'child_process';
 
 /**
  * YouTube video helper for Facebook integration
  * Downloads YouTube videos and uploads them as actual video files
  */
 export class YouTubeHelper {
+  
+  /**
+   * Download and merge high-quality video with audio using FFmpeg
+   */
+  private static async downloadAndMergeVideoAudio(
+    url: string, 
+    videoFormat: any, 
+    audioFormat: any, 
+    videoId: string
+  ): Promise<string | null> {
+    const videoPath = join(tmpdir(), `youtube_video_${videoId}_${Date.now()}.${videoFormat.container}`);
+    const audioPath = join(tmpdir(), `youtube_audio_${videoId}_${Date.now()}.${audioFormat.container}`);
+    const outputPath = join(tmpdir(), `youtube_merged_${videoId}_${Date.now()}.mp4`);
+    
+    try {
+      console.log('📥 DOWNLOADING HIGH-QUALITY VIDEO STREAM...');
+      
+      // Download video stream
+      await new Promise<void>((resolve, reject) => {
+        const videoStream = ytdl(url, { format: videoFormat });
+        const videoWriteStream = createWriteStream(videoPath);
+        
+        videoStream.on('progress', (chunkLength, downloaded, total) => {
+          const percent = ((downloaded / total) * 100).toFixed(1);
+          const sizeMB = (downloaded / 1024 / 1024).toFixed(1);
+          console.log(`📹 VIDEO PROGRESS: ${percent}% - ${sizeMB}MB`);
+        });
+        
+        videoStream.pipe(videoWriteStream);
+        videoWriteStream.on('finish', resolve);
+        videoWriteStream.on('error', reject);
+        videoStream.on('error', reject);
+      });
+      
+      console.log('🎵 DOWNLOADING AUDIO STREAM...');
+      
+      // Download audio stream
+      await new Promise<void>((resolve, reject) => {
+        const audioStream = ytdl(url, { format: audioFormat });
+        const audioWriteStream = createWriteStream(audioPath);
+        
+        audioStream.on('progress', (chunkLength, downloaded, total) => {
+          const percent = ((downloaded / total) * 100).toFixed(1);
+          const sizeMB = (downloaded / 1024 / 1024).toFixed(1);
+          console.log(`🎵 AUDIO PROGRESS: ${percent}% - ${sizeMB}MB`);
+        });
+        
+        audioStream.pipe(audioWriteStream);
+        audioWriteStream.on('finish', resolve);
+        audioWriteStream.on('error', reject);
+        audioStream.on('error', reject);
+      });
+      
+      console.log('🔀 MERGING VIDEO AND AUDIO WITH FFMPEG...');
+      
+      // Merge video and audio using FFmpeg
+      await new Promise<void>((resolve, reject) => {
+        const ffmpeg = spawn('ffmpeg', [
+          '-i', videoPath,
+          '-i', audioPath,
+          '-c:v', 'copy',  // Copy video without re-encoding for speed
+          '-c:a', 'aac',   // Convert audio to AAC for Facebook compatibility
+          '-y',            // Overwrite output file
+          outputPath
+        ]);
+        
+        ffmpeg.stderr.on('data', (data) => {
+          // FFmpeg sends progress info to stderr
+          const output = data.toString();
+          if (output.includes('time=')) {
+            console.log('🔀 MERGE PROGRESS:', output.trim().split('\n').pop());
+          }
+        });
+        
+        ffmpeg.on('close', (code) => {
+          if (code === 0) {
+            console.log('✅ VIDEO+AUDIO MERGE COMPLETED');
+            resolve();
+          } else {
+            reject(new Error(`FFmpeg failed with exit code ${code}`));
+          }
+        });
+        
+        ffmpeg.on('error', reject);
+      });
+      
+      // Clean up temporary files
+      try {
+        unlinkSync(videoPath);
+        unlinkSync(audioPath);
+        console.log('🗑️ TEMP FILES CLEANED');
+      } catch (cleanupError) {
+        console.log('⚠️  Failed to clean temporary files:', cleanupError);
+      }
+      
+      const finalSize = statSync(outputPath).size;
+      console.log(`✅ HIGH-QUALITY MERGE SUCCESS: ${(finalSize / 1024 / 1024).toFixed(1)}MB`);
+      
+      return outputPath;
+      
+    } catch (error) {
+      // Clean up any partial files
+      try {
+        [videoPath, audioPath, outputPath].forEach(path => {
+          try { unlinkSync(path); } catch {}
+        });
+      } catch {}
+      
+      throw error;
+    }
+  }
   
   /**
    * Check if URL is a YouTube link
@@ -153,11 +265,36 @@ export class YouTubeHelper {
         console.log(`    HQV${i+1}. ${quality} | ${size} (requires audio merge)`);
       });
       
+      // NEW: Priority 1 - Try high-quality video+audio merging first
+      if (highQualityVideoOnly.length > 0 && adaptiveAudioFormats.length > 0) {
+        const bestVideo = highQualityVideoOnly[0];
+        const bestAudio = adaptiveAudioFormats[0];
+        
+        console.log(`🎯 ATTEMPTING HIGH-QUALITY MERGE: ${bestVideo.qualityLabel || bestVideo.height + 'p'} video + audio`);
+        
+        // Try to download and merge high quality video+audio
+        try {
+          const mergedPath = await this.downloadAndMergeVideoAudio(originalUrl, bestVideo, bestAudio, videoId);
+          if (mergedPath) {
+            return {
+              filePath: mergedPath,
+              fileSize: statSync(mergedPath).size,
+              quality: bestVideo.qualityLabel || bestVideo.height + 'p',
+              downloadMethod: 'merged_high_quality'
+            };
+          }
+        } catch (mergeError) {
+          console.log(`⚠️  HIGH-QUALITY MERGE FAILED: ${mergeError instanceof Error ? mergeError.message : 'Unknown error'}`);
+          console.log(`📱 FALLING BACK TO COMBINED FORMAT...`);
+        }
+      }
+      
+      // Priority 2: High-quality combined formats (720p+ preferred)
       if (highQualityCombined.length > 0) {
         selectedFormat = highQualityCombined[0];
         selectionMethod = `HIGH-QUALITY COMBINED (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
       }
-      // Priority 2: Any combined format available
+      // Priority 3: Any combined format available
       else if (combinedFormats.length > 0) {
         selectedFormat = combinedFormats[0];
         selectionMethod = `BEST COMBINED (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
@@ -167,7 +304,7 @@ export class YouTubeHelper {
         console.log(`⚠️  QUALITY LIMITATION: YouTube only provides ${maxHeight}p combined video+audio for this video`);
         if (highQualityVideoOnly.length > 0) {
           const maxVideoHeight = Math.max(...highQualityVideoOnly.map(f => parseInt(f.height || '0')));
-          console.log(`ℹ️   Higher quality (${maxVideoHeight}p) is available as video-only but would require audio merging`);
+          console.log(`ℹ️   Higher quality (${maxVideoHeight}p) was available as video-only but merging failed`);
         }
       }
       // Priority 3: Try to use progressive download formats (often better quality)
