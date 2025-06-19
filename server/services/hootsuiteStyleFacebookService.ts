@@ -929,8 +929,8 @@ Google Drive's security policies prevent external applications from downloading 
           data = { error: { message: `Invalid response format: ${responseText}` } };
         }
       } else {
-        console.log('⚠️ Empty response from Facebook API');
-        data = { error: { message: 'Empty response from Facebook' } };
+        console.log('⚠️ Empty response from Facebook API - likely file too large for standard upload');
+        data = { error: { message: 'File too large for standard upload - switching to chunked upload' } };
       }
       
       // Clean up temporary file
@@ -940,6 +940,15 @@ Google Drive's security policies prevent external applications from downloading 
       
       if (!response.ok || data.error) {
         console.error('Facebook video file upload error:', data.error);
+        
+        // If standard upload fails due to size, automatically try chunked upload
+        if (data.error?.message?.includes('too large') || 
+            data.error?.message?.includes('Empty response') ||
+            stats.size > 100 * 1024 * 1024) {
+          console.log('🔄 FALLBACK: Attempting chunked upload for large file');
+          return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+        }
+        
         return {
           success: false,
           error: data.error?.message || `Upload failed: ${response.status}`
