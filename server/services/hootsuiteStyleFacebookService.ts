@@ -281,10 +281,10 @@ export class HootsuiteStyleFacebookService {
       const processingResult = await VideoProcessor.processVideo(videoUrl);
       
       if (!processingResult.success) {
-        console.log('❌ VIDEO EXCEEDS 4GB LIMIT');
+        console.log('❌ VIDEO PROCESSING FAILED:', processingResult.error);
         return {
           success: false,
-          error: processingResult.error || 'Video exceeds Facebook\'s 4GB limit'
+          error: processingResult.error || 'Video processing failed'
         };
       }
       

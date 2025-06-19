@@ -198,12 +198,14 @@ export class VideoSolutions {
     const issues = [];
     const recommendations = [];
     
-    // Size check
-    if (sizeMB > 4000) {
-      issues.push(`File too large: ${sizeMB.toFixed(1)}MB (max: 4GB)`);
+    // Size check - Facebook supports up to 1.75GB for resumable uploads
+    if (sizeMB > 1750) {
+      issues.push(`File too large: ${sizeMB.toFixed(1)}MB (max: 1.75GB for Facebook)`);
       recommendations.push("Split into multiple shorter videos");
+    } else if (sizeMB > 1000) {
+      recommendations.push(`Large file (${sizeMB.toFixed(1)}MB): Will use resumable upload for reliability`);
     } else if (sizeMB > 100) {
-      recommendations.push(`Large file (${sizeMB.toFixed(1)}MB): Consider compressing for better upload success`);
+      recommendations.push(`Medium file (${sizeMB.toFixed(1)}MB): Upload should proceed normally`);
     }
     
     // Format check
