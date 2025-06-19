@@ -1006,83 +1006,36 @@ Google Drive's security policies prevent external applications from downloading 
       
       let bytesUploaded = 0;
       
-      // Read file and upload in properly sized chunks
-      const fileBuffer = await fs.readFile(filePath);
+      // Use Facebook's binary chunk upload approach
+      const fileStream = createReadStream(filePath);
+      let bytesRead = 0;
       
-      // Upload file in 512KB chunks
-      for (let offset = 0; offset < fileBuffer.length; offset += chunkSize) {
-        const chunkData = fileBuffer.slice(offset, Math.min(offset + chunkSize, fileBuffer.length));
-        const startOffset = offset;
-        
-        const uploadData = new URLSearchParams();
-        uploadData.append('upload_phase', 'transfer');
-        uploadData.append('upload_session_id', uploadSessionId);
-        uploadData.append('start_offset', startOffset.toString());
-        uploadData.append('video_file_chunk', chunkData.toString('base64'));
-        uploadData.append('access_token', pageAccessToken);
-        
-        const uploadResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: uploadData.toString()
-        });
-        
-        let uploadResult: any = {};
-        
-        // Handle empty responses from Facebook API during resumable uploads
-        const responseText = await uploadResponse.text();
-        if (responseText.trim()) {
-          try {
-            uploadResult = JSON.parse(responseText);
-          } catch (parseError) {
-            console.log('⚠️ Non-JSON response from Facebook:', responseText);
-            uploadResult = { success: uploadResponse.ok };
+      for await (const chunk of fileStream) {
+        if (chunk.length > chunkSize) {
+          // Split oversized chunks
+          for (let i = 0; i < chunk.length; i += chunkSize) {
+            const subChunk = chunk.slice(i, Math.min(i + chunkSize, chunk.length));
+            await this.uploadChunk(pageId, pageAccessToken, uploadSessionId, subChunk, bytesRead + i);
           }
+          bytesRead += chunk.length;
         } else {
-          console.log('✅ Empty response from Facebook (normal for resumable uploads)');
-          uploadResult = { success: uploadResponse.ok };
+          await this.uploadChunk(pageId, pageAccessToken, uploadSessionId, chunk, bytesRead);
+          bytesRead += chunk.length;
         }
         
-        if (!uploadResponse.ok || uploadResult.error) {
-          throw new Error(`Chunk upload failed: ${uploadResult.error?.message || `HTTP ${uploadResponse.status}`}`);
-        }
-        
-        bytesUploaded += chunkData.length;
-        const progress = (bytesUploaded / fileSize * 100).toFixed(1);
-        console.log(`📤 UPLOAD PROGRESS: ${progress}% (${bytesUploaded}/${fileSize} bytes)`);
+        const progress = (bytesRead / fileSize * 100).toFixed(1);
+        console.log(`📤 UPLOAD PROGRESS: ${progress}% (${bytesRead}/${fileSize} bytes)`);
       }
+      
+      console.log('✅ All chunks uploaded successfully');
       
       // Step 3: Finalize upload
       const finalizeData = new URLSearchParams();
       finalizeData.append('upload_phase', 'finish');
       finalizeData.append('upload_session_id', uploadSessionId);
       finalizeData.append('access_token', pageAccessToken);
-      finalizeData.append('published', 'true');
       
-      if (description) {
-        finalizeData.append('description', description);
-      }
-      
-      // Add custom labels for Meta Insights tracking
-      if (customLabels && customLabels.length > 0) {
-        const labelArray = customLabels
-          .map(label => label.toString().trim())
-          .filter(label => label.length > 0 && label.length <= 25)
-          .slice(0, 10);
-        
-        if (labelArray.length > 0) {
-          finalizeData.append('custom_labels', JSON.stringify(labelArray));
-          console.log('✅ META INSIGHTS: Adding custom labels to resumable video upload:', labelArray);
-        }
-      }
-      
-      if (language) {
-        finalizeData.append('locale', language);
-      }
-      
-      const finalizeResponse = await fetch(initEndpoint, {
+      const finalizeResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -1090,36 +1043,97 @@ Google Drive's security policies prevent external applications from downloading 
         body: finalizeData.toString()
       });
       
-      const finalResult = await finalizeResponse.json() as any;
+      const finalizeResult = await finalizeResponse.json() as any;
       
-      // Clean up temporary file
-      if (cleanup) {
-        cleanup();
+      if (!finalizeResponse.ok || finalizeResult.error) {
+        throw new Error(`Upload finalization failed: ${finalizeResult.error?.message || 'Unknown error'}`);
       }
       
-      if (!finalizeResponse.ok || finalResult.error) {
-        throw new Error(`Upload finalization failed: ${finalResult.error?.message || 'Unknown error'}`);
-      }
+      const videoId = finalizeResult.video_id || sessionId;
+      console.log('✅ RESUMABLE UPLOAD COMPLETED:', videoId);
       
-      console.log('✅ RESUMABLE FILE UPLOAD COMPLETED:', finalResult.id || sessionId);
+      // Step 4: Publish the video with content
+      const publishData = new URLSearchParams();
+      publishData.append('published', 'true');
+      publishData.append('privacy', JSON.stringify({ value: 'EVERYONE' }));
+      if (description) {
+        publishData.append('description', description);
+      }
+      if (customLabels && customLabels.length > 0) {
+        publishData.append('custom_labels', JSON.stringify(customLabels.slice(0, 10)));
+      }
+      if (language) {
+        publishData.append('locale', language);
+      }
+      publishData.append('access_token', pageAccessToken);
+      
+      const publishResponse = await fetch(`https://graph.facebook.com/v18.0/${videoId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: publishData.toString()
+      });
+      
+      const publishResult = await publishResponse.json() as any;
+      
+      if (!publishResponse.ok || publishResult.error) {
+        throw new Error(`Video publication failed: ${publishResult.error?.message || 'Unknown error'}`);
+      }
       
       return {
         success: true,
-        postId: finalResult.id || sessionId
+        postId: publishResult.id || videoId,
+        error: undefined
       };
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ RESUMABLE FILE UPLOAD FAILED:', error);
+      throw error;
+    } finally {
+      if (cleanup) cleanup();
+    }
+  }
+
+  /**
+   * Upload a single chunk using Facebook's binary upload method
+   */
+  private static async uploadChunk(pageId: string, pageAccessToken: string, uploadSessionId: string, chunkData: Buffer, startOffset: number): Promise<void> {
+    const uploadData = new FormData();
+    uploadData.append('upload_phase', 'transfer');
+    uploadData.append('upload_session_id', uploadSessionId);
+    uploadData.append('start_offset', startOffset.toString());
+    uploadData.append('video_file_chunk', chunkData, {
+      filename: 'chunk.bin',
+      contentType: 'application/octet-stream'
+    });
+    uploadData.append('access_token', pageAccessToken);
+    
+    const uploadResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
+      method: 'POST',
+      body: uploadData
+    });
+    
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Chunk upload failed: HTTP ${uploadResponse.status} - ${errorText}`);
+    }
+  }
+
+  static async getPagePermissions(pageId: string, pageAccessToken: string): Promise<string[]> {
+    try {
+      const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}?fields=perms&access_token=${pageAccessToken}`);
+      const result = await response.json() as any;
       
-      // Clean up temporary file on error
-      if (cleanup) {
-        cleanup();
+      if (!response.ok || result.error) {
+        console.error('Failed to get page permissions:', result.error?.message || 'Unknown error');
+        return [];
       }
       
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Resumable file upload failed'
-      };
+      return result.perms || [];
+    } catch (error) {
+      console.error('Error getting page permissions:', error);
+      return [];
     }
   }
 }
