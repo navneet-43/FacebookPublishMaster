@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import { storage } from '../storage';
-import { createReadStream, statSync } from 'fs';
+import { createReadStream, statSync, promises as fs } from 'fs';
 import FormData from 'form-data';
 
 interface FacebookPageInfo {
@@ -1003,45 +1003,27 @@ Google Drive's security policies prevent external applications from downloading 
       
       // Step 2: Upload file in chunks
       const chunkSize = 512 * 1024; // 512KB chunks (Facebook resumable upload limit)
-      const fileStream = createReadStream(filePath);
       
       let bytesUploaded = 0;
-      const chunks: Buffer[] = [];
       
-      // Read file into chunks
-      await new Promise<void>((resolve, reject) => {
-        fileStream.on('data', (chunk: Buffer) => {
-          chunks.push(chunk);
-        });
-        
-        fileStream.on('end', () => {
-          resolve();
-        });
-        
-        fileStream.on('error', (error) => {
-          reject(error);
-        });
-      });
+      // Read file and upload in properly sized chunks
+      const fileBuffer = await fs.readFile(filePath);
       
-      // Upload each chunk
-      for (let i = 0; i < chunks.length; i += chunkSize) {
-        const chunkData = Buffer.concat(chunks.slice(i, Math.min(i + chunkSize, chunks.length)));
-        const startOffset = bytesUploaded;
-        const endOffset = bytesUploaded + chunkData.length - 1;
+      // Upload file in 512KB chunks
+      for (let offset = 0; offset < fileBuffer.length; offset += chunkSize) {
+        const chunkData = fileBuffer.slice(offset, Math.min(offset + chunkSize, fileBuffer.length));
+        const startOffset = offset;
         
-        const uploadData = new URLSearchParams();
+        const uploadData = new FormData();
         uploadData.append('upload_phase', 'transfer');
         uploadData.append('upload_session_id', uploadSessionId);
         uploadData.append('start_offset', startOffset.toString());
-        uploadData.append('video_file_chunk', chunkData.toString('base64'));
+        uploadData.append('video_file_chunk', chunkData);
         uploadData.append('access_token', pageAccessToken);
         
         const uploadResponse = await fetch(initEndpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: uploadData.toString()
+          body: uploadData
         });
         
         let uploadResult: any = {};
