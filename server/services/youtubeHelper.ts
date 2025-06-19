@@ -276,11 +276,24 @@ export class YouTubeHelper {
         try {
           const mergedPath = await this.downloadAndMergeVideoAudio(originalUrl, bestVideo, bestAudio, videoId);
           if (mergedPath) {
+            const fileSize = statSync(mergedPath).size;
+            console.log(`✅ HIGH-QUALITY MERGE COMPLETE: ${(fileSize / 1024 / 1024).toFixed(1)}MB`);
             return {
               filePath: mergedPath,
-              fileSize: statSync(mergedPath).size,
-              quality: bestVideo.qualityLabel || bestVideo.height + 'p',
-              downloadMethod: 'merged_high_quality'
+              size: fileSize,
+              contentType: 'video/mp4',
+              verified: true,
+              videoId: videoId,
+              method: 'youtube_download',
+              isValid: true,
+              cleanup: () => {
+                try {
+                  unlinkSync(mergedPath);
+                  console.log('🗑️ HIGH-QUALITY MERGED FILE CLEANED');
+                } catch (error) {
+                  console.log('⚠️ Failed to clean merged file:', error);
+                }
+              }
             };
           }
         } catch (mergeError) {
