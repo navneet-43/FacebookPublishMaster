@@ -67,7 +67,14 @@ export class VideoProcessor {
             contentType: 'video/mp4'
           };
         } catch (error) {
-          throw new Error(`YouTube video access error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.log('⚠️ YouTube access restricted - will use link sharing fallback');
+          // Return skip processing to trigger fallback link sharing
+          return {
+            needsProcessing: false,
+            skipProcessing: true,
+            reason: 'YouTube access temporarily restricted - using link sharing',
+            fallbackMethod: 'link_sharing'
+          };
         }
       }
       
