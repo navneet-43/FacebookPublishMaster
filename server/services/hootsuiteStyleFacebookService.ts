@@ -873,11 +873,8 @@ Google Drive's security policies prevent external applications from downloading 
       
       console.log(`📊 FILE SIZE: ${fileSizeMB.toFixed(2)}MB`);
       
-      // Use resumable upload for files larger than 50MB
-      if (stats.size > 50 * 1024 * 1024) {
-        console.log('🚀 Using resumable upload for large file');
-        return await this.uploadLargeVideoFileResumable(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
-      }
+      // Use standard upload for all files - Facebook's standard API handles large files efficiently
+      console.log('📤 Using optimized standard upload for video file');
       
       // Use standard multipart upload for smaller files
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
@@ -915,7 +912,21 @@ Google Drive's security policies prevent external applications from downloading 
         body: formData
       });
       
-      const data = await response.json() as any;
+      let data: any = {};
+      
+      // Handle empty or malformed responses from Facebook API
+      const responseText = await response.text();
+      if (responseText.trim()) {
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.log('⚠️ Non-JSON response from Facebook:', responseText);
+          data = { error: { message: `Invalid response format: ${responseText}` } };
+        }
+      } else {
+        console.log('⚠️ Empty response from Facebook API');
+        data = { error: { message: 'Empty response from Facebook' } };
+      }
       
       // Clean up temporary file
       if (cleanup) {
