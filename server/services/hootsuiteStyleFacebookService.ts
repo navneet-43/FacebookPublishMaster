@@ -257,7 +257,20 @@ export class HootsuiteStyleFacebookService {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
-      // Validate against Facebook Graph API requirements
+      // Handle YouTube access limitations first (before any processing)
+      if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be/')) {
+        console.log('🔗 YOUTUBE URL DETECTED: Bypassing validation due to access limitations');
+        console.log('⚠️ Using Facebook text post with link while YouTube access is restricted');
+        
+        // Post as text content with YouTube link (most reliable method during access issues)
+        const textContent = description ? 
+          `${description}\n\nWatch video: ${videoUrl}` : 
+          `${videoUrl}`;
+        
+        return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+      }
+
+      // Validate against Facebook Graph API requirements for non-YouTube videos
       const { FacebookVideoValidator } = await import('./facebookVideoValidator');
       const fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
       
@@ -276,12 +289,23 @@ export class HootsuiteStyleFacebookService {
       const forcedUploadMethod = fbValidation.uploadMethod;
       
       const { VideoProcessor } = await import('./videoProcessor');
-      
+
       // Process video for optimal Facebook compatibility
       const processingResult = await VideoProcessor.processVideo(videoUrl);
       
       if (!processingResult.success) {
         console.log('❌ VIDEO PROCESSING FAILED:', processingResult.error);
+        
+        // If processing fails, try posting as link
+        if (videoUrl.startsWith('http')) {
+          console.log('🔗 FALLBACK: Posting video URL as link');
+          const textContent = description ? 
+            `${description}\n\nWatch video: ${videoUrl}` : 
+            `${videoUrl}`;
+          
+          return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+        }
+        
         return {
           success: false,
           error: processingResult.error || 'Video processing failed'

@@ -59,9 +59,9 @@ export class FacebookVideoValidator {
   }> {
     console.log('🔍 VALIDATING VIDEO FOR FACEBOOK GRAPH API:', videoUrl);
     
-    // Handle YouTube URLs with native support
+    // Handle YouTube URLs with access limitation support
     if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
-      console.log('🎥 YOUTUBE URL DETECTED - Using native Facebook integration');
+      console.log('🎥 YOUTUBE URL DETECTED - Checking access status');
       
       const { YouTubeHelper } = await import('./youtubeHelper');
       const videoId = YouTubeHelper.extractVideoId(videoUrl);
@@ -79,15 +79,17 @@ export class FacebookVideoValidator {
         };
       }
       
+      // Always pass validation for YouTube URLs - let the publishing service handle access issues
+      console.log('✅ YOUTUBE VALIDATION PASSED - Will handle access limitations during publishing');
+      
       return {
         isValid: true,
         uploadMethod: 'youtube_native',
         violations: [],
         recommendations: [
-          'YouTube videos work natively with Facebook',
-          'No file size limits - YouTube handles compression',
-          'Instant compatibility with Facebook posting',
-          'Video can be public or unlisted'
+          'YouTube URL validated - will use optimal posting method available',
+          'Fallback to link sharing if video download is restricted',
+          'Facebook will generate video preview automatically'
         ],
         fileSize: 0,
         detectedFormat: 'YouTube Video'
