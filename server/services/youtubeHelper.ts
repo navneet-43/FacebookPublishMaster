@@ -71,6 +71,7 @@ export class YouTubeHelper {
       console.log('🔍 Fetching YouTube video info...');
       const info = await ytdl.getInfo(originalUrl);
       console.log('🔍 YOUTUBE VIDEO INFO:', info.videoDetails.title);
+      console.log('🔍 VIDEO ORIGINAL RESOLUTION:', info.videoDetails.viewCount ? 'View count available' : 'Limited info');
       
       // Find best available format with fallback options
       let format;
@@ -79,11 +80,24 @@ export class YouTubeHelper {
       console.log('🔍 ANALYZING ALL AVAILABLE FORMATS...');
       
       // Log all formats first for transparency
+      console.log(`📊 TOTAL FORMATS FOUND: ${info.formats.length}`);
       info.formats.forEach((f, index) => {
         const size = f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'unknown';
         const type = f.hasVideo && f.hasAudio ? 'V+A' : f.hasVideo ? 'V' : f.hasAudio ? 'A' : '?';
-        const quality = f.qualityLabel || f.height + 'p' || 'unknown';
-        console.log(`  ${index + 1}. ${quality} | ${f.container || 'unknown'} | ${type} | ${size}`);
+        const quality = f.qualityLabel || (f.height ? f.height + 'p' : 'unknown');
+        const fps = f.fps ? ` (${f.fps}fps)` : '';
+        const bitrate = f.bitrate ? ` - ${Math.round(f.bitrate/1000)}kbps` : '';
+        console.log(`  ${index + 1}. ${quality}${fps} | ${f.container || 'unknown'} | ${type} | ${size}${bitrate}`);
+      });
+      
+      // Show video-only formats (these are often higher quality)
+      const videoOnlyFormats = info.formats.filter(f => f.hasVideo && !f.hasAudio);
+      console.log(`📊 VIDEO-ONLY FORMATS: ${videoOnlyFormats.length}`);
+      videoOnlyFormats.forEach((f, index) => {
+        const quality = f.qualityLabel || (f.height ? f.height + 'p' : 'unknown');
+        const size = f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'unknown';
+        const fps = f.fps ? ` (${f.fps}fps)` : '';
+        console.log(`  V${index + 1}. ${quality}${fps} | ${f.container || 'unknown'} | VIDEO-ONLY | ${size}`);
       });
       
       // Strategy 1: Look for adaptive formats with separate video and audio (often highest quality)
@@ -119,6 +133,26 @@ export class YouTubeHelper {
         return height >= 720; // 720p or higher
       });
       
+      console.log(`🎯 HIGH-QUALITY COMBINED (720p+): ${highQualityCombined.length} found`);
+      highQualityCombined.forEach((f, i) => {
+        const quality = f.qualityLabel || f.height + 'p';
+        const size = f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'unknown';
+        console.log(`    HQ${i+1}. ${quality} | ${size}`);
+      });
+      
+      // Check if video-only high quality formats exist
+      const highQualityVideoOnly = videoOnlyFormats.filter(f => {
+        const height = parseInt(f.height || '0');
+        return height >= 720;
+      });
+      
+      console.log(`🎯 HIGH-QUALITY VIDEO-ONLY (720p+): ${highQualityVideoOnly.length} found`);
+      highQualityVideoOnly.forEach((f, i) => {
+        const quality = f.qualityLabel || f.height + 'p';
+        const size = f.contentLength ? (parseInt(f.contentLength) / 1024 / 1024).toFixed(1) + 'MB' : 'unknown';
+        console.log(`    HQV${i+1}. ${quality} | ${size} (requires audio merge)`);
+      });
+      
       if (highQualityCombined.length > 0) {
         selectedFormat = highQualityCombined[0];
         selectionMethod = `HIGH-QUALITY COMBINED (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
@@ -127,6 +161,14 @@ export class YouTubeHelper {
       else if (combinedFormats.length > 0) {
         selectedFormat = combinedFormats[0];
         selectionMethod = `BEST COMBINED (${selectedFormat.qualityLabel || selectedFormat.height + 'p'})`;
+        
+        // Show what the limitation is
+        const maxHeight = Math.max(...combinedFormats.map(f => parseInt(f.height || '0')));
+        console.log(`⚠️  QUALITY LIMITATION: YouTube only provides ${maxHeight}p combined video+audio for this video`);
+        if (highQualityVideoOnly.length > 0) {
+          const maxVideoHeight = Math.max(...highQualityVideoOnly.map(f => parseInt(f.height || '0')));
+          console.log(`ℹ️   Higher quality (${maxVideoHeight}p) is available as video-only but would require audio merging`);
+        }
       }
       // Priority 3: Try to use progressive download formats (often better quality)
       else {
