@@ -1002,7 +1002,7 @@ Google Drive's security policies prevent external applications from downloading 
       console.log('✅ RESUMABLE UPLOAD: Session initialized:', sessionId);
       
       // Step 2: Upload file in chunks
-      const chunkSize = 4 * 1024 * 1024; // 4MB chunks (reduced for Facebook API compatibility)
+      const chunkSize = 512 * 1024; // 512KB chunks (Facebook resumable upload limit)
       const fileStream = createReadStream(filePath);
       
       let bytesUploaded = 0;
