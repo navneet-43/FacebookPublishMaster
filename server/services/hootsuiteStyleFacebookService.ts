@@ -1031,10 +1031,24 @@ Google Drive's security policies prevent external applications from downloading 
           body: uploadData.toString()
         });
         
-        const uploadResult = await uploadResponse.json() as any;
+        let uploadResult: any = {};
+        
+        // Handle empty responses from Facebook API during resumable uploads
+        const responseText = await uploadResponse.text();
+        if (responseText.trim()) {
+          try {
+            uploadResult = JSON.parse(responseText);
+          } catch (parseError) {
+            console.log('⚠️ Non-JSON response from Facebook:', responseText);
+            uploadResult = { success: uploadResponse.ok };
+          }
+        } else {
+          console.log('✅ Empty response from Facebook (normal for resumable uploads)');
+          uploadResult = { success: uploadResponse.ok };
+        }
         
         if (!uploadResponse.ok || uploadResult.error) {
-          throw new Error(`Chunk upload failed: ${uploadResult.error?.message || 'Unknown error'}`);
+          throw new Error(`Chunk upload failed: ${uploadResult.error?.message || `HTTP ${uploadResponse.status}`}`);
         }
         
         bytesUploaded += chunkData.length;
