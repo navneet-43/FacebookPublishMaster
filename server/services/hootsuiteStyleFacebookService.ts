@@ -873,8 +873,13 @@ Google Drive's security policies prevent external applications from downloading 
       
       console.log(`📊 FILE SIZE: ${fileSizeMB.toFixed(2)}MB`);
       
-      // Use standard upload for all files - Facebook's standard API handles large files efficiently
-      console.log('📤 Using optimized standard upload for video file');
+      // Use chunked upload for files larger than 100MB to avoid Facebook API limits
+      if (stats.size > 100 * 1024 * 1024) {
+        console.log('🚀 Using chunked upload for large file (>100MB)');
+        return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+      } else {
+        console.log('📤 Using standard upload for normal file');
+      }
       
       // Use standard multipart upload for smaller files
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
@@ -958,6 +963,170 @@ Google Drive's security policies prevent external applications from downloading 
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Video file upload failed'
+      };
+    }
+  }
+
+  /**
+   * Upload large video file using simplified chunked approach (for downloaded YouTube videos)
+   */
+  static async uploadLargeVideoFileChunked(pageId: string, pageAccessToken: string, filePath: string, description?: string, customLabels?: string[], language?: string, cleanup?: () => void): Promise<{success: boolean, postId?: string, error?: string}> {
+    try {
+      console.log('🚀 CHUNKED UPLOAD: Starting large video file upload');
+      
+      // For very large files, use Facebook's simplified upload approach
+      // Split the file into smaller chunks and upload sequentially
+      
+      const stats = statSync(filePath);
+      const fileSize = stats.size;
+      const chunkSize = 50 * 1024 * 1024; // 50MB chunks
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+      
+      console.log(`📊 CHUNKED UPLOAD: File size: ${(fileSize / (1024 * 1024)).toFixed(2)}MB, Chunks: ${totalChunks}`);
+      
+      // Initialize upload session
+      const initEndpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const initFormData = new FormData();
+      initFormData.append('upload_phase', 'start');
+      initFormData.append('file_size', fileSize.toString());
+      initFormData.append('access_token', pageAccessToken);
+      
+      const initResponse = await fetch(initEndpoint, {
+        method: 'POST',
+        body: initFormData
+      });
+      
+      const initData = await initResponse.json() as any;
+      
+      if (!initResponse.ok || initData.error) {
+        console.error('❌ CHUNKED UPLOAD: Failed to initialize session:', initData.error);
+        if (cleanup) cleanup();
+        return {
+          success: false,
+          error: initData.error?.message || 'Failed to initialize upload session'
+        };
+      }
+      
+      const uploadSessionId = initData.upload_session_id;
+      console.log(`✅ CHUNKED UPLOAD: Session initialized: ${uploadSessionId}`);
+      
+      // Upload chunks
+      const fileStream = createReadStream(filePath);
+      let uploadedBytes = 0;
+      
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * chunkSize;
+        const end = Math.min(start + chunkSize, fileSize);
+        const chunkSizeCurrent = end - start;
+        
+        console.log(`📤 CHUNKED UPLOAD: Chunk ${chunkIndex + 1}/${totalChunks} (${(chunkSizeCurrent / (1024 * 1024)).toFixed(2)}MB)`);
+        
+        // Read chunk data
+        const chunkBuffer = Buffer.alloc(chunkSizeCurrent);
+        const fd = await new Promise<number>((resolve, reject) => {
+          require('fs').open(filePath, 'r', (err: any, fd: number) => {
+            if (err) reject(err);
+            else resolve(fd);
+          });
+        });
+        
+        await new Promise<void>((resolve, reject) => {
+          require('fs').read(fd, chunkBuffer, 0, chunkSizeCurrent, start, (err: any) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        
+        require('fs').closeSync(fd);
+        
+        // Upload chunk
+        const chunkFormData = new FormData();
+        chunkFormData.append('upload_phase', 'transfer');
+        chunkFormData.append('upload_session_id', uploadSessionId);
+        chunkFormData.append('start_offset', uploadedBytes.toString());
+        chunkFormData.append('video_file_chunk', chunkBuffer, {
+          filename: `chunk_${chunkIndex}`,
+          contentType: 'application/octet-stream'
+        });
+        chunkFormData.append('access_token', pageAccessToken);
+        
+        const chunkResponse = await fetch(initEndpoint, {
+          method: 'POST',
+          body: chunkFormData
+        });
+        
+        if (!chunkResponse.ok) {
+          console.error(`❌ CHUNKED UPLOAD: Chunk ${chunkIndex + 1} failed:`, chunkResponse.status);
+          if (cleanup) cleanup();
+          return {
+            success: false,
+            error: `Chunk upload failed: ${chunkResponse.status}`
+          };
+        }
+        
+        uploadedBytes += chunkSizeCurrent;
+        console.log(`✅ CHUNKED UPLOAD: Chunk ${chunkIndex + 1} uploaded (${(uploadedBytes / (1024 * 1024)).toFixed(2)}MB total)`);
+      }
+      
+      // Finalize upload
+      const finalFormData = new FormData();
+      finalFormData.append('upload_phase', 'finish');
+      finalFormData.append('upload_session_id', uploadSessionId);
+      finalFormData.append('access_token', pageAccessToken);
+      finalFormData.append('published', 'true');
+      
+      if (description) {
+        finalFormData.append('description', description);
+      }
+      
+      // Add custom labels for Meta Insights tracking
+      if (customLabels && customLabels.length > 0) {
+        const labelArray = customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25)
+          .slice(0, 10);
+        
+        if (labelArray.length > 0) {
+          finalFormData.append('custom_labels', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Adding custom labels to chunked video upload:', labelArray);
+        }
+      }
+      
+      if (language) {
+        finalFormData.append('locale', language);
+      }
+      
+      const finalResponse = await fetch(initEndpoint, {
+        method: 'POST',
+        body: finalFormData
+      });
+      
+      const finalData = await finalResponse.json() as any;
+      
+      if (cleanup) cleanup();
+      
+      if (!finalResponse.ok || finalData.error) {
+        console.error('❌ CHUNKED UPLOAD: Failed to finalize:', finalData.error);
+        return {
+          success: false,
+          error: finalData.error?.message || 'Failed to finalize upload'
+        };
+      }
+      
+      console.log('✅ CHUNKED UPLOAD: Video uploaded successfully:', finalData.id);
+      return {
+        success: true,
+        postId: finalData.id
+      };
+      
+    } catch (error) {
+      console.error('❌ CHUNKED UPLOAD ERROR:', error);
+      
+      if (cleanup) cleanup();
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Chunked upload failed'
       };
     }
   }
