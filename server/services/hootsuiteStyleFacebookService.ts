@@ -977,10 +977,23 @@ Google Drive's security policies prevent external applications from downloading 
         body: initData.toString()
       });
       
-      const initResult = await initResponse.json() as any;
+      let initResult: any = {};
+      
+      // Handle empty responses from Facebook API during initialization
+      const initResponseText = await initResponse.text();
+      if (initResponseText.trim()) {
+        try {
+          initResult = JSON.parse(initResponseText);
+        } catch (parseError) {
+          console.log('❌ Non-JSON response from Facebook init:', initResponseText);
+          throw new Error(`Invalid response from Facebook: ${initResponseText}`);
+        }
+      } else {
+        throw new Error('Empty response from Facebook during upload initialization');
+      }
       
       if (!initResponse.ok || initResult.error) {
-        throw new Error(`Upload initialization failed: ${initResult.error?.message || 'Unknown error'}`);
+        throw new Error(`Upload initialization failed: ${initResult.error?.message || `HTTP ${initResponse.status}`}`);
       }
       
       const sessionId = initResult.video_id;
@@ -989,7 +1002,7 @@ Google Drive's security policies prevent external applications from downloading 
       console.log('✅ RESUMABLE UPLOAD: Session initialized:', sessionId);
       
       // Step 2: Upload file in chunks
-      const chunkSize = 8 * 1024 * 1024; // 8MB chunks
+      const chunkSize = 4 * 1024 * 1024; // 4MB chunks (reduced for Facebook API compatibility)
       const fileStream = createReadStream(filePath);
       
       let bytesUploaded = 0;
