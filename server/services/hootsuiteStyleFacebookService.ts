@@ -257,17 +257,44 @@ export class HootsuiteStyleFacebookService {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
-      // Handle YouTube access limitations first (before any processing)
+      // Handle YouTube URLs with video download processing
       if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be/')) {
-        console.log('🔗 YOUTUBE URL DETECTED: Bypassing validation due to access limitations');
-        console.log('⚠️ Using Facebook text post with link while YouTube access is restricted');
+        console.log('🎥 YOUTUBE URL DETECTED: Attempting video download and upload');
         
-        // Post as text content with YouTube link (most reliable method during access issues)
-        const textContent = description ? 
-          `${description}\n\nWatch video: ${videoUrl}` : 
-          `${videoUrl}`;
-        
-        return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+        try {
+          // Try direct YouTube video processing first
+          const { VideoProcessor } = await import('./videoProcessor');
+          const processingResult = await VideoProcessor.processVideo(videoUrl);
+          
+          if (processingResult.success && processingResult.filePath) {
+            console.log('✅ YOUTUBE VIDEO DOWNLOADED: Processing for Facebook upload');
+            
+            const cleanup = () => {
+              if (processingResult.filePath && require('fs').existsSync(processingResult.filePath)) {
+                require('fs').unlinkSync(processingResult.filePath);
+                console.log('🗑️ HIGH-QUALITY VIDEO FILE CLEANED');
+              }
+            };
+            
+            return await this.uploadVideoFile(pageId, pageAccessToken, processingResult.filePath, description, customLabels, language, cleanup);
+          } else {
+            console.log('⚠️ YouTube processing failed, using link fallback');
+            // Fallback to link sharing
+            const textContent = description ? 
+              `${description}\n\nWatch video: ${videoUrl}` : 
+              `${videoUrl}`;
+            
+            return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+          }
+        } catch (error) {
+          console.log('⚠️ YouTube access error, using link fallback:', error);
+          // Fallback to link sharing
+          const textContent = description ? 
+            `${description}\n\nWatch video: ${videoUrl}` : 
+            `${videoUrl}`;
+          
+          return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+        }
       }
 
       // Validate against Facebook Graph API requirements for non-YouTube videos
