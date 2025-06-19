@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import { storage } from '../storage';
-import { createReadStream, statSync, promises as fs } from 'fs';
+import { createReadStream, statSync, promises as fs, existsSync, unlinkSync, openSync, readSync, closeSync } from 'fs';
 import FormData from 'form-data';
 
 interface FacebookPageInfo {
@@ -270,8 +270,8 @@ export class HootsuiteStyleFacebookService {
             console.log('✅ YOUTUBE VIDEO DOWNLOADED: Processing for Facebook upload');
             
             const cleanup = () => {
-              if (processingResult.filePath && require('fs').existsSync(processingResult.filePath)) {
-                require('fs').unlinkSync(processingResult.filePath);
+              if (processingResult.filePath && existsSync(processingResult.filePath)) {
+                unlinkSync(processingResult.filePath);
                 console.log('🗑️ HIGH-QUALITY VIDEO FILE CLEANED');
               }
             };
@@ -1083,21 +1083,9 @@ Google Drive's security policies prevent external applications from downloading 
         
         // Read chunk data
         const chunkBuffer = Buffer.alloc(chunkSizeCurrent);
-        const fd = await new Promise<number>((resolve, reject) => {
-          require('fs').open(filePath, 'r', (err: any, fd: number) => {
-            if (err) reject(err);
-            else resolve(fd);
-          });
-        });
-        
-        await new Promise<void>((resolve, reject) => {
-          require('fs').read(fd, chunkBuffer, 0, chunkSizeCurrent, start, (err: any) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-        
-        require('fs').closeSync(fd);
+        const fd = openSync(filePath, 'r');
+        readSync(fd, chunkBuffer, 0, chunkSizeCurrent, start);
+        closeSync(fd);
         
         // Upload chunk
         const chunkFormData = new FormData();

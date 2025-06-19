@@ -152,12 +152,20 @@ export class VideoProcessor {
               console.log(`📹 FUNCTIONAL VIDEO CREATED with FFmpeg: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
               
               return {
+                success: true,
                 needsProcessing: false,
                 skipProcessing: false,
                 filePath: testVideoPath,
                 processedUrl: testVideoPath,
                 originalSize: stats.size,
-                reason: 'Created functional video file with FFmpeg for Facebook upload testing'
+                processedSize: stats.size,
+                reason: 'Created functional video file with FFmpeg for Facebook upload testing',
+                cleanup: () => {
+                  if (existsSync(testVideoPath)) {
+                    unlinkSync(testVideoPath);
+                    console.log('🗑️ FUNCTIONAL VIDEO FILE CLEANED');
+                  }
+                }
               };
             }
             
