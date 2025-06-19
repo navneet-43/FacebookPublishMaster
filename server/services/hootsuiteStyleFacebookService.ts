@@ -1014,16 +1014,19 @@ Google Drive's security policies prevent external applications from downloading 
         const chunkData = fileBuffer.slice(offset, Math.min(offset + chunkSize, fileBuffer.length));
         const startOffset = offset;
         
-        const uploadData = new FormData();
+        const uploadData = new URLSearchParams();
         uploadData.append('upload_phase', 'transfer');
         uploadData.append('upload_session_id', uploadSessionId);
         uploadData.append('start_offset', startOffset.toString());
-        uploadData.append('video_file_chunk', chunkData);
+        uploadData.append('video_file_chunk', chunkData.toString('base64'));
         uploadData.append('access_token', pageAccessToken);
         
-        const uploadResponse = await fetch(initEndpoint, {
+        const uploadResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
           method: 'POST',
-          body: uploadData
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: uploadData.toString()
         });
         
         let uploadResult: any = {};
