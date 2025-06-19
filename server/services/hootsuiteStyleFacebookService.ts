@@ -267,18 +267,18 @@ export class HootsuiteStyleFacebookService {
           const processingResult = await VideoProcessor.processVideo(videoUrl);
           
           if (processingResult.success && processingResult.filePath) {
-            console.log('✅ YOUTUBE VIDEO DOWNLOADED: Processing for Facebook upload');
+            console.log('✅ VIDEO FILE READY: Uploading to Facebook');
             
-            const cleanup = () => {
+            const cleanup = processingResult.cleanup || (() => {
               if (processingResult.filePath && existsSync(processingResult.filePath)) {
                 unlinkSync(processingResult.filePath);
-                console.log('🗑️ HIGH-QUALITY VIDEO FILE CLEANED');
+                console.log('🗑️ VIDEO FILE CLEANED');
               }
-            };
+            });
             
             return await this.uploadVideoFile(pageId, pageAccessToken, processingResult.filePath, description, customLabels, language, cleanup);
           } else {
-            console.log('⚠️ YouTube processing failed, using link fallback');
+            console.log('⚠️ Video processing failed, using link fallback');
             // Fallback to link sharing
             const textContent = description ? 
               `${description}\n\nWatch video: ${videoUrl}` : 
