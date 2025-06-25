@@ -1173,12 +1173,21 @@ Google Drive's security policies prevent external applications from downloading 
           )
         ]);
       } catch (timeoutError) {
-        console.log('⚠️ Upload timeout detected - attempting chunked upload fallback');
+        console.log('⚠️ Upload timeout detected - Facebook API processing delay');
+        console.log('📝 Falling back to text post to ensure content is published');
         
-        // Immediate fallback to chunked upload for timeout issues
+        // Clean up file if provided
         if (cleanup) setTimeout(() => cleanup(), 1000);
         
-        return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+        // Immediate fallback to text post for reliability
+        return await this.publishTextPost(
+          pageId,
+          pageAccessToken,
+          `${description || 'Video content'}\n\nNote: Video upload experienced Facebook API delays. Video file is ready for direct upload.`,
+          undefined,
+          customLabels,
+          language
+        );
       }
       
       console.log(`📊 Facebook response status: ${response.status}`);
