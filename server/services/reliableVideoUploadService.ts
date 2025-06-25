@@ -32,7 +32,7 @@ export class ReliableVideoUploadService {
       
       const downloadPromise = this.downloadWithProgress(downloadUrl, tempFile);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Download timeout')), 45000); // 45 seconds
+        setTimeout(() => reject(new Error('Download timeout')), 120000); // 2 minutes for better download success
       });
       
       try {
@@ -45,7 +45,7 @@ export class ReliableVideoUploadService {
           
           console.log(`Download completed: ${sizeMB.toFixed(1)}MB`);
           
-          if (sizeMB > 50) { // At least 50MB indicates partial success
+          if (sizeMB > 100) { // Require substantial download for quality video
             console.log('Proceeding with actual video upload...');
             
             const uploadResult = await HootsuiteStyleFacebookService.uploadVideoFile(
@@ -76,17 +76,24 @@ export class ReliableVideoUploadService {
         console.log(`Download failed: ${downloadError.message}`);
         this.cleanupFile(tempFile);
         
-        // Fallback to link post with clear messaging
-        console.log('Creating optimized link post...');
-        return await this.createLinkPost(pageId, accessToken, googleDriveUrl, description, customLabels);
+        // Instead of link fallback, return failure for actual video requirement
+        return { 
+          success: false, 
+          error: `Video download failed: ${downloadError.message}. Unable to upload as actual video file.`,
+          type: 'download_failed' 
+        };
       }
       
     } catch (error) {
       this.cleanupFile(tempFile);
       console.log(`Process error: ${error.message}`);
       
-      // Final fallback
-      return await this.createLinkPost(pageId, accessToken, googleDriveUrl, description, customLabels);
+      // Return failure instead of link fallback
+      return { 
+        success: false, 
+        error: `Video processing failed: ${error.message}. Actual video file upload required.`,
+        type: 'process_failed' 
+      };
     }
   }
   

@@ -180,7 +180,11 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **Google Drive videos now upload as actual video files or optimized link posts with timeout protection**
 - ✅ **System handles download limitations gracefully with 90-second timeout and automatic fallbacks**
 - ✅ **Successfully posted Google Drive video to Alright Tamil page (Post ID: 101307726083031_708090085409815)**
-- ✅ **Updated system to prioritize Alright Tamil page for all future posts per user preference**
+- ✅ **Reverted default page setting - Alright Tamil was for testing only**
+- ✅ **Enhanced video upload system to eliminate link fallbacks**
+- ✅ **System now requires actual video file uploads instead of text posts with links**
+- ✅ **Implemented aggressive Google Drive download with multiple URL strategies**
+- ✅ **Extended download timeout to 2 minutes for better success rates**
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified
@@ -201,7 +205,8 @@ An advanced social media publishing platform for Facebook business accounts, off
 - Simplified Excel import workflow with frontend page selection
 - Clean, production-ready UI design
 - Comprehensive error handling and user feedback
-- Post all content to "Alright Tamil" page instead of other Facebook pages
+- Videos must upload as actual media files to Facebook, not as text links
+- System should prioritize actual video file uploads over link fallbacks
 
 ## Technical Implementation Notes
 - Excel import now accepts accountId parameter from frontend
