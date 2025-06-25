@@ -45,7 +45,14 @@ export class SimpleFacebookEncoder {
           }
         });
         
-        ffmpeg.on('error', reject);
+        ffmpeg.on('error', (error) => {
+          console.log('❌ FFmpeg error:', error);
+          reject(error);
+        });
+        
+        ffmpeg.stderr.on('data', (data) => {
+          console.log('FFmpeg stderr:', data.toString());
+        });
       });
       
       if (!existsSync(outputPath)) {

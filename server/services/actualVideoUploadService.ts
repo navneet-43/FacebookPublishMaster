@@ -121,6 +121,7 @@ export class ActualVideoUploadService {
       }
     }
     
+    console.log('❌ ALL VIDEO UPLOAD STRATEGIES FAILED');
     return {
       success: false,
       error: 'All video upload strategies failed'

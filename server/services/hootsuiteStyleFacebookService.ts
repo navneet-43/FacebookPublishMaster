@@ -1155,10 +1155,11 @@ Google Drive's security policies prevent external applications from downloading 
       
       // Handle empty or malformed responses from Facebook API
       const responseText = await response.text();
-      console.log('📊 Facebook raw response:', responseText.substring(0, 200));
+      console.log('📊 Facebook raw response:', responseText.substring(0, 500));
       if (responseText.trim()) {
         try {
           data = JSON.parse(responseText);
+          console.log('📊 Parsed Facebook response:', JSON.stringify(data, null, 2));
         } catch (parseError) {
           console.log('⚠️ Non-JSON response from Facebook:', responseText);
           data = { error: { message: `Invalid response format: ${responseText}` } };
@@ -1181,7 +1182,9 @@ Google Drive's security policies prevent external applications from downloading 
             data.error?.message?.includes('Empty response') ||
             stats.size > 100 * 1024 * 1024) {
           console.log('🔄 FALLBACK: Attempting chunked upload for large file');
-          return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+          const fallbackResult = await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+          console.log('📊 Fallback result:', JSON.stringify(fallbackResult, null, 2));
+          return fallbackResult;
         }
         
         return {
@@ -1191,6 +1194,7 @@ Google Drive's security policies prevent external applications from downloading 
       }
       
       console.log('✅ Video file uploaded successfully:', data.id);
+      console.log('🎬 FACEBOOK UPLOAD COMPLETED SUCCESSFULLY');
       return {
         success: true,
         postId: data.id
