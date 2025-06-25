@@ -1,7 +1,8 @@
 import fetch from 'node-fetch';
 import { storage } from '../storage';
 import { createReadStream, statSync, promises as fs, existsSync, unlinkSync, openSync, readSync, closeSync } from 'fs';
-import FormData from 'form-data';
+import { FormData } from 'formdata-node';
+import { fileFromPath } from 'formdata-node/file-from-path';
 
 interface FacebookPageInfo {
   id: string;
@@ -1121,8 +1122,13 @@ Google Drive's security policies prevent external applications from downloading 
       // Use standard multipart upload for smaller files
       const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
       
+      // Use modern FormData for better Facebook API compatibility
       const formData = new FormData();
-      formData.append('source', createReadStream(filePath));
+      
+      // Add video file using fileFromPath for proper handling
+      const videoFile = await fileFromPath(filePath, 'video.mp4', { type: 'video/mp4' });
+      formData.append('source', videoFile);
+      
       formData.append('access_token', pageAccessToken);
       formData.append('published', 'true');
       
@@ -1292,15 +1298,17 @@ Google Drive's security policies prevent external applications from downloading 
         readSync(fd, chunkBuffer, 0, chunkSizeCurrent, start);
         closeSync(fd);
         
-        // Upload chunk
+        // Upload chunk using modern FormData
         const chunkFormData = new FormData();
         chunkFormData.append('upload_phase', 'transfer');
         chunkFormData.append('upload_session_id', uploadSessionId);
         chunkFormData.append('start_offset', uploadedBytes.toString());
-        chunkFormData.append('video_file_chunk', chunkBuffer, {
-          filename: `chunk_${chunkIndex}`,
-          contentType: 'application/octet-stream'
-        });
+        
+        // Create proper File object for chunk
+        const chunkBlob = new Blob([chunkBuffer], { type: 'video/mp4' });
+        const chunkFile = new File([chunkBlob], `chunk_${chunkIndex}.mp4`, { type: 'video/mp4' });
+        chunkFormData.append('video_file_chunk', chunkFile);
+        
         chunkFormData.append('access_token', pageAccessToken);
         
         const chunkResponse = await fetch(initEndpoint, {
