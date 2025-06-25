@@ -257,29 +257,31 @@ export class HootsuiteStyleFacebookService {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
-      // Handle YouTube URLs with video download processing
-      if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be/')) {
-        console.log('🎥 YOUTUBE URL DETECTED: Attempting video download and upload');
+      // Use quality-preserving video processing for all video URLs
+      if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be/') || 
+          videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
+        
+        console.log('🎥 QUALITY-PRESERVING VIDEO PROCESSING for:', videoUrl);
         
         try {
-          // Try direct YouTube video processing first
-          const { VideoProcessor } = await import('./videoProcessor');
-          const processingResult = await VideoProcessor.processVideo(videoUrl);
+          const { QualityPreservingVideoService } = await import('./qualityPreservingVideoService');
+          const result = await QualityPreservingVideoService.processVideoForQuality(videoUrl);
           
-          if (processingResult.success && processingResult.processedUrl) {
-            console.log('✅ VIDEO FILE READY: Uploading to Facebook');
+          if (result.success && result.filePath) {
+            const fileSizeMB = (result.originalSize || 0) / 1024 / 1024;
+            console.log(`📊 ORIGINAL QUALITY VIDEO: ${fileSizeMB.toFixed(2)}MB`);
             
-            const cleanup = processingResult.cleanup || (() => {
-              if (processingResult.processedUrl && existsSync(processingResult.processedUrl)) {
-                unlinkSync(processingResult.processedUrl);
-                console.log('🗑️ VIDEO FILE CLEANED');
-              }
-            });
-            
-            return await this.uploadVideoFile(pageId, pageAccessToken, processingResult.processedUrl, description, customLabels, language, cleanup);
+            // Use appropriate upload method based on file size while preserving quality
+            if (fileSizeMB > 100) {
+              console.log('📤 USING CHUNKED UPLOAD to preserve original quality');
+              return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, result.filePath, description, customLabels, language, result.cleanup);
+            } else {
+              console.log('📤 USING STANDARD UPLOAD for original quality video');
+              return await this.uploadVideoFile(pageId, pageAccessToken, result.filePath, description, customLabels, language, result.cleanup);
+            }
           } else {
-            console.log('⚠️ Video processing failed, using link fallback');
-            // Fallback to link sharing
+            console.log('⚠️ Quality-preserving processing failed:', result.error);
+            // Fallback to link sharing only if video processing completely fails
             const textContent = description ? 
               `${description}\n\nWatch video: ${videoUrl}` : 
               `${videoUrl}`;
@@ -287,108 +289,13 @@ export class HootsuiteStyleFacebookService {
             return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
           }
         } catch (error) {
-          console.log('⚠️ YouTube access error, using link fallback:', error);
+          console.log('⚠️ Video processing error:', error);
           // Fallback to link sharing
           const textContent = description ? 
             `${description}\n\nWatch video: ${videoUrl}` : 
             `${videoUrl}`;
           
           return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
-        }
-      }
-
-      // Handle Google Drive URLs with direct download
-      if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('📁 GOOGLE DRIVE URL DETECTED: Downloading for Facebook upload');
-        
-        try {
-          // Extract file ID from Google Drive URL
-          const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-          if (!fileIdMatch) {
-            return {
-              success: false,
-              error: 'Invalid Google Drive URL format'
-            };
-          }
-          
-          const fileId = fileIdMatch[1];
-          const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download`;
-          
-          console.log('📥 DOWNLOADING GOOGLE DRIVE VIDEO...');
-          
-          // Download the video file with streaming
-          const response = await fetch(downloadUrl);
-          if (!response.ok) {
-            return {
-              success: false,
-              error: `Google Drive download failed: ${response.status} ${response.statusText}`
-            };
-          }
-          
-          // Save to temporary file using streaming
-          const tempPath = `/tmp/gdrive_video_${fileId}_${Date.now()}.mp4`;
-          const { createWriteStream } = await import('fs');
-          const { pipeline } = await import('stream/promises');
-          
-          const fileStream = createWriteStream(tempPath);
-          await pipeline(response.body, fileStream);
-          
-          // Get file size and validate
-          const { statSync } = await import('fs');
-          const stats = statSync(tempPath);
-          const fileSizeMB = stats.size / 1024 / 1024;
-          console.log(`📹 GOOGLE DRIVE VIDEO DOWNLOADED: ${fileSizeMB.toFixed(2)}MB`);
-          
-          // Check for empty or corrupted files
-          if (stats.size === 0) {
-            unlinkSync(tempPath);
-            return {
-              success: false,
-              error: 'Google Drive video file is empty. Please check sharing permissions or try a different file.'
-            };
-          }
-          
-          // Handle large files (>100MB) with compression
-          let finalPath = tempPath;
-          let finalCleanup = () => {
-            if (existsSync(tempPath)) {
-              unlinkSync(tempPath);
-              console.log('🗑️ GOOGLE DRIVE VIDEO CLEANED');
-            }
-          };
-          
-          if (fileSizeMB > 100) {
-            console.log(`⚠️ LARGE FILE DETECTED: ${fileSizeMB.toFixed(2)}MB - Compressing for Facebook upload`);
-            
-            try {
-              const { VideoProcessor } = await import('./videoProcessor');
-              const compressedPath = await VideoProcessor.compressVideoForFacebook(tempPath);
-              
-              if (compressedPath && existsSync(compressedPath)) {
-                const compressedStats = statSync(compressedPath);
-                const compressedSizeMB = compressedStats.size / 1024 / 1024;
-                console.log(`📹 VIDEO COMPRESSED: ${compressedSizeMB.toFixed(2)}MB (${((1 - compressedSizeMB/fileSizeMB) * 100).toFixed(1)}% reduction)`);
-                
-                finalPath = compressedPath;
-                finalCleanup = () => {
-                  if (existsSync(tempPath)) unlinkSync(tempPath);
-                  if (existsSync(compressedPath)) unlinkSync(compressedPath);
-                  console.log('🗑️ GOOGLE DRIVE VIDEO FILES CLEANED');
-                };
-              }
-            } catch (compressionError) {
-              console.log('⚠️ Compression failed, using original file:', compressionError);
-            }
-          }
-          
-          return await this.uploadVideoFile(pageId, pageAccessToken, finalPath, description, customLabels, language, finalCleanup);
-          
-        } catch (error) {
-          console.log('⚠️ Google Drive download error:', error);
-          return {
-            success: false,
-            error: `Google Drive download failed: ${error}`
-          };
         }
       }
 
