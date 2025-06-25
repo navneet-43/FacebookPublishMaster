@@ -257,59 +257,79 @@ export class HootsuiteStyleFacebookService {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
-      // For all video URLs, create optimized files for guaranteed Facebook upload
-      console.log('🎥 CREATING OPTIMIZED VIDEO FILE for Facebook upload');
-      
-      try {
-        // Create optimized video file directly for Facebook upload
-        const testVideoPath = `/tmp/facebook_video_${Date.now()}.mp4`;
+      // Handle YouTube URLs with video download processing
+      if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be/')) {
+        console.log('🎥 YOUTUBE URL DETECTED: Attempting video download and upload');
         
-        // Create a valid 20MB MP4 file structure for reliable Facebook upload
-        const ftypBox = Buffer.from([
-          0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70,
-          0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x02, 0x00,
-          0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32,
-          0x61, 0x76, 0x63, 0x31, 0x6D, 0x70, 0x34, 0x31
-        ]);
-
-        const moovBox = Buffer.from([
-          0x00, 0x00, 0x00, 0x08, 0x6D, 0x6F, 0x6F, 0x76
-        ]);
-
-        const contentSize = 20 * 1024 * 1024; // 20MB for better quality
-        const mdatHeader = Buffer.from([
-          0x00, 0x00, 0x00, 0x00, 0x6D, 0x64, 0x61, 0x74
-        ]);
-        mdatHeader.writeUInt32BE(contentSize + 8, 0);
-
-        const videoContent = Buffer.alloc(contentSize);
-        for (let i = 0; i < contentSize; i += 4) {
-          videoContent.writeUInt32BE(0x00010203 + (i % 256), i);
-        }
-
-        const mp4Data = Buffer.concat([ftypBox, moovBox, mdatHeader, videoContent]);
-        const { writeFileSync } = await import('fs');
-        writeFileSync(testVideoPath, mp4Data);
-        
-        console.log(`📹 OPTIMIZED VIDEO CREATED: ${(mp4Data.length / 1024 / 1024).toFixed(2)}MB`);
-        
-        const cleanup = () => {
-          if (existsSync(testVideoPath)) {
-            unlinkSync(testVideoPath);
-            console.log('🗑️ OPTIMIZED VIDEO CLEANED');
+        try {
+          // Try direct YouTube video processing first
+          const { VideoProcessor } = await import('./videoProcessor');
+          const processingResult = await VideoProcessor.processVideo(videoUrl);
+          
+          if (processingResult.success && processingResult.processedUrl) {
+            console.log('✅ VIDEO FILE READY: Uploading to Facebook');
+            
+            const cleanup = processingResult.cleanup || (() => {
+              if (processingResult.processedUrl && existsSync(processingResult.processedUrl)) {
+                unlinkSync(processingResult.processedUrl);
+                console.log('🗑️ VIDEO FILE CLEANED');
+              }
+            });
+            
+            return await this.uploadVideoFile(pageId, pageAccessToken, processingResult.processedUrl, description, customLabels, language, cleanup);
+          } else {
+            console.log('⚠️ Video processing failed, using link fallback');
+            // Fallback to link sharing
+            const textContent = description ? 
+              `${description}\n\nWatch video: ${videoUrl}` : 
+              `${videoUrl}`;
+            
+            return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
           }
-        };
+        } catch (error) {
+          console.log('⚠️ YouTube access error, using link fallback:', error);
+          // Fallback to link sharing
+          const textContent = description ? 
+            `${description}\n\nWatch video: ${videoUrl}` : 
+            `${videoUrl}`;
+          
+          return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+        }
+      }
+
+      // Handle Google Drive URLs with optimization
+      if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
+        console.log('📁 GOOGLE DRIVE URL DETECTED: Processing for Facebook upload');
         
-        return await this.uploadVideoFile(pageId, pageAccessToken, testVideoPath, description, customLabels, language, cleanup);
-        
-      } catch (error) {
-        console.log('⚠️ Video creation error, using link fallback:', error);
-        // Fallback to link sharing only if video creation completely fails
-        const textContent = description ? 
-          `${description}\n\nWatch video: ${videoUrl}` : 
-          `${videoUrl}`;
-        
-        return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+        try {
+          const { VideoProcessor } = await import('./videoProcessor');
+          const processingResult = await VideoProcessor.processVideo(videoUrl);
+          
+          if (processingResult.success && processingResult.processedUrl) {
+            console.log('✅ GOOGLE DRIVE VIDEO PROCESSED: Uploading to Facebook');
+            
+            const cleanup = processingResult.cleanup || (() => {
+              if (processingResult.processedUrl && existsSync(processingResult.processedUrl)) {
+                unlinkSync(processingResult.processedUrl);
+                console.log('🗑️ VIDEO FILE CLEANED');
+              }
+            });
+            
+            return await this.uploadVideoFile(pageId, pageAccessToken, processingResult.processedUrl, description, customLabels, language, cleanup);
+          } else {
+            console.log('⚠️ Google Drive processing failed');
+            return {
+              success: false,
+              error: processingResult.error || 'Google Drive video processing failed'
+            };
+          }
+        } catch (error) {
+          console.log('⚠️ Google Drive processing error:', error);
+          return {
+            success: false,
+            error: `Google Drive processing failed: ${error}`
+          };
+        }
       }
 
       // Validate against Facebook Graph API requirements for non-YouTube videos
