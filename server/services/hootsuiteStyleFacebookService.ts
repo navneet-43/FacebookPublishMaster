@@ -302,9 +302,9 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Google Drive URLs with original quality preservation
+      // Handle Google Drive URLs with multiple upload solutions
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('📁 GOOGLE DRIVE VIDEO: Downloading original quality for Facebook upload');
+        console.log('📁 GOOGLE DRIVE VIDEO: Using multi-strategy upload approach');
         
         try {
           // Extract file ID and convert to direct download URL
@@ -335,7 +335,7 @@ export class HootsuiteStyleFacebookService {
           }
           
           // Save to temporary file
-          const tempPath = `/tmp/gdrive_original_${fileId}_${Date.now()}.mp4`;
+          const tempPath = `/tmp/gdrive_multipass_${fileId}_${Date.now()}.mp4`;
           const { createWriteStream } = await import('fs');
           const { pipeline } = await import('stream/promises');
           
@@ -354,22 +354,86 @@ export class HootsuiteStyleFacebookService {
             };
           }
           
-          console.log(`📊 ORIGINAL QUALITY GOOGLE DRIVE: ${fileSizeMB.toFixed(2)}MB`);
+          console.log(`📊 GOOGLE DRIVE VIDEO: ${fileSizeMB.toFixed(2)}MB - Creating optimized version for guaranteed upload`);
           
-          const cleanup = () => {
-            if (existsSync(tempPath)) {
-              unlinkSync(tempPath);
-              console.log('🗑️ GOOGLE DRIVE VIDEO CLEANED');
+          // Always create Facebook-optimized version for reliable upload
+          const optimizedPath = `/tmp/facebook_ready_${fileId}_${Date.now()}.mp4`;
+          
+          try {
+            const { spawn } = await import('child_process');
+            
+            await new Promise<void>((resolve, reject) => {
+              const ffmpeg = spawn('ffmpeg', [
+                '-i', tempPath,
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-s', '1280x720',
+                '-crf', '23',
+                '-preset', 'fast',
+                '-movflags', '+faststart',
+                '-pix_fmt', 'yuv420p',
+                '-profile:v', 'baseline',
+                '-level', '3.1',
+                '-maxrate', '2M',
+                '-bufsize', '4M',
+                '-b:a', '128k',
+                '-y',
+                optimizedPath
+              ]);
+              
+              ffmpeg.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`FFmpeg failed: ${code}`));
+              });
+              
+              ffmpeg.on('error', reject);
+            });
+            
+            // Upload the optimized version
+            if (existsSync(optimizedPath)) {
+              const optimizedStats = statSync(optimizedPath);
+              const optimizedSizeMB = optimizedStats.size / 1024 / 1024;
+              
+              console.log(`✅ FACEBOOK-OPTIMIZED: ${optimizedSizeMB.toFixed(2)}MB - Uploading actual video file`);
+              
+              const cleanup = () => {
+                if (existsSync(tempPath)) unlinkSync(tempPath);
+                if (existsSync(optimizedPath)) unlinkSync(optimizedPath);
+                console.log('🗑️ GOOGLE DRIVE VIDEOS CLEANED');
+              };
+              
+              const result = await this.uploadVideoFile(pageId, pageAccessToken, optimizedPath, description, customLabels, language, cleanup);
+              
+              if (result.success) {
+                console.log(`🎉 SUCCESS: Actual video uploaded (${optimizedSizeMB.toFixed(2)}MB)`);
+                return result;
+              }
             }
-          };
-          
-          // Use chunked upload for large files to preserve quality
-          if (fileSizeMB > 100) {
-            console.log('📤 LARGE GOOGLE DRIVE VIDEO: Using chunked upload to preserve quality');
-            return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, tempPath, description, customLabels, language, cleanup);
+          } catch (ffmpegError) {
+            console.log('⚠️ FFmpeg optimization failed:', ffmpegError);
           }
           
-          return await this.uploadVideoFile(pageId, pageAccessToken, tempPath, description, customLabels, language, cleanup);
+          // Fallback to direct upload if optimization fails
+          console.log('📤 Fallback: Direct upload attempt');
+          const result = await this.uploadVideoFile(pageId, pageAccessToken, tempPath, description, customLabels, language, () => {
+            if (existsSync(tempPath)) unlinkSync(tempPath);
+          });
+          
+          // Cleanup original file
+          if (existsSync(tempPath)) {
+            unlinkSync(tempPath);
+            console.log('🗑️ GOOGLE DRIVE VIDEO CLEANED');
+          }
+          
+          if (result.success) {
+            console.log(`✅ MULTI-STRATEGY SUCCESS: Used ${result.method} method`);
+            return result;
+          } else {
+            return {
+              success: false,
+              error: `Multi-strategy upload failed: ${result.error}`
+            };
+          }
           
         } catch (error) {
           console.log('⚠️ Google Drive processing error:', error);
