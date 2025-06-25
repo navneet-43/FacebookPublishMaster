@@ -436,10 +436,13 @@ export class HootsuiteStyleFacebookService {
           }
           
           // Upload to Facebook
+          console.log('🚀 STARTING FACEBOOK UPLOAD for Google Drive video');
           const { ActualVideoUploadService } = await import('./actualVideoUploadService');
           const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
             pageId, pageAccessToken, finalPath, description, customLabels, language
           );
+          
+          console.log('📊 UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
           
           // Clean up all temporary files
           if (result.cleanup) result.cleanup();
@@ -449,7 +452,13 @@ export class HootsuiteStyleFacebookService {
             console.log('✅ ENHANCED GOOGLE DRIVE VIDEO UPLOADED SUCCESSFULLY');
             return {
               success: true,
-              postId: uploadResult.videoId
+              postId: uploadResult.postId || uploadResult.videoId
+            };
+          } else {
+            console.log('❌ FACEBOOK UPLOAD FAILED:', uploadResult.error);
+            return {
+              success: false,
+              error: uploadResult.error || 'Facebook upload failed'
             };
           }
         }

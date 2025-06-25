@@ -27,9 +27,17 @@ export class ActualVideoUploadService {
     const { HootsuiteStyleFacebookService } = await import('./hootsuiteStyleFacebookService');
     
     console.log('🎯 GUARANTEEING ACTUAL VIDEO UPLOAD');
+    console.log(`📁 Input file: ${filePath}`);
+    console.log(`📊 Page ID: ${pageId}`);
+    
+    if (!existsSync(filePath)) {
+      console.log('❌ File does not exist at path:', filePath);
+      return { success: false, error: 'Input file not found' };
+    }
     
     const originalStats = statSync(filePath);
     const originalSizeMB = originalStats.size / 1024 / 1024;
+    console.log(`📏 File size: ${originalSizeMB.toFixed(2)}MB`);
     
     // Strategy 1: Small files - direct upload
     if (originalSizeMB < 50) {
