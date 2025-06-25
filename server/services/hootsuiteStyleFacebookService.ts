@@ -354,70 +354,13 @@ export class HootsuiteStyleFacebookService {
             };
           }
           
-          console.log(`📊 GOOGLE DRIVE VIDEO: ${fileSizeMB.toFixed(2)}MB - Creating optimized version for guaranteed upload`);
+          console.log(`📊 GOOGLE DRIVE VIDEO: ${fileSizeMB.toFixed(2)}MB - Using guaranteed actual video upload`);
           
-          // Always create Facebook-optimized version for reliable upload
-          const optimizedPath = `/tmp/facebook_ready_${fileId}_${Date.now()}.mp4`;
-          
-          try {
-            const { spawn } = await import('child_process');
-            
-            await new Promise<void>((resolve, reject) => {
-              const ffmpeg = spawn('ffmpeg', [
-                '-i', tempPath,
-                '-c:v', 'libx264',
-                '-c:a', 'aac',
-                '-s', '1280x720',
-                '-crf', '23',
-                '-preset', 'fast',
-                '-movflags', '+faststart',
-                '-pix_fmt', 'yuv420p',
-                '-profile:v', 'baseline',
-                '-level', '3.1',
-                '-maxrate', '2M',
-                '-bufsize', '4M',
-                '-b:a', '128k',
-                '-y',
-                optimizedPath
-              ]);
-              
-              ffmpeg.on('close', (code) => {
-                if (code === 0) resolve();
-                else reject(new Error(`FFmpeg failed: ${code}`));
-              });
-              
-              ffmpeg.on('error', reject);
-            });
-            
-            // Upload the optimized version
-            if (existsSync(optimizedPath)) {
-              const optimizedStats = statSync(optimizedPath);
-              const optimizedSizeMB = optimizedStats.size / 1024 / 1024;
-              
-              console.log(`✅ FACEBOOK-OPTIMIZED: ${optimizedSizeMB.toFixed(2)}MB - Uploading actual video file`);
-              
-              const cleanup = () => {
-                if (existsSync(tempPath)) unlinkSync(tempPath);
-                if (existsSync(optimizedPath)) unlinkSync(optimizedPath);
-                console.log('🗑️ GOOGLE DRIVE VIDEOS CLEANED');
-              };
-              
-              const result = await this.uploadVideoFile(pageId, pageAccessToken, optimizedPath, description, customLabels, language, cleanup);
-              
-              if (result.success) {
-                console.log(`🎉 SUCCESS: Actual video uploaded (${optimizedSizeMB.toFixed(2)}MB)`);
-                return result;
-              }
-            }
-          } catch (ffmpegError) {
-            console.log('⚠️ FFmpeg optimization failed:', ffmpegError);
-          }
-          
-          // Fallback to direct upload if optimization fails
-          console.log('📤 Fallback: Direct upload attempt');
-          const result = await this.uploadVideoFile(pageId, pageAccessToken, tempPath, description, customLabels, language, () => {
-            if (existsSync(tempPath)) unlinkSync(tempPath);
-          });
+          // Use the guaranteed video upload service
+          const { ActualVideoUploadService } = await import('./actualVideoUploadService');
+          const result = await ActualVideoUploadService.guaranteeActualVideoUpload(
+            pageId, pageAccessToken, tempPath, description, customLabels, language
+          );
           
           // Cleanup original file
           if (existsSync(tempPath)) {
