@@ -297,37 +297,61 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Google Drive URLs with optimization
+      // Handle Google Drive URLs with direct download
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('📁 GOOGLE DRIVE URL DETECTED: Processing for Facebook upload');
+        console.log('📁 GOOGLE DRIVE URL DETECTED: Downloading for Facebook upload');
         
         try {
-          const { VideoProcessor } = await import('./videoProcessor');
-          const processingResult = await VideoProcessor.processVideo(videoUrl);
-          
-          if (processingResult.success && processingResult.processedUrl) {
-            console.log('✅ GOOGLE DRIVE VIDEO PROCESSED: Uploading to Facebook');
-            
-            const cleanup = processingResult.cleanup || (() => {
-              if (processingResult.processedUrl && existsSync(processingResult.processedUrl)) {
-                unlinkSync(processingResult.processedUrl);
-                console.log('🗑️ VIDEO FILE CLEANED');
-              }
-            });
-            
-            return await this.uploadVideoFile(pageId, pageAccessToken, processingResult.processedUrl, description, customLabels, language, cleanup);
-          } else {
-            console.log('⚠️ Google Drive processing failed');
+          // Extract file ID from Google Drive URL
+          const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+          if (!fileIdMatch) {
             return {
               success: false,
-              error: processingResult.error || 'Google Drive video processing failed'
+              error: 'Invalid Google Drive URL format'
             };
           }
+          
+          const fileId = fileIdMatch[1];
+          const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download`;
+          
+          console.log('📥 DOWNLOADING GOOGLE DRIVE VIDEO...');
+          
+          // Download the video file with streaming
+          const response = await fetch(downloadUrl);
+          if (!response.ok) {
+            return {
+              success: false,
+              error: `Google Drive download failed: ${response.status} ${response.statusText}`
+            };
+          }
+          
+          // Save to temporary file using streaming
+          const tempPath = `/tmp/gdrive_video_${fileId}_${Date.now()}.mp4`;
+          const { createWriteStream } = await import('fs');
+          const { pipeline } = await import('stream/promises');
+          
+          const fileStream = createWriteStream(tempPath);
+          await pipeline(response.body, fileStream);
+          
+          // Get file size
+          const { statSync } = await import('fs');
+          const stats = statSync(tempPath);
+          console.log(`📹 GOOGLE DRIVE VIDEO DOWNLOADED: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
+          
+          const cleanup = () => {
+            if (existsSync(tempPath)) {
+              unlinkSync(tempPath);
+              console.log('🗑️ GOOGLE DRIVE VIDEO CLEANED');
+            }
+          };
+          
+          return await this.uploadVideoFile(pageId, pageAccessToken, tempPath, description, customLabels, language, cleanup);
+          
         } catch (error) {
-          console.log('⚠️ Google Drive processing error:', error);
+          console.log('⚠️ Google Drive download error:', error);
           return {
             success: false,
-            error: `Google Drive processing failed: ${error}`
+            error: `Google Drive download failed: ${error}`
           };
         }
       }
