@@ -146,7 +146,13 @@ export class DatabaseStorage implements IStorage {
 
   // Facebook account operations
   async getFacebookAccounts(userId: number): Promise<FacebookAccount[]> {
-    return db.select().from(facebookAccounts).where(eq(facebookAccounts.userId, userId));
+    const accounts = await db.select().from(facebookAccounts).where(eq(facebookAccounts.userId, userId));
+    // Prioritize Alright Tamil page (ID: 4) first per user preference
+    return accounts.sort((a, b) => {
+      if (a.id === 4) return -1;
+      if (b.id === 4) return 1;
+      return 0;
+    });
   }
 
   async getFacebookAccount(id: number): Promise<FacebookAccount | undefined> {
