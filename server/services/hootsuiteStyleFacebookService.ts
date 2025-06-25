@@ -262,28 +262,28 @@ export class HootsuiteStyleFacebookService {
         console.log('🎥 YOUTUBE VIDEO: Downloading original quality for Facebook upload');
         
         try {
-          const { VideoProcessor } = await import('./videoProcessor');
-          const result = await VideoProcessor.processVideo(videoUrl);
+          // Use high-quality processing for maximum quality retention
+          const { HighQualityVideoService } = await import('./highQualityVideoService');
+          const result = await HighQualityVideoService.processForMaxQuality(videoUrl);
           
-          if (result.success && (result.filePath || result.processedUrl)) {
-            const videoPath = result.filePath || result.processedUrl;
+          if (result.success && result.filePath) {
             const { statSync } = await import('fs');
-            const stats = statSync(videoPath);
+            const stats = statSync(result.filePath);
             const fileSizeMB = stats.size / 1024 / 1024;
             
-            console.log(`📊 YOUTUBE VIDEO: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
+            console.log(`📊 HIGH-QUALITY VIDEO: ${fileSizeMB.toFixed(2)}MB (${result.quality}) - Uploading as actual video file`);
             
             const cleanup = result.cleanup || (() => {
-              if (videoPath && existsSync(videoPath)) {
-                unlinkSync(videoPath);
-                console.log('🗑️ YOUTUBE VIDEO CLEANED');
+              if (result.filePath && existsSync(result.filePath)) {
+                unlinkSync(result.filePath);
+                console.log('🗑️ HIGH-QUALITY VIDEO CLEANED');
               }
             });
             
             // Force actual video upload using guaranteed service
             const { ActualVideoUploadService } = await import('./actualVideoUploadService');
             const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
-              pageId, pageAccessToken, videoPath, description, customLabels, language
+              pageId, pageAccessToken, result.filePath, description, customLabels, language
             );
             
             // Clean up original file
