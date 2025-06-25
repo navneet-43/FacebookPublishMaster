@@ -17,6 +17,8 @@ export class SimpleFacebookEncoder {
     try {
       const outputPath = inputPath.replace(/\.(mp4|avi|mov|wmv)$/i, '_simple_fb.mp4');
       
+      console.log(`🔧 Starting simple Facebook encoding: ${inputPath} -> ${outputPath}`);
+      
       // Simple, proven FFmpeg settings
       const ffmpegArgs = [
         '-i', inputPath,
@@ -27,13 +29,18 @@ export class SimpleFacebookEncoder {
         outputPath
       ];
       
+      console.log('🎬 FFmpeg command:', 'ffmpeg', ffmpegArgs.join(' '));
+      
       await new Promise<void>((resolve, reject) => {
         const ffmpeg = spawn('ffmpeg', ffmpegArgs);
         
         ffmpeg.on('close', (code) => {
+          console.log(`🎬 FFmpeg finished with code: ${code}`);
           if (code === 0) {
+            console.log('✅ Simple encoding completed successfully');
             resolve();
           } else {
+            console.log(`❌ Simple encoding failed with code: ${code}`);
             reject(new Error(`Simple encoding failed: ${code}`));
           }
         });

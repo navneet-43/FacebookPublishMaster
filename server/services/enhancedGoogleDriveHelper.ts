@@ -176,11 +176,14 @@ export class EnhancedGoogleDriveHelper {
       }
 
       // Stream to file
+      console.log(`📁 Writing to: ${outputPath}`);
       const writeStream = createWriteStream(outputPath);
       await pipeline(response.body, writeStream);
+      console.log('📥 Streaming completed');
 
       // Verify download
       if (!existsSync(outputPath)) {
+        console.log('❌ Output file was not created');
         return {
           success: false,
           error: 'Download failed - output file not created'
