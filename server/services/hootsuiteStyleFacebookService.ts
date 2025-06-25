@@ -444,18 +444,23 @@ export class HootsuiteStyleFacebookService {
           
           console.log('📊 UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
           
-          // Clean up all temporary files
-          if (result.cleanup) result.cleanup();
-          if (encodingCleanup) encodingCleanup();
-          
           if (uploadResult.success) {
             console.log('✅ ENHANCED GOOGLE DRIVE VIDEO UPLOADED SUCCESSFULLY');
+            
+            // Clean up temporary files after successful upload
+            if (result.cleanup) result.cleanup();
+            if (encodingCleanup) encodingCleanup();
+            
             return {
               success: true,
               postId: uploadResult.postId || uploadResult.videoId
             };
           } else {
             console.log('❌ FACEBOOK UPLOAD FAILED:', uploadResult.error);
+            
+            // Keep files for debugging if upload fails
+            console.log('⚠️ Keeping temporary files for debugging');
+            
             return {
               success: false,
               error: uploadResult.error || 'Facebook upload failed'
