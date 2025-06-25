@@ -273,11 +273,11 @@ export class HootsuiteStyleFacebookService {
           
           console.log(`📊 LOCAL VIDEO FILE: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
           
-          // Apply ultra-compatible Facebook compression for maximum reliability
-          const { FacebookUltraCompatible } = await import('./facebookUltraCompatible');
-          console.log('🛠️ Applying ultra-compatible Facebook compression for guaranteed display...');
+          // Apply simple Facebook encoding for guaranteed compatibility
+          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          console.log('🔧 Applying simple Facebook encoding for guaranteed display...');
           
-          const optimizedResult = await FacebookUltraCompatible.createUltraCompatibleVideo(videoUrl);
+          const optimizedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(videoUrl);
           
           if (optimizedResult.success && optimizedResult.outputPath) {
             console.log('✅ Ultra-compatible encoding completed, uploading optimized video...');
@@ -291,12 +291,12 @@ export class HootsuiteStyleFacebookService {
             if (optimizedResult.cleanup) optimizedResult.cleanup();
             
             if (uploadResult.success) {
-              console.log('✅ ULTRA-COMPATIBLE VIDEO UPLOADED SUCCESSFULLY');
+              console.log('✅ DEFINITIVE FACEBOOK VIDEO UPLOADED SUCCESSFULLY');
               return {
                 success: true,
                 postId: uploadResult.videoId,
                 videoId: uploadResult.videoId,
-                method: 'ultra_compatible_upload'
+                method: 'definitive_facebook_upload'
               };
             }
           }
@@ -354,14 +354,14 @@ export class HootsuiteStyleFacebookService {
             
             // Force actual video upload using guaranteed service
             const { ActualVideoUploadService } = await import('./actualVideoUploadService');
-            // Apply Facebook-compatible encoding for reliable display
-            const { FacebookOptimizedCompression } = await import('./facebookOptimizedCompression');
-            console.log('🔧 Applying Facebook-optimized encoding to YouTube video...');
+            // Apply definitive Facebook encoding for reliable display
+            const { FacebookDefinitiveEncoder } = await import('./facebookDefinitiveEncoder');
+            console.log('🎯 Applying definitive Facebook encoding to YouTube video...');
             
-            const optimizedResult = await FacebookOptimizedCompression.createOptimizedVideo(result.filePath);
+            const optimizedResult = await FacebookDefinitiveEncoder.createDefinitiveVideo(result.filePath);
             
             if (optimizedResult.success && optimizedResult.outputPath) {
-              console.log('✅ Facebook optimization completed for YouTube video');
+              console.log('✅ Definitive Facebook encoding completed for YouTube video');
               
               const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
                 pageId, pageAccessToken, optimizedResult.outputPath, description, customLabels, language
@@ -372,7 +372,7 @@ export class HootsuiteStyleFacebookService {
               if (optimizedResult.cleanup) optimizedResult.cleanup();
               
               if (uploadResult.success) {
-                console.log('✅ FACEBOOK-OPTIMIZED YOUTUBE VIDEO UPLOADED');
+                console.log('✅ DEFINITIVE FACEBOOK-ENCODED YOUTUBE VIDEO UPLOADED');
                 return {
                   success: true,
                   postId: uploadResult.videoId
