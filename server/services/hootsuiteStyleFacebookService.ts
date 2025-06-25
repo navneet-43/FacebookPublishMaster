@@ -1091,6 +1091,11 @@ Google Drive's security policies prevent external applications from downloading 
    * Upload video file directly to Facebook (for downloaded YouTube videos)
    */
   static async uploadVideoFile(pageId: string, pageAccessToken: string, filePath: string, description?: string, customLabels?: string[], language?: string, cleanup?: () => void): Promise<{success: boolean, postId?: string, error?: string}> {
+    console.log('🎬 STARTING FACEBOOK VIDEO FILE UPLOAD');
+    console.log(`📁 File: ${filePath}`);
+    console.log(`📊 Page: ${pageId}`);
+    console.log(`📝 Description: ${description || 'No description'}`);
+    
     try {
       console.log('📤 UPLOADING VIDEO FILE to Facebook:', filePath);
       
@@ -1139,15 +1144,18 @@ Google Drive's security policies prevent external applications from downloading 
       
       console.log(`📤 Uploading video file to page ${pageId}`);
       
+      console.log('📤 Sending video to Facebook...');
       const response = await fetch(endpoint, {
         method: 'POST',
         body: formData
       });
       
+      console.log(`📊 Facebook response status: ${response.status}`);
       let data: any = {};
       
       // Handle empty or malformed responses from Facebook API
       const responseText = await response.text();
+      console.log('📊 Facebook raw response:', responseText.substring(0, 200));
       if (responseText.trim()) {
         try {
           data = JSON.parse(responseText);

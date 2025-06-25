@@ -45,6 +45,7 @@ export class ActualVideoUploadService {
       const result = await HootsuiteStyleFacebookService.uploadVideoFile(
         pageId, pageAccessToken, filePath, description, customLabels, language, () => {}
       );
+      console.log('📊 Strategy 1 result:', JSON.stringify(result, null, 2));
       if (result.success) {
         return { ...result, method: 'direct', finalSizeMB: originalSizeMB };
       }
@@ -68,6 +69,7 @@ export class ActualVideoUploadService {
         pageId, pageAccessToken, compatibleFile, description, customLabels, language, cleanup
       );
       
+      console.log('📊 Strategy 2 result:', JSON.stringify(result, null, 2));
       if (result.success) {
         return { ...result, method: 'facebook_compatible', finalSizeMB: compatibleSizeMB };
       }
