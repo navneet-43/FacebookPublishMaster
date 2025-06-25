@@ -49,8 +49,8 @@ export class FacebookUltraCompatible {
         '-maxrate', '1500k',          // Conservative max bitrate
         '-bufsize', '3000k',          // Buffer size
         
-        // Dimension constraints - ensure even numbers and reasonable size
-        '-vf', 'scale=min(1280\\,iw):min(720\\,ih):force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2:(ow-iw)/2:(oh-ih)/2:color=black',
+        // Dimension constraints - ensure even numbers and reasonable size  
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
         
         // Container and metadata
         '-movflags', '+faststart',    // Web optimization

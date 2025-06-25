@@ -354,6 +354,34 @@ export class HootsuiteStyleFacebookService {
             
             // Force actual video upload using guaranteed service
             const { ActualVideoUploadService } = await import('./actualVideoUploadService');
+            // Apply Facebook-compatible encoding for reliable display
+            const { FacebookOptimizedCompression } = await import('./facebookOptimizedCompression');
+            console.log('🔧 Applying Facebook-optimized encoding to YouTube video...');
+            
+            const optimizedResult = await FacebookOptimizedCompression.createOptimizedVideo(result.filePath);
+            
+            if (optimizedResult.success && optimizedResult.outputPath) {
+              console.log('✅ Facebook optimization completed for YouTube video');
+              
+              const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
+                pageId, pageAccessToken, optimizedResult.outputPath, description, customLabels, language
+              );
+              
+              // Clean up both original and optimized files
+              if (result.cleanup) result.cleanup();
+              if (optimizedResult.cleanup) optimizedResult.cleanup();
+              
+              if (uploadResult.success) {
+                console.log('✅ FACEBOOK-OPTIMIZED YOUTUBE VIDEO UPLOADED');
+                return {
+                  success: true,
+                  postId: uploadResult.videoId
+                };
+              }
+            }
+            
+            // Fallback to direct upload if optimization fails
+            console.log('⚠️ Optimization failed, using direct upload...');
             const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
               pageId, pageAccessToken, result.filePath, description, customLabels, language
             );
