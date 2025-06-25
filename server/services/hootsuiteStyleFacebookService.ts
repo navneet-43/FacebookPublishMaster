@@ -257,6 +257,47 @@ export class HootsuiteStyleFacebookService {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
+      // Handle local file uploads (from previous processing)
+      if (videoUrl.startsWith('/tmp/') || videoUrl.startsWith('file://')) {
+        console.log('📁 LOCAL VIDEO FILE: Direct upload to Facebook');
+        
+        try {
+          const { statSync, existsSync } = await import('fs');
+          
+          if (!existsSync(videoUrl)) {
+            throw new Error(`File not found: ${videoUrl}`);
+          }
+          
+          const stats = statSync(videoUrl);
+          const fileSizeMB = stats.size / 1024 / 1024;
+          
+          console.log(`📊 LOCAL VIDEO FILE: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
+          
+          const { ActualVideoUploadService } = await import('./actualVideoUploadService');
+          const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
+            pageId, pageAccessToken, videoUrl, description, customLabels, language
+          );
+          
+          if (uploadResult.success) {
+            console.log('✅ LOCAL VIDEO UPLOADED SUCCESSFULLY');
+            return {
+              success: true,
+              videoId: uploadResult.videoId,
+              method: 'local_file_upload'
+            };
+          } else {
+            throw new Error(uploadResult.error || 'Local file upload failed');
+          }
+          
+        } catch (error) {
+          console.error('❌ LOCAL FILE UPLOAD ERROR:', error);
+          return {
+            success: false,
+            error: `Local file upload failed: ${error}`
+          };
+        }
+      }
+      
       // Handle YouTube URLs with original quality preservation
       if (videoUrl.includes('youtube.com/watch') || videoUrl.includes('youtu.be/')) {
         console.log('🎥 YOUTUBE VIDEO: Downloading original quality for Facebook upload');
@@ -403,20 +444,23 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Validate against Facebook Graph API requirements for non-YouTube videos
-      const { FacebookVideoValidator } = await import('./facebookVideoValidator');
-      const fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
-      
-      if (!fbValidation.isValid) {
-        console.error('❌ FACEBOOK VALIDATION FAILED:', fbValidation.violations);
-        const report = FacebookVideoValidator.generateFacebookValidationReport(fbValidation);
-        return {
-          success: false,
-          error: `Video does not meet Facebook requirements:\n\n${report}`
-        };
+      // Skip validation for local file paths - they'll be handled by direct file upload
+      if (!videoUrl.startsWith('/tmp/') && !videoUrl.startsWith('file://')) {
+        const { FacebookVideoValidator } = await import('./facebookVideoValidator');
+        const fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
+        
+        if (!fbValidation.isValid) {
+          console.error('❌ FACEBOOK VALIDATION FAILED:', fbValidation.violations);
+          const report = FacebookVideoValidator.generateFacebookValidationReport(fbValidation);
+          return {
+            success: false,
+            error: `Video does not meet Facebook requirements:\n\n${report}`
+          };
+        }
+        console.log('✅ FACEBOOK VALIDATION PASSED:', fbValidation.uploadMethod, fbValidation.detectedFormat);
+      } else {
+        console.log('📁 LOCAL FILE DETECTED - Skipping URL validation, proceeding with direct upload');
       }
-      
-      console.log('✅ FACEBOOK VALIDATION PASSED:', fbValidation.uploadMethod, fbValidation.detectedFormat);
       
       // Force upload method based on Facebook validation
       const forcedUploadMethod = fbValidation.uploadMethod;
