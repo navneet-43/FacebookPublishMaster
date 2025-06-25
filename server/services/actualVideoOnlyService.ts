@@ -23,13 +23,9 @@ export class ActualVideoOnlyService {
       return await this.processDirectVideo(pageId, accessToken, videoUrl, description, customLabels, language);
     }
     
-    // Google Drive - currently has download limitations
+    // Google Drive - use FFmpeg for large file downloads
     if (videoUrl.includes('drive.google.com')) {
-      return {
-        success: false,
-        error: 'Google Drive large files (>200MB) have download limitations in current environment. Please use YouTube or direct video URLs for reliable actual video uploads.',
-        type: 'google_drive_limitation'
-      };
+      return await this.processGoogleDriveVideo(pageId, accessToken, videoUrl, description, customLabels, language);
     }
     
     // Other cloud storage - try direct processing
@@ -120,6 +116,51 @@ export class ActualVideoOnlyService {
         success: false, 
         error: error.message, 
         type: 'direct_error' 
+      };
+    }
+  }
+  
+  private static async processGoogleDriveVideo(
+    pageId: string,
+    accessToken: string,
+    videoUrl: string,
+    description: string,
+    customLabels: string[],
+    language: string
+  ): Promise<{ success: boolean; postId?: string; error?: string; type: string }> {
+    
+    try {
+      console.log('Processing Google Drive video with FFmpeg...');
+      
+      const { FFmpegGoogleDriveService } = await import('./ffmpegGoogleDriveService');
+      const result = await FFmpegGoogleDriveService.downloadAndUploadVideo(
+        pageId,
+        accessToken,
+        videoUrl,
+        description,
+        customLabels,
+        language
+      );
+      
+      if (result.success) {
+        return { 
+          success: true, 
+          postId: result.postId, 
+          type: 'google_drive_video' 
+        };
+      } else {
+        return { 
+          success: false, 
+          error: result.error, 
+          type: 'google_drive_failed' 
+        };
+      }
+      
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message, 
+        type: 'google_drive_error' 
       };
     }
   }
