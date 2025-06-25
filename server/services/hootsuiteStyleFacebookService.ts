@@ -265,29 +265,38 @@ export class HootsuiteStyleFacebookService {
           const { VideoProcessor } = await import('./videoProcessor');
           const result = await VideoProcessor.processVideo(videoUrl);
           
-          if (result.success && result.filePath) {
+          if (result.success && (result.filePath || result.processedUrl)) {
+            const videoPath = result.filePath || result.processedUrl;
             const { statSync } = await import('fs');
-            const stats = statSync(result.filePath);
+            const stats = statSync(videoPath);
             const fileSizeMB = stats.size / 1024 / 1024;
             
-            console.log(`📊 ORIGINAL QUALITY YOUTUBE: ${fileSizeMB.toFixed(2)}MB`);
+            console.log(`📊 YOUTUBE VIDEO: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
             
             const cleanup = result.cleanup || (() => {
-              if (result.filePath && existsSync(result.filePath)) {
-                unlinkSync(result.filePath);
+              if (videoPath && existsSync(videoPath)) {
+                unlinkSync(videoPath);
                 console.log('🗑️ YOUTUBE VIDEO CLEANED');
               }
             });
             
-            // Use chunked upload for large files to preserve quality
-            if (fileSizeMB > 100) {
-              console.log('📤 LARGE YOUTUBE VIDEO: Using chunked upload to preserve quality');
-              return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, result.filePath, description, customLabels, language, cleanup);
-            }
+            // Force actual video upload using guaranteed service
+            const { ActualVideoUploadService } = await import('./actualVideoUploadService');
+            const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
+              pageId, pageAccessToken, videoPath, description, customLabels, language
+            );
             
-            return await this.uploadVideoFile(pageId, pageAccessToken, result.filePath, description, customLabels, language, cleanup);
+            // Clean up original file
+            cleanup();
+            
+            if (uploadResult.success) {
+              console.log(`✅ ACTUAL VIDEO UPLOADED: ${uploadResult.method} method, ${uploadResult.finalSizeMB?.toFixed(2)}MB`);
+              return uploadResult;
+            } else {
+              console.log(`⚠️ Video upload failed: ${uploadResult.error}`);
+            }
           } else {
-            console.log('⚠️ YouTube download failed, using link fallback');
+            console.log('⚠️ Video upload failed after all strategies, using link fallback');
             const textContent = description ? 
               `${description}\n\nWatch video: ${videoUrl}` : 
               `${videoUrl}`;
@@ -361,6 +370,13 @@ export class HootsuiteStyleFacebookService {
           const result = await ActualVideoUploadService.guaranteeActualVideoUpload(
             pageId, pageAccessToken, tempPath, description, customLabels, language
           );
+          
+          if (result.success) {
+            console.log(`✅ GOOGLE DRIVE ACTUAL VIDEO UPLOADED: ${result.method} method, ${result.finalSizeMB?.toFixed(2)}MB`);
+            return result;
+          } else {
+            console.log(`⚠️ All upload strategies failed: ${result.error}`);
+          }
           
           // Cleanup original file
           if (existsSync(tempPath)) {
