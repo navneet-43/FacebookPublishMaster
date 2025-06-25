@@ -273,6 +273,36 @@ export class HootsuiteStyleFacebookService {
           
           console.log(`📊 LOCAL VIDEO FILE: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
           
+          // Apply ultra-compatible Facebook compression for maximum reliability
+          const { FacebookUltraCompatible } = await import('./facebookUltraCompatible');
+          console.log('🛠️ Applying ultra-compatible Facebook compression for guaranteed display...');
+          
+          const optimizedResult = await FacebookUltraCompatible.createUltraCompatibleVideo(videoUrl);
+          
+          if (optimizedResult.success && optimizedResult.outputPath) {
+            console.log('✅ Ultra-compatible encoding completed, uploading optimized video...');
+            
+            const { ActualVideoUploadService } = await import('./actualVideoUploadService');
+            const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
+              pageId, pageAccessToken, optimizedResult.outputPath, description, customLabels, language
+            );
+            
+            // Clean up optimized file
+            if (optimizedResult.cleanup) optimizedResult.cleanup();
+            
+            if (uploadResult.success) {
+              console.log('✅ ULTRA-COMPATIBLE VIDEO UPLOADED SUCCESSFULLY');
+              return {
+                success: true,
+                postId: uploadResult.videoId,
+                videoId: uploadResult.videoId,
+                method: 'ultra_compatible_upload'
+              };
+            }
+          }
+          
+          // Fallback to direct upload if optimization fails
+          console.log('⚠️ Optimization failed, trying direct upload...');
           const { ActualVideoUploadService } = await import('./actualVideoUploadService');
           const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
             pageId, pageAccessToken, videoUrl, description, customLabels, language
