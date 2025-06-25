@@ -39,16 +39,15 @@ export class ActualVideoUploadService {
     const originalSizeMB = originalStats.size / 1024 / 1024;
     console.log(`📏 File size: ${originalSizeMB.toFixed(2)}MB`);
     
-    // Strategy 1: Small files - direct upload
-    if (originalSizeMB < 50) {
-      console.log(`📤 Strategy 1: Direct upload (${originalSizeMB.toFixed(1)}MB)`);
-      const result = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, filePath, description, customLabels, language, () => {}
-      );
-      console.log('📊 Strategy 1 result:', JSON.stringify(result, null, 2));
-      if (result.success) {
-        return { ...result, method: 'direct', finalSizeMB: originalSizeMB };
-      }
+    // Strategy 1: Direct upload for all files (improved reliability)
+    console.log(`📤 Strategy 1: Direct upload (${originalSizeMB.toFixed(1)}MB)`);
+    const result = await HootsuiteStyleFacebookService.uploadVideoFile(
+      pageId, pageAccessToken, filePath, description, customLabels, language, () => {}
+    );
+    console.log('📊 Strategy 1 result:', JSON.stringify(result, null, 2));
+    if (result.success) {
+      console.log('✅ DIRECT UPLOAD SUCCESSFUL');
+      return { ...result, method: 'direct', finalSizeMB: originalSizeMB };
     }
     
     // Strategy 2: Create Facebook-compatible version

@@ -1174,13 +1174,21 @@ Google Drive's security policies prevent external applications from downloading 
         data = { error: { message: 'File too large for standard upload - switching to chunked upload' } };
       }
       
-      // Clean up temporary file
+      // Clean up temporary file after processing response
       if (cleanup) {
-        cleanup();
+        setTimeout(() => cleanup(), 1000);
       }
       
       if (!response.ok || data.error) {
         console.error('Facebook video file upload error:', data.error);
+        
+        // For smaller files (< 100MB), return error immediately
+        if (stats.size < 100 * 1024 * 1024) {
+          return {
+            success: false,
+            error: data.error?.message || `Upload failed: ${response.status}`
+          };
+        }
         
         // If standard upload fails due to size, automatically try chunked upload
         if (data.error?.message?.includes('too large') || 
@@ -1200,10 +1208,14 @@ Google Drive's security policies prevent external applications from downloading 
       
       console.log('✅ Video file uploaded successfully:', data.id);
       console.log('🎬 FACEBOOK UPLOAD COMPLETED SUCCESSFULLY');
-      return {
+      
+      // Force immediate return to prevent any delays
+      const uploadResult = {
         success: true,
         postId: data.id
       };
+      
+      return uploadResult;
       
     } catch (error) {
       console.error('❌ Video file upload error:', error);
