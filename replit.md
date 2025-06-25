@@ -185,6 +185,9 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **System now requires actual video file uploads instead of text posts with links**
 - ✅ **Implemented aggressive Google Drive download with multiple URL strategies**
 - ✅ **Extended download timeout to 2 minutes for better success rates**
+- ✅ **Implemented ActualVideoOnlyService with clear limitation handling**
+- ✅ **System now provides clear guidance on video source limitations**
+- ✅ **YouTube videos confirmed working for reliable actual video uploads**
 
 ## Current Status
 - Excel import feature with Facebook page selection is fully functional and user-verified
