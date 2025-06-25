@@ -1156,16 +1156,53 @@ Google Drive's security policies prevent external applications from downloading 
       console.log(`📤 Uploading video file to page ${pageId}`);
       
       console.log('📤 Sending video to Facebook...');
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData
-      });
+      
+      // Use a more robust upload approach with proper error handling
+      let response: any;
+      try {
+        response = await Promise.race([
+          fetch(endpoint, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'User-Agent': 'SocialFlow/1.0'
+            }
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Upload timeout - Facebook API not responding')), 60000)
+          )
+        ]);
+      } catch (timeoutError) {
+        console.log('⚠️ Upload timeout detected - attempting chunked upload fallback');
+        
+        // Immediate fallback to chunked upload for timeout issues
+        if (cleanup) setTimeout(() => cleanup(), 1000);
+        
+        return await this.uploadLargeVideoFileChunked(pageId, pageAccessToken, filePath, description, customLabels, language, cleanup);
+      }
       
       console.log(`📊 Facebook response status: ${response.status}`);
       let data: any = {};
       
-      // Handle empty or malformed responses from Facebook API
-      const responseText = await response.text();
+      // Handle Facebook API responses with proper timeout
+      let responseText: string;
+      try {
+        responseText = await Promise.race([
+          response.text(),
+          new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error('Response reading timeout')), 15000)
+          )
+        ]);
+      } catch (readError) {
+        console.log('⚠️ Response reading timeout - Facebook API issue detected');
+        if (cleanup) cleanup();
+        
+        return {
+          success: false,
+          error: 'Facebook API response timeout - the video may still be processing on Facebook'
+        };
+      }
+      
       console.log('📊 Facebook raw response:', responseText.substring(0, 500));
       if (responseText.trim()) {
         try {
