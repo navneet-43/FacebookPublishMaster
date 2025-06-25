@@ -99,10 +99,17 @@ export class FFmpegGoogleDriveService {
         
         const ffmpegArgs = [
           '-y', // Overwrite output file
+          '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          '-headers', 'Accept: video/*,application/octet-stream,*/*',
+          '-timeout', '300000000', // 5 minute timeout in microseconds
+          '-reconnect', '1',
+          '-reconnect_streamed', '1',
+          '-reconnect_delay_max', '5',
           '-i', url,
           '-c', 'copy', // Copy streams without re-encoding for speed
           '-movflags', 'faststart', // Optimize for web playback
           '-f', 'mp4',
+          '-progress', 'pipe:2', // Force progress output
           outputPath
         ];
         
@@ -176,7 +183,7 @@ export class FFmpegGoogleDriveService {
             currentUrlIndex++;
             tryNextUrl();
           }
-        }, 180000); // 3 minutes per URL
+        }, 600000); // 10 minutes per URL for large files
       };
       
       tryNextUrl();
