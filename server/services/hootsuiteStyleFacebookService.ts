@@ -411,96 +411,54 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Google Drive URLs with multiple upload solutions
+      // Handle Google Drive URLs with enhanced large file access
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('📁 GOOGLE DRIVE VIDEO: Using multi-strategy upload approach');
+        console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
         
-        try {
-          // Extract file ID and convert to direct download URL
-          const fileIdMatch = videoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-          if (!fileIdMatch) {
-            return {
-              success: false,
-              error: 'Invalid Google Drive URL format'
-            };
+        const { EnhancedGoogleDriveHelper } = await import('./enhancedGoogleDriveHelper');
+        
+        const result = await EnhancedGoogleDriveHelper.downloadLargeVideo(videoUrl);
+        
+        if (result.success && result.filePath) {
+          console.log(`✅ Google Drive video downloaded: ${(result.size! / 1024 / 1024).toFixed(2)}MB`);
+          
+          // Apply simple encoding for Facebook compatibility
+          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
+          
+          let finalPath = result.filePath;
+          let encodingCleanup: (() => void) | undefined;
+          
+          if (encodedResult.success && encodedResult.outputPath) {
+            console.log('✅ Facebook encoding applied to Google Drive video');
+            finalPath = encodedResult.outputPath;
+            encodingCleanup = encodedResult.cleanup;
           }
           
-          const fileId = fileIdMatch[1];
-          const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-          
-          console.log('📥 DOWNLOADING GOOGLE DRIVE VIDEO...');
-          
-          const response = await fetch(downloadUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-          });
-          
-          if (!response.ok) {
-            return {
-              success: false,
-              error: `Google Drive access failed (${response.status}). Please:\n\n1. Right-click video → Share → "Anyone with the link"\n2. Set permission to "Viewer"\n3. Try again with the new link\n\nOr upload to YouTube for better compatibility.`
-            };
-          }
-          
-          // Save to temporary file
-          const tempPath = `/tmp/gdrive_multipass_${fileId}_${Date.now()}.mp4`;
-          const { createWriteStream } = await import('fs');
-          const { pipeline } = await import('stream/promises');
-          
-          const fileStream = createWriteStream(tempPath);
-          await pipeline(response.body, fileStream);
-          
-          const { statSync } = await import('fs');
-          const stats = statSync(tempPath);
-          const fileSizeMB = stats.size / 1024 / 1024;
-          
-          if (stats.size === 0) {
-            unlinkSync(tempPath);
-            return {
-              success: false,
-              error: 'Google Drive video is empty. Please check sharing permissions.'
-            };
-          }
-          
-          console.log(`📊 GOOGLE DRIVE VIDEO: ${fileSizeMB.toFixed(2)}MB - Using guaranteed actual video upload`);
-          
-          // Use the guaranteed video upload service
+          // Upload to Facebook
           const { ActualVideoUploadService } = await import('./actualVideoUploadService');
-          const result = await ActualVideoUploadService.guaranteeActualVideoUpload(
-            pageId, pageAccessToken, tempPath, description, customLabels, language
+          const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
+            pageId, pageAccessToken, finalPath, description, customLabels, language
           );
           
-          if (result.success) {
-            console.log(`✅ GOOGLE DRIVE ACTUAL VIDEO UPLOADED: ${result.method} method, ${result.finalSizeMB?.toFixed(2)}MB`);
-            return result;
-          } else {
-            console.log(`⚠️ All upload strategies failed: ${result.error}`);
-          }
+          // Clean up all temporary files
+          if (result.cleanup) result.cleanup();
+          if (encodingCleanup) encodingCleanup();
           
-          // Cleanup original file
-          if (existsSync(tempPath)) {
-            unlinkSync(tempPath);
-            console.log('🗑️ GOOGLE DRIVE VIDEO CLEANED');
-          }
-          
-          if (result.success) {
-            console.log(`✅ MULTI-STRATEGY SUCCESS: Used ${result.method} method`);
-            return result;
-          } else {
+          if (uploadResult.success) {
+            console.log('✅ ENHANCED GOOGLE DRIVE VIDEO UPLOADED SUCCESSFULLY');
             return {
-              success: false,
-              error: `Multi-strategy upload failed: ${result.error}`
+              success: true,
+              postId: uploadResult.videoId
             };
           }
-          
-        } catch (error) {
-          console.log('⚠️ Google Drive processing error:', error);
-          return {
-            success: false,
-            error: `Google Drive processing failed: ${error}`
-          };
         }
+        
+        console.log(`❌ Enhanced Google Drive processing failed: ${result.error}`);
+        return {
+          success: false,
+          error: result.error || 'Google Drive video processing failed'
+        };
       }
 
       // Skip validation for local file paths - they'll be handled by direct file upload

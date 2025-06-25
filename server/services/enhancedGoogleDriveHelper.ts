@@ -36,18 +36,24 @@ export class EnhancedGoogleDriveHelper {
    */
   static generateAccessUrls(fileId: string): string[] {
     return [
-      // Direct usercontent URLs (most reliable for large files)
+      // Method 1: Direct usercontent URLs (bypasses many restrictions)
       `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`,
       `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
       
-      // Alternative direct formats
+      // Method 2: Standard download URLs with confirmation
+      `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t&authuser=0`,
       `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
       `https://drive.google.com/u/0/uc?id=${fileId}&export=download&confirm=t`,
-      `https://docs.google.com/uc?export=download&id=${fileId}&confirm=t`,
       
-      // Standard formats with confirmation
-      `https://drive.google.com/uc?id=${fileId}&export=download&authuser=0&confirm=t`,
-      `https://drive.google.com/file/d/${fileId}/view?usp=sharing&export=download`
+      // Method 3: Alternative access patterns
+      `https://docs.google.com/uc?export=download&id=${fileId}&confirm=t`,
+      `https://drive.google.com/uc?id=${fileId}&export=download&authuser=0`,
+      `https://drive.google.com/uc?id=${fileId}&export=download`,
+      
+      // Method 4: Fallback patterns
+      `https://drive.google.com/file/d/${fileId}/view?usp=drive_link&export=download`,
+      `https://googledrive.com/host/${fileId}`
     ];
   }
 
