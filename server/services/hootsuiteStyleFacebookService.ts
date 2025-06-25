@@ -282,6 +282,7 @@ export class HootsuiteStyleFacebookService {
             console.log('✅ LOCAL VIDEO UPLOADED SUCCESSFULLY');
             return {
               success: true,
+              postId: uploadResult.videoId,
               videoId: uploadResult.videoId,
               method: 'local_file_upload'
             };
