@@ -1,290 +1,195 @@
-import { existsSync, unlinkSync, statSync } from 'fs';
+import { EnhancedGoogleDriveService } from './enhancedGoogleDriveService';
+import { ActualVideoOnlyService } from './actualVideoOnlyService';
 
-/**
- * Guaranteed video upload service that ensures actual video files are uploaded to Facebook
- * Uses progressive quality reduction and multiple upload methods
- */
 export class GuaranteedVideoUploadService {
-  
   /**
-   * Upload video with guaranteed success - tries multiple approaches until one works
+   * Guaranteed video upload with enhanced processing for all video sources
    */
-  static async uploadWithGuarantee(
-    pageId: string, 
-    pageAccessToken: string, 
-    filePath: string, 
-    description?: string, 
-    customLabels?: string[], 
-    language?: string
-  ): Promise<{
-    success: boolean;
-    postId?: string;
-    method?: string;
-    finalSize?: number;
-    error?: string;
-  }> {
-    const { HootsuiteStyleFacebookService } = await import('./hootsuiteStyleFacebookService');
+  static async uploadVideo(
+    pageId: string,
+    accessToken: string,
+    videoUrl: string,
+    content: string,
+    customLabels: string[] = [],
+    language: string = 'en'
+  ) {
+    console.log('🎯 GUARANTEED VIDEO UPLOAD SERVICE');
+    console.log(`📺 Video URL: ${videoUrl}`);
+    console.log(`📄 Target Page: ${pageId}`);
+
+    try {
+      // Determine video source and use appropriate enhanced service
+      if (this.isGoogleDriveUrl(videoUrl)) {
+        console.log('🚀 Processing Google Drive video with enhanced service');
+        
+        const result = await EnhancedGoogleDriveService.downloadAndUpload(
+          pageId,
+          accessToken,
+          videoUrl,
+          content,
+          customLabels,
+          language
+        );
+
+        return {
+          success: true,
+          postId: result.postId,
+          source: 'Google Drive',
+          sizeMB: result.sizeMB,
+          downloadTime: result.downloadTime,
+          url: result.url,
+          message: `Google Drive video successfully uploaded: ${result.sizeMB.toFixed(1)}MB`
+        };
+
+      } else if (this.isYouTubeUrl(videoUrl)) {
+        console.log('🚀 Processing YouTube video with existing service');
+        
+        const result = await ActualVideoOnlyService.uploadVideo(
+          pageId,
+          accessToken,
+          videoUrl,
+          content,
+          customLabels,
+          language
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || 'YouTube upload failed');
+        }
+
+        return {
+          success: true,
+          postId: result.postId,
+          source: 'YouTube',
+          url: `https://facebook.com/${result.postId}`,
+          message: 'YouTube video successfully uploaded'
+        };
+
+      } else {
+        console.log('🚀 Processing direct video URL');
+        
+        const result = await ActualVideoOnlyService.uploadVideo(
+          pageId,
+          accessToken,
+          videoUrl,
+          content,
+          customLabels,
+          language
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || 'Direct URL upload failed');
+        }
+
+        return {
+          success: true,
+          postId: result.postId,
+          source: 'Direct URL',
+          url: `https://facebook.com/${result.postId}`,
+          message: 'Direct video URL successfully uploaded'
+        };
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Guaranteed upload failed:', errorMessage);
+      
+      return {
+        success: false,
+        error: errorMessage,
+        source: this.getVideoSource(videoUrl),
+        message: `Upload failed: ${errorMessage}`
+      };
+    }
+  }
+
+  /**
+   * Test the enhanced video upload system
+   */
+  static async testSystem(pageId: string, accessToken: string) {
+    console.log('🧪 TESTING GUARANTEED VIDEO UPLOAD SYSTEM');
     
-    console.log('🎯 GUARANTEED VIDEO UPLOAD: Starting progressive upload strategies');
-    
-    const originalStats = statSync(filePath);
-    const originalSizeMB = originalStats.size / 1024 / 1024;
-    
-    // Strategy 1: Direct upload if reasonable size
-    if (originalSizeMB < 100) {
-      console.log(`📤 STRATEGY 1: Direct upload (${originalSizeMB.toFixed(2)}MB)`);
-      const result = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, filePath, description, customLabels, language, () => {}
-      );
-      if (result.success) {
-        return { ...result, method: 'direct', finalSize: originalStats.size };
+    const testVideos = [
+      {
+        url: 'https://drive.google.com/file/d/1FUVs4-34qJ-7d-jlVW3kn6btiNtq4pDH/view?usp=drive_link',
+        type: 'Google Drive',
+        content: 'Enhanced Google Drive video upload test - guaranteed completion'
+      },
+      {
+        url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+        type: 'YouTube',
+        content: 'YouTube video upload test with guaranteed service'
+      }
+    ];
+
+    const results = [];
+
+    for (const test of testVideos) {
+      console.log(`\n🎬 Testing ${test.type} upload...`);
+      
+      try {
+        const result = await this.uploadVideo(
+          pageId,
+          accessToken,
+          test.url,
+          test.content,
+          ['test', 'guaranteed-upload', test.type.toLowerCase().replace(' ', '-')],
+          'en'
+        );
+
+        results.push({
+          type: test.type,
+          success: result.success,
+          postId: result.postId,
+          url: result.url,
+          message: result.message,
+          details: result
+        });
+
+        if (result.success) {
+          console.log(`✅ ${test.type} test successful: ${result.url}`);
+        } else {
+          console.log(`❌ ${test.type} test failed: ${result.error}`);
+        }
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.log(`❌ ${test.type} test error: ${errorMessage}`);
+        results.push({
+          type: test.type,
+          success: false,
+          error: errorMessage
+        });
       }
     }
-    
-    // Strategy 2: Chunked upload for large files
-    console.log(`📤 STRATEGY 2: Chunked upload (${originalSizeMB.toFixed(2)}MB)`);
-    const chunkedResult = await HootsuiteStyleFacebookService.uploadLargeVideoFileChunked(
-      pageId, pageAccessToken, filePath, description, customLabels, language, () => {}
-    );
-    if (chunkedResult.success) {
-      return { ...chunkedResult, method: 'chunked', finalSize: originalStats.size };
-    }
-    
-    // Strategy 3: Quality optimization while preserving detail
-    console.log('📤 STRATEGY 3: Quality optimization');
-    const optimizedResult = await this.createOptimizedVersion(filePath);
-    if (optimizedResult.success && optimizedResult.optimizedPath) {
-      const optimizedUpload = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, optimizedResult.optimizedPath, description, customLabels, language, optimizedResult.cleanup
-      );
-      if (optimizedUpload.success) {
-        return { ...optimizedUpload, method: 'optimized', finalSize: optimizedResult.finalSize };
-      }
-    }
-    
-    // Strategy 4: Smart compression with quality preservation
-    console.log('📤 STRATEGY 4: Smart compression');
-    const compressedResult = await this.createSmartCompressed(filePath);
-    if (compressedResult.success && compressedResult.compressedPath) {
-      const compressedUpload = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, compressedResult.compressedPath, description, customLabels, language, compressedResult.cleanup
-      );
-      if (compressedUpload.success) {
-        return { ...compressedUpload, method: 'smart_compressed', finalSize: compressedResult.finalSize };
-      }
-    }
-    
-    // Strategy 5: Facebook-specific encoding
-    console.log('📤 STRATEGY 5: Facebook-specific encoding');
-    const facebookResult = await this.createFacebookSpecific(filePath);
-    if (facebookResult.success && facebookResult.facebookPath) {
-      const facebookUpload = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, facebookResult.facebookPath, description, customLabels, language, facebookResult.cleanup
-      );
-      if (facebookUpload.success) {
-        return { ...facebookUpload, method: 'facebook_specific', finalSize: facebookResult.finalSize };
-      }
-    }
-    
+
     return {
-      success: false,
-      error: 'All guaranteed upload strategies failed'
+      success: results.some(r => r.success),
+      results,
+      summary: `Tested ${results.length} video sources, ${results.filter(r => r.success).length} successful`
     };
   }
-  
+
   /**
-   * Create optimized version maintaining good quality
+   * Check if URL is a Google Drive video
    */
-  static async createOptimizedVersion(filePath: string): Promise<{
-    success: boolean;
-    optimizedPath?: string;
-    finalSize?: number;
-    cleanup?: () => void;
-  }> {
-    try {
-      const optimizedPath = `/tmp/optimized_${Date.now()}.mp4`;
-      
-      // Use spawn to avoid fluent-ffmpeg issues
-      const { spawn } = await import('child_process');
-      
-      await new Promise((resolve, reject) => {
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', filePath,
-          '-c:v', 'libx264',
-          '-c:a', 'aac',
-          '-crf', '20', // High quality
-          '-preset', 'medium',
-          '-movflags', '+faststart',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'high',
-          '-level', '4.0',
-          '-b:a', '128k',
-          '-y',
-          optimizedPath
-        ]);
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0) resolve(null);
-          else reject(new Error(`FFmpeg exit code: ${code}`));
-        });
-        
-        ffmpeg.on('error', reject);
-      });
-      
-      if (existsSync(optimizedPath)) {
-        const stats = statSync(optimizedPath);
-        console.log(`✅ OPTIMIZED VERSION: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
-        
-        return {
-          success: true,
-          optimizedPath,
-          finalSize: stats.size,
-          cleanup: () => {
-            if (existsSync(optimizedPath)) {
-              unlinkSync(optimizedPath);
-              console.log('🗑️ OPTIMIZED VIDEO CLEANED');
-            }
-          }
-        };
-      }
-      
-      return { success: false };
-      
-    } catch (error) {
-      console.log('⚠️ Optimization failed:', error);
-      return { success: false };
-    }
+  private static isGoogleDriveUrl(url: string): boolean {
+    return url.includes('drive.google.com') || url.includes('drive.usercontent.google.com');
   }
-  
+
   /**
-   * Create smart compressed version
+   * Check if URL is a YouTube video
    */
-  static async createSmartCompressed(filePath: string): Promise<{
-    success: boolean;
-    compressedPath?: string;
-    finalSize?: number;
-    cleanup?: () => void;
-  }> {
-    try {
-      const compressedPath = `/tmp/smart_compressed_${Date.now()}.mp4`;
-      
-      const { spawn } = await import('child_process');
-      
-      await new Promise((resolve, reject) => {
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', filePath,
-          '-c:v', 'libx264',
-          '-c:a', 'aac',
-          '-crf', '23', // Balanced quality/size
-          '-preset', 'faster',
-          '-movflags', '+faststart',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'baseline',
-          '-level', '3.1',
-          '-maxrate', '5M',
-          '-bufsize', '10M',
-          '-b:a', '96k',
-          '-y',
-          compressedPath
-        ]);
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0) resolve(null);
-          else reject(new Error(`FFmpeg exit code: ${code}`));
-        });
-        
-        ffmpeg.on('error', reject);
-      });
-      
-      if (existsSync(compressedPath)) {
-        const stats = statSync(compressedPath);
-        console.log(`✅ SMART COMPRESSED: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
-        
-        return {
-          success: true,
-          compressedPath,
-          finalSize: stats.size,
-          cleanup: () => {
-            if (existsSync(compressedPath)) {
-              unlinkSync(compressedPath);
-              console.log('🗑️ COMPRESSED VIDEO CLEANED');
-            }
-          }
-        };
-      }
-      
-      return { success: false };
-      
-    } catch (error) {
-      console.log('⚠️ Smart compression failed:', error);
-      return { success: false };
-    }
+  private static isYouTubeUrl(url: string): boolean {
+    return url.includes('youtube.com') || url.includes('youtu.be');
   }
-  
+
   /**
-   * Create Facebook-specific version
+   * Get video source type
    */
-  static async createFacebookSpecific(filePath: string): Promise<{
-    success: boolean;
-    facebookPath?: string;
-    finalSize?: number;
-    cleanup?: () => void;
-  }> {
-    try {
-      const facebookPath = `/tmp/facebook_specific_${Date.now()}.mp4`;
-      
-      const { spawn } = await import('child_process');
-      
-      await new Promise((resolve, reject) => {
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', filePath,
-          '-c:v', 'libx264',
-          '-c:a', 'aac',
-          '-s', '1280x720', // Facebook recommended
-          '-r', '30',
-          '-crf', '25',
-          '-preset', 'fast',
-          '-movflags', '+faststart',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'baseline',
-          '-level', '3.0',
-          '-maxrate', '2M',
-          '-bufsize', '4M',
-          '-b:a', '64k',
-          '-y',
-          facebookPath
-        ]);
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0) resolve(null);
-          else reject(new Error(`FFmpeg exit code: ${code}`));
-        });
-        
-        ffmpeg.on('error', reject);
-      });
-      
-      if (existsSync(facebookPath)) {
-        const stats = statSync(facebookPath);
-        console.log(`✅ FACEBOOK SPECIFIC: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
-        
-        return {
-          success: true,
-          facebookPath,
-          finalSize: stats.size,
-          cleanup: () => {
-            if (existsSync(facebookPath)) {
-              unlinkSync(facebookPath);
-              console.log('🗑️ FACEBOOK VIDEO CLEANED');
-            }
-          }
-        };
-      }
-      
-      return { success: false };
-      
-    } catch (error) {
-      console.log('⚠️ Facebook-specific encoding failed:', error);
-      return { success: false };
-    }
+  private static getVideoSource(url: string): string {
+    if (this.isGoogleDriveUrl(url)) return 'Google Drive';
+    if (this.isYouTubeUrl(url)) return 'YouTube';
+    return 'Direct URL';
   }
 }
