@@ -126,7 +126,7 @@ export class FFmpegCompleteDownloadService {
           
           console.log(`FFmpeg completed: ${sizeMB.toFixed(1)}MB`);
           
-          if (code === 0 && sizeMB >= 390) {
+          if (code === 0 && sizeMB >= 399) {
             resolve({
               success: true,
               filePath: outputFile,
