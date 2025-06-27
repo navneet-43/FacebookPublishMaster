@@ -1,203 +1,164 @@
 import { spawn } from 'child_process';
-import { existsSync, statSync, unlinkSync } from 'fs';
-import { HootsuiteStyleFacebookService } from './hootsuiteStyleFacebookService';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class FFmpegGoogleDriveService {
   
-  static async downloadAndUploadVideo(
-    pageId: string,
-    accessToken: string,
-    googleDriveUrl: string,
-    description: string,
-    customLabels: string[] = [],
-    language: string = 'en'
-  ): Promise<{ success: boolean; postId?: string; error?: string }> {
+  static extractFileId(url: string): string | null {
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9-_]+)/,
+      /id=([a-zA-Z0-9-_]+)/,
+      /folders\/([a-zA-Z0-9-_]+)/
+    ];
     
-    const fileIdMatch = googleDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (!fileIdMatch) {
-      return { success: false, error: 'Invalid Google Drive URL format' };
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
     }
-    
-    const fileId = fileIdMatch[1];
-    const outputFile = `/tmp/ffmpeg_gdrive_${fileId}_${Date.now()}.mp4`;
-    
-    try {
-      console.log('Starting FFmpeg-based Google Drive download...');
-      
-      // Use FFmpeg to download Google Drive video
-      const downloadSuccess = await this.downloadWithFFmpeg(fileId, outputFile);
-      
-      if (!downloadSuccess) {
-        this.cleanupFile(outputFile);
-        return { 
-          success: false, 
-          error: 'FFmpeg download failed. Google Drive file may require different access permissions or be too large.' 
-        };
-      }
-      
-      // Verify downloaded file
-      const stats = statSync(outputFile);
-      const sizeMB = stats.size / (1024 * 1024);
-      
-      if (sizeMB < 1) {
-        this.cleanupFile(outputFile);
-        return { 
-          success: false, 
-          error: `Downloaded file too small (${sizeMB.toFixed(1)}MB). Google Drive access may be restricted.` 
-        };
-      }
-      
-      console.log(`FFmpeg successfully downloaded ${sizeMB.toFixed(1)}MB Google Drive video`);
-      
-      // Upload to Facebook using existing service
-      const uploadResult = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId,
-        accessToken,
-        outputFile,
-        description,
-        customLabels,
-        language
-      );
-      
-      this.cleanupFile(outputFile);
-      
-      if (uploadResult.success) {
-        console.log(`Facebook upload successful: ${uploadResult.postId}`);
-        return { success: true, postId: uploadResult.postId };
-      } else {
-        return { success: false, error: `Facebook upload failed: ${uploadResult.error}` };
-      }
-      
-    } catch (error) {
-      this.cleanupFile(outputFile);
-      return { success: false, error: `FFmpeg process error: ${error.message}` };
-    }
+    return null;
   }
-  
-  private static async downloadWithFFmpeg(fileId: string, outputPath: string): Promise<boolean> {
+
+  static async downloadLargeVideo(url: string): Promise<{ success: boolean; filePath?: string; sizeMB?: number; error?: string }> {
+    console.log('🎬 FFMPEG GOOGLE DRIVE DOWNLOAD');
+    console.log('📁 URL:', url);
+    
+    const fileId = this.extractFileId(url);
+    if (!fileId) {
+      return { success: false, error: 'Invalid Google Drive URL' };
+    }
+
+    const outputFile = `/tmp/gdrive_video_${fileId}_${Date.now()}.mp4`;
+    console.log('📥 Output file:', outputFile);
+
+    // Try multiple Google Drive URLs with FFmpeg
+    const downloadUrls = [
+      `https://drive.google.com/uc?export=download&id=${fileId}`,
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
+      `https://docs.google.com/uc?export=download&id=${fileId}`,
+      `https://drive.google.com/file/d/${fileId}/view?usp=sharing`
+    ];
+
+    for (let i = 0; i < downloadUrls.length; i++) {
+      const downloadUrl = downloadUrls[i];
+      console.log(`🔄 Attempt ${i + 1}/4: Testing ${downloadUrl.substring(0, 50)}...`);
+      
+      const result = await this.downloadWithFFmpeg(downloadUrl, outputFile);
+      
+      if (result.success && result.sizeMB && result.sizeMB > 5) {
+        console.log(`✅ Success with attempt ${i + 1}: ${result.sizeMB.toFixed(1)}MB`);
+        return result;
+      } else if (result.success) {
+        console.log(`❌ File too small with attempt ${i + 1}: ${result.sizeMB?.toFixed(1)}MB`);
+        // Clean up small file and try next URL
+        if (fs.existsSync(outputFile)) {
+          fs.unlinkSync(outputFile);
+        }
+      } else {
+        console.log(`❌ Failed attempt ${i + 1}: ${result.error}`);
+      }
+    }
+
+    return { success: false, error: 'All download attempts failed' };
+  }
+
+  static async downloadWithFFmpeg(url: string, outputFile: string): Promise<{ success: boolean; filePath?: string; sizeMB?: number; error?: string }> {
     return new Promise((resolve) => {
-      console.log('Starting FFmpeg download process...');
+      console.log('🎯 Starting FFmpeg download...');
       
-      // Multiple Google Drive URL formats for FFmpeg to try
-      const urls = [
-        `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
-        `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
-      ];
-      
-      let currentUrlIndex = 0;
-      
-      const tryNextUrl = () => {
-        if (currentUrlIndex >= urls.length) {
-          console.log('All FFmpeg download URLs failed');
-          resolve(false);
-          return;
+      const ffmpeg = spawn('ffmpeg', [
+        '-i', url,
+        '-c', 'copy',
+        '-f', 'mp4',
+        '-movflags', '+faststart',
+        '-y', // Overwrite output file
+        outputFile
+      ], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let hasOutput = false;
+      let lastProgress = '';
+
+      ffmpeg.stdout.on('data', (data) => {
+        hasOutput = true;
+        console.log('FFmpeg output:', data.toString().trim());
+      });
+
+      ffmpeg.stderr.on('data', (data) => {
+        const output = data.toString();
+        
+        // Look for progress indicators
+        if (output.includes('time=') || output.includes('size=')) {
+          const progressLine = output.split('\n').find(line => 
+            line.includes('time=') && line.includes('size=')
+          );
+          
+          if (progressLine && progressLine !== lastProgress) {
+            console.log('Progress:', progressLine.trim());
+            lastProgress = progressLine;
+          }
         }
         
-        const url = urls[currentUrlIndex];
-        console.log(`FFmpeg attempting URL ${currentUrlIndex + 1}/${urls.length}...`);
+        hasOutput = true;
+      });
+
+      ffmpeg.on('close', (code) => {
+        console.log(`FFmpeg process closed with code ${code}`);
         
-        const ffmpegArgs = [
-          '-y', // Overwrite output file
-          '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          '-headers', 'Accept: video/*,application/octet-stream,*/*',
-          '-timeout', '300000000', // 5 minute timeout in microseconds
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
-          '-reconnect_delay_max', '5',
-          '-i', url,
-          '-c', 'copy', // Copy streams without re-encoding for speed
-          '-movflags', 'faststart', // Optimize for web playback
-          '-f', 'mp4',
-          '-progress', 'pipe:2', // Force progress output
-          outputPath
-        ];
-        
-        console.log('FFmpeg command:', 'ffmpeg', ffmpegArgs.join(' '));
-        
-        const ffmpeg = spawn('ffmpeg', ffmpegArgs, {
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
-        
-        let ffmpegOutput = '';
-        let lastProgress = '';
-        
-        ffmpeg.stderr.on('data', (data) => {
-          const output = data.toString();
-          ffmpegOutput += output;
+        if (code === 0 && fs.existsSync(outputFile)) {
+          const stats = fs.statSync(outputFile);
+          const sizeMB = stats.size / (1024 * 1024);
           
-          // Extract progress information
-          const progressMatch = output.match(/time=(\d+:\d+:\d+\.\d+)/);
-          const sizeMatch = output.match(/size=\s*(\d+)kB/);
+          console.log(`✅ Download completed: ${sizeMB.toFixed(1)}MB`);
           
-          if (progressMatch && sizeMatch) {
-            const currentProgress = `Time: ${progressMatch[1]}, Size: ${sizeMatch[1]}kB`;
-            if (currentProgress !== lastProgress) {
-              console.log(`FFmpeg progress: ${currentProgress}`);
-              lastProgress = currentProgress;
-            }
-          }
-        });
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0 && existsSync(outputPath)) {
-            const stats = statSync(outputPath);
-            const sizeMB = stats.size / (1024 * 1024);
-            
-            if (sizeMB > 1) { // At least 1MB indicates success
-              console.log(`FFmpeg download successful: ${sizeMB.toFixed(1)}MB`);
-              resolve(true);
-            } else {
-              console.log(`FFmpeg output file too small: ${sizeMB.toFixed(1)}MB`);
-              this.cleanupFile(outputPath);
-              currentUrlIndex++;
-              tryNextUrl();
-            }
+          if (sizeMB > 0.1) { // At least 100KB
+            resolve({
+              success: true,
+              filePath: outputFile,
+              sizeMB: sizeMB
+            });
           } else {
-            console.log(`FFmpeg failed with code ${code}`);
-            if (ffmpegOutput.includes('HTTP error 403') || ffmpegOutput.includes('403 Forbidden')) {
-              console.log('FFmpeg received 403 error - trying next URL...');
-            } else if (ffmpegOutput.includes('Invalid data found')) {
-              console.log('FFmpeg received invalid data - trying next URL...');
+            console.log('❌ File too small, likely failed download');
+            if (fs.existsSync(outputFile)) {
+              fs.unlinkSync(outputFile);
             }
-            
-            this.cleanupFile(outputPath);
-            currentUrlIndex++;
-            tryNextUrl();
+            resolve({ success: false, error: `File too small: ${sizeMB.toFixed(1)}MB` });
           }
-        });
+        } else {
+          resolve({ success: false, error: `FFmpeg failed with code ${code}` });
+        }
+      });
+
+      ffmpeg.on('error', (error) => {
+        console.log('❌ FFmpeg error:', error.message);
+        resolve({ success: false, error: error.message });
+      });
+
+      // Timeout after 10 minutes
+      setTimeout(() => {
+        console.log('⏰ FFmpeg timeout - killing process');
+        ffmpeg.kill('SIGKILL');
         
-        ffmpeg.on('error', (error) => {
-          console.log(`FFmpeg process error: ${error.message}`);
-          this.cleanupFile(outputPath);
-          currentUrlIndex++;
-          tryNextUrl();
-        });
-        
-        // Set timeout for each URL attempt
-        setTimeout(() => {
-          if (!ffmpeg.killed) {
-            console.log('FFmpeg download timeout - trying next URL...');
-            ffmpeg.kill('SIGTERM');
-            this.cleanupFile(outputPath);
-            currentUrlIndex++;
-            tryNextUrl();
+        // Check if we got a partial download
+        if (fs.existsSync(outputFile)) {
+          const stats = fs.statSync(outputFile);
+          const sizeMB = stats.size / (1024 * 1024);
+          
+          if (sizeMB > 5) {
+            console.log(`⚡ Using partial download: ${sizeMB.toFixed(1)}MB`);
+            resolve({
+              success: true,
+              filePath: outputFile,
+              sizeMB: sizeMB
+            });
+          } else {
+            fs.unlinkSync(outputFile);
+            resolve({ success: false, error: 'Download timeout with insufficient data' });
           }
-        }, 600000); // 10 minutes per URL for large files
-      };
-      
-      tryNextUrl();
+        } else {
+          resolve({ success: false, error: 'Download timeout' });
+        }
+      }, 600000); // 10 minutes
     });
-  }
-  
-  private static cleanupFile(filePath: string): void {
-    try {
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-        console.log('Temporary file cleaned up');
-      }
-    } catch (error) {
-      console.log(`Cleanup warning: ${error.message}`);
-    }
   }
 }
