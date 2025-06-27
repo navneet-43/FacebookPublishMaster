@@ -3,55 +3,58 @@ import { FacebookVideoUploadService } from './facebookVideoUploadService';
 import { storage } from '../storage';
 import * as fs from 'fs';
 
-export class CompleteVideoUploadService {
+export class FinalSolutionService {
   
-  static async processGoogleDriveVideo(
-    url: string,
-    accountId: number,
-    pageId: string,
-    accessToken: string,
-    description: string,
-    customLabels: string[] = []
+  static async executeGoogleDriveToFacebookFlow(
+    googleDriveUrl: string,
+    description: string = 'Google Drive Video - Uploaded as Actual Facebook Video File'
   ): Promise<{ success: boolean; videoId?: string; sizeMB?: number; error?: string; step?: string }> {
     
-    console.log('🎯 COMPLETE VIDEO UPLOAD PROCESS');
-    console.log('📁 Google Drive URL:', url);
-    console.log('📄 Facebook Page:', pageId);
+    console.log('🎯 EXECUTING COMPLETE GOOGLE DRIVE TO FACEBOOK FLOW');
+    console.log('📁 Google Drive URL:', googleDriveUrl);
     console.log('💬 Description:', description);
     
     let downloadedFile: string | undefined;
     
     try {
-      // Step 1: Download video using robust methods
-      console.log('⬇️ Step 1: Downloading video with robust methods...');
+      // Get Facebook account
+      const accounts = await storage.getFacebookAccounts(3);
+      const tamilAccount = accounts.find(acc => acc.name === 'Alright Tamil');
       
-      const downloadResult = await RobustGoogleDriveService.downloadVideo(url);
+      if (!tamilAccount) {
+        return { success: false, error: 'Alright Tamil Facebook account not found', step: 'account_lookup' };
+      }
+      
+      console.log('📄 Using Facebook page:', tamilAccount.name);
+      
+      // Step 1: Download video from Google Drive
+      console.log('⬇️ Step 1: Downloading video from Google Drive...');
+      
+      const downloadResult = await RobustGoogleDriveService.downloadVideo(googleDriveUrl);
       
       if (!downloadResult.success || !downloadResult.filePath) {
-        console.log('❌ Download failed:', downloadResult.error);
         return { 
           success: false, 
           error: downloadResult.error || 'Download failed', 
-          step: 'download' 
+          step: 'google_drive_download' 
         };
       }
       
       downloadedFile = downloadResult.filePath;
-      console.log('✅ Download completed:', downloadResult.sizeMB?.toFixed(1) + 'MB');
+      console.log('✅ Download successful:', downloadResult.sizeMB?.toFixed(1) + 'MB');
       
       // Step 2: Upload to Facebook as actual video
-      console.log('⬆️ Step 2: Uploading to Facebook...');
+      console.log('⬆️ Step 2: Uploading to Facebook as actual video...');
       
       const uploadResult = await FacebookVideoUploadService.uploadVideoFile(
         downloadedFile,
-        pageId,
-        accessToken,
+        tamilAccount.pageId,
+        tamilAccount.accessToken,
         description,
-        customLabels
+        ['google-drive', 'actual-video', 'final-solution']
       );
       
       if (!uploadResult.success) {
-        console.log('❌ Facebook upload failed:', uploadResult.error);
         return { 
           success: false, 
           error: uploadResult.error || 'Facebook upload failed', 
@@ -66,12 +69,11 @@ export class CompleteVideoUploadService {
       console.log('💾 Step 3: Saving to database...');
       
       await storage.createPost({
-        userId: 3, // Default user
-        accountId: accountId,
+        userId: 3,
+        accountId: tamilAccount.id,
         content: description,
-        mediaUrl: url,
+        mediaUrl: googleDriveUrl,
         mediaType: 'video',
-        customLabels: customLabels,
         language: 'en',
         status: 'published',
         publishedAt: new Date()
@@ -79,11 +81,17 @@ export class CompleteVideoUploadService {
       
       console.log('✅ Saved to database');
       
-      // Step 4: Clean up temporary file
+      // Step 4: Clean up
       if (fs.existsSync(downloadedFile)) {
         fs.unlinkSync(downloadedFile);
         console.log('🧹 Temporary file cleaned up');
       }
+      
+      console.log('🎉 COMPLETE FLOW SUCCESSFUL');
+      console.log('- Video downloaded from Google Drive:', downloadResult.sizeMB?.toFixed(1) + 'MB');
+      console.log('- Video uploaded to Facebook as actual video file (not link)');
+      console.log('- Facebook Video ID:', uploadResult.videoId);
+      console.log('- Facebook Page: https://facebook.com/101307726083031');
       
       return {
         success: true,
@@ -103,51 +111,34 @@ export class CompleteVideoUploadService {
       return { 
         success: false, 
         error: (error as Error).message, 
-        step: 'unknown' 
+        step: 'process_error' 
       };
     }
   }
   
-  static async testGoogleDriveUpload(
-    url: string = 'https://drive.google.com/file/d/1FUVs4-34qJ-7d-jlVW3kn6btiNtq4pDH/view?usp=drive_link'
-  ): Promise<any> {
+  static async testCompleteFlow(): Promise<any> {
+    console.log('🧪 TESTING COMPLETE GOOGLE DRIVE TO FACEBOOK FLOW');
     
-    console.log('🧪 TESTING GOOGLE DRIVE VIDEO UPLOAD');
-    
-    // Get Alright Tamil account
-    const accounts = await storage.getFacebookAccounts(3);
-    const tamilAccount = accounts.find(acc => acc.name === 'Alright Tamil');
-    
-    if (!tamilAccount) {
-      console.log('❌ Alright Tamil account not found');
-      return { error: 'Account not found' };
-    }
-    
-    console.log('📄 Using account:', tamilAccount.name);
-    
-    const result = await this.processGoogleDriveVideo(
-      url,
-      tamilAccount.id,
-      tamilAccount.pageId,
-      tamilAccount.accessToken,
-      'FFmpeg Google Drive Video Upload - Actual Video File (Not Link)',
-      ['ffmpeg-download', 'google-drive', 'actual-video']
+    const result = await this.executeGoogleDriveToFacebookFlow(
+      'https://drive.google.com/file/d/1FUVs4-34qJ-7d-jlVW3kn6btiNtq4pDH/view?usp=drive_link',
+      'FINAL SOLUTION - Google Drive Video Uploaded as Actual Facebook Video File'
     );
     
     if (result.success) {
-      console.log('🎉 TEST SUCCESSFUL');
-      console.log('✅ Video downloaded with robust methods');
-      console.log('✅ Video uploaded as actual Facebook video file');
-      console.log('📊 File size:', result.sizeMB?.toFixed(1) + 'MB');
-      console.log('🎬 Facebook Video ID:', result.videoId);
-      console.log('🔗 Facebook Page: https://facebook.com/101307726083031');
+      console.log('✅ TEST PASSED');
+      console.log('Flow working correctly:');
+      console.log('- Google Drive download: Working');
+      console.log('- Facebook upload: Working (actual video file)');
+      console.log('- No link posts created');
+      console.log('- Video size:', result.sizeMB?.toFixed(1) + 'MB');
+      console.log('- Facebook Video ID:', result.videoId);
       
       return {
         success: true,
-        method: 'robust_download_facebook_upload',
+        flow: 'google_drive_to_facebook',
         downloadSizeMB: result.sizeMB,
         facebookVideoId: result.videoId,
-        type: 'actual_video_file'
+        uploadType: 'actual_video_file'
       };
     } else {
       console.log('❌ TEST FAILED');

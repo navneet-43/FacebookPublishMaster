@@ -1,187 +1,211 @@
 import fetch from 'node-fetch';
-import { createWriteStream, existsSync, unlinkSync, statSync } from 'fs';
-import { HootsuiteStyleFacebookService } from './hootsuiteStyleFacebookService';
+import * as fs from 'fs';
+import { spawn } from 'child_process';
 
 export class RobustGoogleDriveService {
   
-  static async uploadGoogleDriveVideo(
-    pageId: string,
-    accessToken: string,
-    googleDriveUrl: string,
-    description: string,
-    customLabels: string[] = [],
-    language: string = 'en'
-  ): Promise<{ success: boolean; postId?: string; error?: string }> {
+  static extractFileId(url: string): string | null {
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9-_]+)/,
+      /id=([a-zA-Z0-9-_]+)/,
+      /folders\/([a-zA-Z0-9-_]+)/
+    ];
     
-    const fileIdMatch = googleDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (!fileIdMatch) {
-      return { success: false, error: 'Invalid Google Drive URL format' };
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
     }
-    
-    const fileId = fileIdMatch[1];
-    const tempFile = `/tmp/robust_${fileId}_${Date.now()}.mp4`;
-    
-    try {
-      console.log('Starting robust Google Drive video download...');
-      
-      // Use streaming download with better error handling
-      const downloadSuccess = await this.streamingDownload(fileId, tempFile);
-      
-      if (!downloadSuccess) {
-        this.cleanupFile(tempFile);
-        return { 
-          success: false, 
-          error: 'Google Drive video download failed. File may be access-restricted or too large for current network conditions.' 
-        };
-      }
-      
-      // Verify downloaded file
-      const stats = statSync(tempFile);
-      const sizeMB = stats.size / (1024 * 1024);
-      
-      if (sizeMB < 5) {
-        this.cleanupFile(tempFile);
-        return { 
-          success: false, 
-          error: `Downloaded file too small (${sizeMB.toFixed(1)}MB). Google Drive file may require different access permissions.` 
-        };
-      }
-      
-      console.log(`Successfully downloaded ${sizeMB.toFixed(1)}MB Google Drive video`);
-      
-      // Upload to Facebook
-      const uploadResult = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId,
-        accessToken,
-        tempFile,
-        description,
-        customLabels,
-        language
-      );
-      
-      this.cleanupFile(tempFile);
-      
-      if (uploadResult.success) {
-        console.log(`Facebook upload successful: ${uploadResult.postId}`);
-        return { success: true, postId: uploadResult.postId };
-      } else {
-        return { success: false, error: `Facebook upload failed: ${uploadResult.error}` };
-      }
-      
-    } catch (error) {
-      this.cleanupFile(tempFile);
-      return { success: false, error: `Process error: ${error.message}` };
-    }
+    return null;
   }
-  
-  private static async streamingDownload(fileId: string, outputPath: string): Promise<boolean> {
-    // Use the most reliable Google Drive download URL
-    const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+
+  static async downloadVideo(url: string): Promise<{ success: boolean; filePath?: string; sizeMB?: number; error?: string }> {
+    console.log('🎬 ROBUST GOOGLE DRIVE DOWNLOAD');
+    console.log('📁 URL:', url);
     
+    const fileId = this.extractFileId(url);
+    if (!fileId) {
+      return { success: false, error: 'Invalid Google Drive URL' };
+    }
+
+    const outputFile = `/tmp/robust_video_${fileId}_${Date.now()}.mp4`;
+    console.log('📥 Target file:', outputFile);
+
+    // Method 1: Direct HTTP download with proper headers
+    console.log('🔄 Method 1: Direct HTTP download');
+    const directResult = await this.directDownload(fileId, outputFile);
+    if (directResult.success && directResult.sizeMB && directResult.sizeMB > 5) {
+      return directResult;
+    }
+
+    // Method 2: wget with user agent
+    console.log('🔄 Method 2: wget download');
+    const wgetResult = await this.wgetDownload(fileId, outputFile);
+    if (wgetResult.success && wgetResult.sizeMB && wgetResult.sizeMB > 5) {
+      return wgetResult;
+    }
+
+    // Method 3: curl with session handling
+    console.log('🔄 Method 3: curl download');
+    const curlResult = await this.curlDownload(fileId, outputFile);
+    if (curlResult.success && curlResult.sizeMB && curlResult.sizeMB > 5) {
+      return curlResult;
+    }
+
+    return { success: false, error: 'All download methods failed' };
+  }
+
+  static async directDownload(fileId: string, outputFile: string): Promise<{ success: boolean; filePath?: string; sizeMB?: number; error?: string }> {
     try {
-      console.log('Initiating streaming download...');
+      const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
       
       const response = await fetch(downloadUrl, {
         method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'video/mp4, video/*, application/octet-stream, */*',
-          'Accept-Encoding': 'identity',
-          'Connection': 'keep-alive'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
         },
-        timeout: 300000, // 5 minutes total timeout
-        follow: 10,
-        compress: false
+        redirect: 'follow'
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      if (!response.body) {
-        throw new Error('No response body received');
-      }
-      
-      const contentLength = parseInt(response.headers.get('content-length') || '0');
-      console.log(`Starting download: ${(contentLength / 1024 / 1024).toFixed(1)}MB`);
-      
-      // Check if this looks like an error page
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('text/html') && contentLength < 1024 * 1024) {
-        throw new Error('Received HTML page instead of video file - likely access restricted');
-      }
-      
-      const fileStream = createWriteStream(outputPath);
-      let downloadedBytes = 0;
-      let lastProgressTime = Date.now();
-      let lastProgressBytes = 0;
-      
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          fileStream.destroy();
-          reject(new Error('Download timeout - no progress for 2 minutes'));
-        }, 120000); // 2 minute progress timeout
+
+      if (response.ok && response.body) {
+        const writer = fs.createWriteStream(outputFile);
         
-        response.body.on('data', (chunk) => {
-          downloadedBytes += chunk.length;
-          const now = Date.now();
+        return new Promise((resolve) => {
+          response.body!.pipe(writer);
           
-          // Check for progress every 30 seconds
-          if (now - lastProgressTime > 30000) {
-            const progressMB = downloadedBytes / (1024 * 1024);
-            const speedKBps = (downloadedBytes - lastProgressBytes) / ((now - lastProgressTime) / 1000) / 1024;
-            
-            console.log(`Downloaded: ${progressMB.toFixed(1)}MB (${speedKBps.toFixed(1)} KB/s)`);
-            
-            // Reset timeout if we're making progress
-            if (downloadedBytes > lastProgressBytes) {
-              clearTimeout(timeout);
-              setTimeout(() => {
-                fileStream.destroy();
-                reject(new Error('Download stalled - no progress for 2 minutes'));
-              }, 120000);
+          writer.on('finish', () => {
+            if (fs.existsSync(outputFile)) {
+              const stats = fs.statSync(outputFile);
+              const sizeMB = stats.size / (1024 * 1024);
+              
+              console.log(`Direct download: ${sizeMB.toFixed(1)}MB`);
+              resolve({
+                success: true,
+                filePath: outputFile,
+                sizeMB: sizeMB
+              });
+            } else {
+              resolve({ success: false, error: 'File not created' });
             }
-            
-            lastProgressTime = now;
-            lastProgressBytes = downloadedBytes;
-          }
+          });
+          
+          writer.on('error', (error) => {
+            resolve({ success: false, error: error.message });
+          });
         });
-        
-        response.body.on('end', () => {
-          clearTimeout(timeout);
-          console.log(`Download completed: ${(downloadedBytes / 1024 / 1024).toFixed(1)}MB`);
-          resolve(true);
-        });
-        
-        response.body.on('error', (error) => {
-          clearTimeout(timeout);
-          fileStream.destroy();
-          reject(error);
-        });
-        
-        response.body.pipe(fileStream);
-        
-        fileStream.on('error', (error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-      });
+      } else {
+        return { success: false, error: `HTTP ${response.status}` };
+      }
       
     } catch (error) {
-      console.log(`Download failed: ${error.message}`);
-      this.cleanupFile(outputPath);
-      return false;
+      return { success: false, error: (error as Error).message };
     }
   }
-  
-  private static cleanupFile(filePath: string): void {
-    try {
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-        console.log('Temporary file cleaned up');
-      }
-    } catch (error) {
-      console.log(`Cleanup warning: ${error.message}`);
-    }
+
+  static async wgetDownload(fileId: string, outputFile: string): Promise<{ success: boolean; filePath?: string; sizeMB?: number; error?: string }> {
+    return new Promise((resolve) => {
+      const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      
+      const wget = spawn('wget', [
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        '--no-check-certificate',
+        '--content-disposition',
+        '-O', outputFile,
+        downloadUrl
+      ]);
+
+      wget.stdout.on('data', (data) => {
+        console.log('wget:', data.toString().trim());
+      });
+
+      wget.stderr.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('%') || output.includes('saved')) {
+          console.log('wget progress:', output.trim());
+        }
+      });
+
+      wget.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputFile)) {
+          const stats = fs.statSync(outputFile);
+          const sizeMB = stats.size / (1024 * 1024);
+          
+          console.log(`wget download: ${sizeMB.toFixed(1)}MB`);
+          resolve({
+            success: true,
+            filePath: outputFile,
+            sizeMB: sizeMB
+          });
+        } else {
+          resolve({ success: false, error: `wget failed with code ${code}` });
+        }
+      });
+
+      wget.on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        wget.kill();
+        resolve({ success: false, error: 'wget timeout' });
+      }, 300000);
+    });
+  }
+
+  static async curlDownload(fileId: string, outputFile: string): Promise<{ success: boolean; filePath?: string; sizeMB?: number; error?: string }> {
+    return new Promise((resolve) => {
+      const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+      
+      const curl = spawn('curl', [
+        '-L',
+        '-H', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        '-o', outputFile,
+        downloadUrl
+      ]);
+
+      curl.stdout.on('data', (data) => {
+        console.log('curl:', data.toString().trim());
+      });
+
+      curl.stderr.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('%') || output.includes('downloaded')) {
+          console.log('curl progress:', output.trim());
+        }
+      });
+
+      curl.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputFile)) {
+          const stats = fs.statSync(outputFile);
+          const sizeMB = stats.size / (1024 * 1024);
+          
+          console.log(`curl download: ${sizeMB.toFixed(1)}MB`);
+          resolve({
+            success: true,
+            filePath: outputFile,
+            sizeMB: sizeMB
+          });
+        } else {
+          resolve({ success: false, error: `curl failed with code ${code}` });
+        }
+      });
+
+      curl.on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        curl.kill();
+        resolve({ success: false, error: 'curl timeout' });
+      }, 300000);
+    });
   }
 }
