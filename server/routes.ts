@@ -626,6 +626,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Health check endpoint for Google Drive integration
+  app.get('/api/health/drive-integration', async (req: Request, res: Response) => {
+    try {
+      const { ImprovedGoogleDriveService } = await import('./services/improvedGoogleDriveService');
+      const driveService = new ImprovedGoogleDriveService();
+      const health = await driveService.healthCheck();
+      
+      res.json({
+        status: Object.values(health).every(v => v) ? 'healthy' : 'unhealthy',
+        checks: health,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        error: (error as Error).message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   app.post("/api/import-from-google-sheets", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
