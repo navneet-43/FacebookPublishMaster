@@ -1,197 +1,183 @@
-import fetch from 'node-fetch';
-import { createWriteStream, existsSync, unlinkSync, statSync } from 'fs';
-import { HootsuiteStyleFacebookService } from './hootsuiteStyleFacebookService';
+import * as fs from 'fs';
+import { storage } from '../storage';
+
+interface UploadResult {
+  success: boolean;
+  videoId?: string;
+  postId?: number;
+  error?: any;
+  method?: string;
+}
 
 export class ReliableVideoUploadService {
-  
   static async uploadGoogleDriveVideo(
-    pageId: string,
-    accessToken: string,
-    googleDriveUrl: string,
-    description: string,
-    customLabels: string[] = [],
-    language: string = 'en'
-  ): Promise<{ success: boolean; postId?: string; type: string; error?: string }> {
-    
-    console.log('Starting reliable Google Drive video upload...');
-    
-    // Extract file ID
-    const fileIdMatch = googleDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (!fileIdMatch) {
-      return { success: false, error: 'Invalid Google Drive URL', type: 'error' };
-    }
-    
-    const fileId = fileIdMatch[1];
-    const tempFile = `/tmp/gdrive_reliable_${fileId}_${Date.now()}.mp4`;
-    
+    videoUrl: string,
+    accountId: number
+  ): Promise<UploadResult> {
     try {
-      // Attempt optimized download with strict timeout
-      console.log('Attempting optimized download...');
+      console.log('Starting reliable Google Drive video upload');
+
+      // Step 1: Download video
+      const videoFile = await this.downloadVideo(videoUrl);
       
-      const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
-      
-      const downloadPromise = this.downloadWithProgress(downloadUrl, tempFile);
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Download timeout')), 120000); // 2 minutes for better download success
-      });
-      
-      try {
-        await Promise.race([downloadPromise, timeoutPromise]);
-        
-        // Verify download
-        if (existsSync(tempFile)) {
-          const stats = statSync(tempFile);
-          const sizeMB = stats.size / (1024 * 1024);
-          
-          console.log(`Download completed: ${sizeMB.toFixed(1)}MB`);
-          
-          if (sizeMB > 100) { // Require substantial download for quality video
-            console.log('Proceeding with actual video upload...');
-            
-            const uploadResult = await HootsuiteStyleFacebookService.uploadVideoFile(
-              pageId,
-              accessToken,
-              tempFile,
-              description,
-              customLabels,
-              language
-            );
-            
-            // Clean up
-            this.cleanupFile(tempFile);
-            
-            if (uploadResult.success) {
-              return { 
-                success: true, 
-                postId: uploadResult.postId, 
-                type: 'actual_video' 
-              };
-            }
-          }
-        }
-        
-        throw new Error('Download incomplete or failed');
-        
-      } catch (downloadError) {
-        console.log(`Download failed: ${downloadError.message}`);
-        this.cleanupFile(tempFile);
-        
-        // Instead of link fallback, return failure for actual video requirement
-        return { 
-          success: false, 
-          error: `Video download failed: ${downloadError.message}. Unable to upload as actual video file.`,
-          type: 'download_failed' 
+      if (!videoFile) {
+        throw new Error('Video download failed');
+      }
+
+      // Step 2: Upload using multiple methods
+      const account = await storage.getFacebookAccount(accountId);
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      const stats = fs.statSync(videoFile);
+      const fileSizeMB = stats.size / (1024 * 1024);
+
+      console.log(`Uploading ${fileSizeMB.toFixed(1)}MB video`);
+
+      // Try buffer method first (most reliable for large files)
+      const result = await this.uploadWithBuffer(videoFile, account, fileSizeMB);
+
+      if (result.success) {
+        // Save to database
+        const newPost = await storage.createPost({
+          userId: 3,
+          accountId: account.id,
+          content: `Google Drive Video - ${fileSizeMB.toFixed(1)}MB - Uploaded Successfully`,
+          mediaUrl: videoUrl,
+          mediaType: 'video',
+          language: 'en',
+          status: 'published',
+          publishedAt: new Date()
+        });
+
+        // Clean up
+        fs.unlinkSync(videoFile);
+
+        return {
+          success: true,
+          videoId: result.videoId,
+          postId: newPost.id,
+          method: result.method
         };
       }
+
+      // Clean up on failure
+      fs.unlinkSync(videoFile);
       
+      return {
+        success: false,
+        error: result.error,
+        method: result.method
+      };
+
     } catch (error) {
-      this.cleanupFile(tempFile);
-      console.log(`Process error: ${error.message}`);
-      
-      // Return failure instead of link fallback
-      return { 
-        success: false, 
-        error: `Video processing failed: ${error.message}. Actual video file upload required.`,
-        type: 'process_failed' 
+      console.error('Upload service error:', error);
+      return {
+        success: false,
+        error: (error as Error).message
       };
     }
   }
-  
-  private static async downloadWithProgress(url: string, outputPath: string): Promise<void> {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      timeout: 60000
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+
+  private static async downloadVideo(videoUrl: string): Promise<string | null> {
+    try {
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+
+      const fileId = videoUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1];
+      if (!fileId) {
+        throw new Error('Invalid Google Drive URL');
+      }
+
+      const outputFile = `/tmp/reliable_video_${Date.now()}.mp4`;
+      const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+
+      console.log('Downloading with aria2c...');
+
+      const downloadCommand = `aria2c -x 8 -s 8 -k 1M --file-allocation=none --check-certificate=false -d /tmp -o ${outputFile.split('/').pop()} '${downloadUrl}'`;
+
+      await execAsync(downloadCommand, { timeout: 300000 });
+
+      if (!fs.existsSync(outputFile)) {
+        throw new Error('Download failed - file not created');
+      }
+
+      const stats = fs.statSync(outputFile);
+      if (stats.size < 1024 * 1024) { // Less than 1MB
+        throw new Error('Download failed - file too small');
+      }
+
+      console.log(`Downloaded ${(stats.size / (1024 * 1024)).toFixed(1)}MB`);
+      return outputFile;
+
+    } catch (error) {
+      console.error('Download error:', error);
+      return null;
     }
-    
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-    
-    const fileStream = createWriteStream(outputPath);
-    const contentLength = parseInt(response.headers.get('content-length') || '0');
-    
-    let downloaded = 0;
-    let lastLog = 0;
-    
-    return new Promise((resolve, reject) => {
-      response.body!.on('data', (chunk) => {
-        downloaded += chunk.length;
-        const progress = Math.floor((downloaded / contentLength) * 100);
-        
-        if (progress > lastLog + 20) { // Log every 20%
-          console.log(`Download: ${progress}% (${(downloaded / 1024 / 1024).toFixed(1)}MB)`);
-          lastLog = progress;
+  }
+
+  private static async uploadWithBuffer(
+    videoFile: string,
+    account: any,
+    fileSizeMB: number
+  ): Promise<{ success: boolean; videoId?: string; error?: any; method: string }> {
+    try {
+      console.log('Uploading with buffer method to avoid file access issues');
+
+      const fetch = (await import('node-fetch')).default;
+      const FormData = (await import('form-data')).default;
+
+      // Read entire file into buffer to avoid file access issues
+      const fileBuffer = fs.readFileSync(videoFile);
+      console.log(`File read into buffer: ${fileBuffer.length} bytes`);
+
+      const formData = new FormData();
+      formData.append('access_token', account.accessToken);
+      formData.append('description', `Google Drive Video - ${fileSizeMB.toFixed(1)}MB`);
+      formData.append('privacy', JSON.stringify({ value: 'EVERYONE' }));
+      formData.append('published', 'true');
+      formData.append('source', fileBuffer, {
+        filename: 'google_drive_video.mp4',
+        contentType: 'video/mp4'
+      });
+
+      const uploadUrl = `https://graph.facebook.com/v18.0/${account.pageId}/videos`;
+
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          ...formData.getHeaders()
         }
       });
-      
-      response.body!.on('end', () => {
-        console.log(`Download finished: ${(downloaded / 1024 / 1024).toFixed(1)}MB`);
-        resolve();
-      });
-      
-      response.body!.on('error', reject);
-      response.body!.pipe(fileStream);
-      fileStream.on('error', reject);
-    });
-  }
-  
-  private static async createLinkPost(
-    pageId: string,
-    accessToken: string,
-    videoUrl: string,
-    description: string,
-    customLabels: string[]
-  ): Promise<{ success: boolean; postId?: string; type: string; error?: string }> {
-    
-    try {
-      const message = `${description}\n\nVideo: ${videoUrl}\n\n#${customLabels.join(' #')}`;
-      
-      const response = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: message,
-          access_token: accessToken
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (result.id) {
-        console.log(`Link post created: ${result.id}`);
-        return { 
-          success: true, 
-          postId: result.id, 
-          type: 'link_post' 
+
+      const uploadResult = await uploadResponse.json() as any;
+
+      if (uploadResult.id) {
+        console.log('Buffer upload successful:', uploadResult.id);
+        return {
+          success: true,
+          videoId: uploadResult.id,
+          method: 'buffer'
         };
       } else {
-        throw new Error(result.error?.message || 'Facebook API error');
+        console.log('Buffer upload failed:', uploadResult);
+        return {
+          success: false,
+          error: uploadResult,
+          method: 'buffer'
+        };
       }
-      
+
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.message, 
-        type: 'failed' 
+      console.error('Buffer upload error:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+        method: 'buffer'
       };
-    }
-  }
-  
-  private static cleanupFile(filePath: string): void {
-    try {
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-        console.log('Temporary file cleaned up');
-      }
-    } catch (error) {
-      console.log('Cleanup warning:', error.message);
     }
   }
 }
