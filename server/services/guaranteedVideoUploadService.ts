@@ -1,195 +1,164 @@
-import { EnhancedGoogleDriveService } from './enhancedGoogleDriveService';
-import { ActualVideoOnlyService } from './actualVideoOnlyService';
+import * as fs from 'fs';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+interface GuaranteedUploadResult {
+  success: boolean;
+  videoId?: string;
+  postId?: number;
+  error?: any;
+  sizeMB?: number;
+}
 
 export class GuaranteedVideoUploadService {
-  /**
-   * Guaranteed video upload with enhanced processing for all video sources
-   */
-  static async uploadVideo(
+  static async uploadGuaranteedVideo(
+    googleDriveUrl: string,
+    accountId: number,
     pageId: string,
     accessToken: string,
-    videoUrl: string,
-    content: string,
-    customLabels: string[] = [],
-    language: string = 'en'
-  ) {
-    console.log('🎯 GUARANTEED VIDEO UPLOAD SERVICE');
-    console.log(`📺 Video URL: ${videoUrl}`);
-    console.log(`📄 Target Page: ${pageId}`);
-
+    storage: any
+  ): Promise<GuaranteedUploadResult> {
+    console.log('Starting guaranteed video upload');
+    
     try {
-      // Determine video source and use appropriate enhanced service
-      if (this.isGoogleDriveUrl(videoUrl)) {
-        console.log('🚀 Processing Google Drive video with enhanced service');
-        
-        const result = await EnhancedGoogleDriveService.downloadAndUpload(
-          pageId,
-          accessToken,
-          videoUrl,
-          content,
-          customLabels,
-          language
-        );
-
-        return {
-          success: true,
-          postId: result.postId,
-          source: 'Google Drive',
-          sizeMB: result.sizeMB,
-          downloadTime: result.downloadTime,
-          url: result.url,
-          message: `Google Drive video successfully uploaded: ${result.sizeMB.toFixed(1)}MB`
-        };
-
-      } else if (this.isYouTubeUrl(videoUrl)) {
-        console.log('🚀 Processing YouTube video with existing service');
-        
-        const result = await ActualVideoOnlyService.uploadVideo(
-          pageId,
-          accessToken,
-          videoUrl,
-          content,
-          customLabels,
-          language
-        );
-
-        if (!result.success) {
-          throw new Error(result.error || 'YouTube upload failed');
-        }
-
-        return {
-          success: true,
-          postId: result.postId,
-          source: 'YouTube',
-          url: `https://facebook.com/${result.postId}`,
-          message: 'YouTube video successfully uploaded'
-        };
-
-      } else {
-        console.log('🚀 Processing direct video URL');
-        
-        const result = await ActualVideoOnlyService.uploadVideo(
-          pageId,
-          accessToken,
-          videoUrl,
-          content,
-          customLabels,
-          language
-        );
-
-        if (!result.success) {
-          throw new Error(result.error || 'Direct URL upload failed');
-        }
-
-        return {
-          success: true,
-          postId: result.postId,
-          source: 'Direct URL',
-          url: `https://facebook.com/${result.postId}`,
-          message: 'Direct video URL successfully uploaded'
-        };
+      // Extract file ID from Google Drive URL
+      const fileIdMatch = googleDriveUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (!fileIdMatch) {
+        throw new Error('Invalid Google Drive URL');
       }
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('❌ Guaranteed upload failed:', errorMessage);
+      
+      const fileId = fileIdMatch[1];
+      const outputFile = `/tmp/guaranteed_video_${Date.now()}.mp4`;
+      
+      console.log('Downloading video file');
+      
+      // Use multiple download strategies
+      const downloadStrategies = [
+        // Strategy 1: Direct usercontent download
+        `aria2c -x 16 -s 16 -k 1M --file-allocation=none --check-certificate=false -o "${outputFile}" "https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t"`,
+        
+        // Strategy 2: Curl with follow redirects
+        `curl -L -o "${outputFile}" "https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t"`,
+        
+        // Strategy 3: wget with user agent
+        `wget -O "${outputFile}" --user-agent="Mozilla/5.0" "https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t"`
+      ];
+      
+      let downloadSuccess = false;
+      
+      for (const strategy of downloadStrategies) {
+        try {
+          console.log('Trying download strategy:', strategy.split(' ')[0]);
+          await execAsync(strategy, { timeout: 300000 }); // 5 minute timeout
+          
+          if (fs.existsSync(outputFile)) {
+            const stats = fs.statSync(outputFile);
+            const fileSizeMB = stats.size / (1024 * 1024);
+            
+            if (fileSizeMB > 50) { // Require at least 50MB for valid video
+              console.log(`Download successful: ${fileSizeMB.toFixed(1)}MB`);
+              downloadSuccess = true;
+              break;
+            } else {
+              console.log(`File too small: ${fileSizeMB.toFixed(1)}MB, trying next strategy`);
+              fs.unlinkSync(outputFile);
+            }
+          }
+        } catch (error) {
+          console.log('Download strategy failed:', (error as Error).message);
+          if (fs.existsSync(outputFile)) {
+            fs.unlinkSync(outputFile);
+          }
+        }
+      }
+      
+      if (!downloadSuccess) {
+        throw new Error('All download strategies failed');
+      }
+      
+      const stats = fs.statSync(outputFile);
+      const fileSizeMB = stats.size / (1024 * 1024);
+      
+      console.log(`Uploading ${fileSizeMB.toFixed(1)}MB video to Facebook`);
+      
+      // Use Facebook Video API (not Posts API)
+      const fetch = (await import('node-fetch')).default;
+      const FormData = (await import('form-data')).default;
+      
+      const formData = new FormData();
+      const fileStream = fs.createReadStream(outputFile);
+      
+      formData.append('access_token', accessToken);
+      formData.append('description', `Google Drive Video - ${fileSizeMB.toFixed(1)}MB - Guaranteed Upload`);
+      formData.append('privacy', JSON.stringify({ value: 'EVERYONE' }));
+      formData.append('published', 'true');
+      formData.append('source', fileStream, {
+        filename: 'video.mp4',
+        contentType: 'video/mp4'
+      });
+      
+      // Use /videos endpoint for guaranteed video upload
+      const uploadUrl = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          ...formData.getHeaders()
+        }
+      });
+      
+      if (uploadResponse.ok) {
+        const uploadResult = await uploadResponse.json() as any;
+        
+        if (uploadResult.id) {
+          console.log('Video uploaded successfully to Facebook');
+          console.log('Facebook Video ID:', uploadResult.id);
+          
+          // Save to database
+          const newPost = await storage.createPost({
+            userId: 3,
+            accountId: accountId,
+            content: `Google Drive Video - ${fileSizeMB.toFixed(1)}MB - Guaranteed Upload`,
+            mediaUrl: googleDriveUrl,
+            mediaType: 'video',
+            language: 'en',
+            status: 'published',
+            publishedAt: new Date()
+          });
+          
+          // Clean up
+          fs.unlinkSync(outputFile);
+          
+          return {
+            success: true,
+            videoId: uploadResult.id,
+            postId: newPost.id,
+            sizeMB: fileSizeMB
+          };
+        }
+      }
+      
+      const errorText = await uploadResponse.text();
+      console.log('Facebook API error:', errorText);
+      
+      // Clean up on failure
+      fs.unlinkSync(outputFile);
       
       return {
         success: false,
-        error: errorMessage,
-        source: this.getVideoSource(videoUrl),
-        message: `Upload failed: ${errorMessage}`
+        error: errorText,
+        sizeMB: fileSizeMB
+      };
+      
+    } catch (error) {
+      console.log('Guaranteed upload error:', (error as Error).message);
+      return {
+        success: false,
+        error: (error as Error).message
       };
     }
-  }
-
-  /**
-   * Test the enhanced video upload system
-   */
-  static async testSystem(pageId: string, accessToken: string) {
-    console.log('🧪 TESTING GUARANTEED VIDEO UPLOAD SYSTEM');
-    
-    const testVideos = [
-      {
-        url: 'https://drive.google.com/file/d/1FUVs4-34qJ-7d-jlVW3kn6btiNtq4pDH/view?usp=drive_link',
-        type: 'Google Drive',
-        content: 'Enhanced Google Drive video upload test - guaranteed completion'
-      },
-      {
-        url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
-        type: 'YouTube',
-        content: 'YouTube video upload test with guaranteed service'
-      }
-    ];
-
-    const results = [];
-
-    for (const test of testVideos) {
-      console.log(`\n🎬 Testing ${test.type} upload...`);
-      
-      try {
-        const result = await this.uploadVideo(
-          pageId,
-          accessToken,
-          test.url,
-          test.content,
-          ['test', 'guaranteed-upload', test.type.toLowerCase().replace(' ', '-')],
-          'en'
-        );
-
-        results.push({
-          type: test.type,
-          success: result.success,
-          postId: result.postId,
-          url: result.url,
-          message: result.message,
-          details: result
-        });
-
-        if (result.success) {
-          console.log(`✅ ${test.type} test successful: ${result.url}`);
-        } else {
-          console.log(`❌ ${test.type} test failed: ${result.error}`);
-        }
-
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.log(`❌ ${test.type} test error: ${errorMessage}`);
-        results.push({
-          type: test.type,
-          success: false,
-          error: errorMessage
-        });
-      }
-    }
-
-    return {
-      success: results.some(r => r.success),
-      results,
-      summary: `Tested ${results.length} video sources, ${results.filter(r => r.success).length} successful`
-    };
-  }
-
-  /**
-   * Check if URL is a Google Drive video
-   */
-  private static isGoogleDriveUrl(url: string): boolean {
-    return url.includes('drive.google.com') || url.includes('drive.usercontent.google.com');
-  }
-
-  /**
-   * Check if URL is a YouTube video
-   */
-  private static isYouTubeUrl(url: string): boolean {
-    return url.includes('youtube.com') || url.includes('youtu.be');
-  }
-
-  /**
-   * Get video source type
-   */
-  private static getVideoSource(url: string): string {
-    if (this.isGoogleDriveUrl(url)) return 'Google Drive';
-    if (this.isYouTubeUrl(url)) return 'YouTube';
-    return 'Direct URL';
   }
 }
