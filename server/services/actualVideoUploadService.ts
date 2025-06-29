@@ -1,270 +1,296 @@
-import { existsSync, unlinkSync, statSync } from 'fs';
-import { spawn } from 'child_process';
+import * as fs from 'fs';
+import { storage } from '../storage';
 
-/**
- * Service that guarantees actual video file uploads to Facebook
- * Multiple strategies to ensure videos are uploaded as files, not links
- */
+interface VideoUploadResult {
+  success: boolean;
+  videoId?: string;
+  postId?: number;
+  error?: any;
+}
+
 export class ActualVideoUploadService {
-  
-  /**
-   * Main method that guarantees video file upload using progressive strategies
-   */
-  static async guaranteeActualVideoUpload(
-    pageId: string,
-    pageAccessToken: string,
-    filePath: string,
-    description?: string,
-    customLabels?: string[],
-    language?: string
-  ): Promise<{
-    success: boolean;
-    postId?: string;
-    method?: string;
-    finalSizeMB?: number;
-    error?: string;
-  }> {
-    const { HootsuiteStyleFacebookService } = await import('./hootsuiteStyleFacebookService');
-    
-    console.log('🎯 GUARANTEEING ACTUAL VIDEO UPLOAD');
-    console.log(`📁 Input file: ${filePath}`);
-    console.log(`📊 Page ID: ${pageId}`);
-    
-    if (!existsSync(filePath)) {
-      console.log('❌ File does not exist at path:', filePath);
-      return { success: false, error: 'Input file not found' };
-    }
-    
-    const originalStats = statSync(filePath);
-    const originalSizeMB = originalStats.size / 1024 / 1024;
-    console.log(`📏 File size: ${originalSizeMB.toFixed(2)}MB`);
-    
-    // Strategy 1: Direct upload for all files (improved reliability)
-    console.log(`📤 Strategy 1: Direct upload (${originalSizeMB.toFixed(1)}MB)`);
-    const result = await HootsuiteStyleFacebookService.uploadVideoFile(
-      pageId, pageAccessToken, filePath, description, customLabels, language, () => {}
-    );
-    console.log('📊 Strategy 1 result:', JSON.stringify(result, null, 2));
-    if (result.success) {
-      console.log('✅ DIRECT UPLOAD SUCCESSFUL');
-      return { ...result, method: 'direct', finalSizeMB: originalSizeMB };
-    }
-    
-    // Strategy 2: Create Facebook-compatible version
-    console.log('📤 Strategy 2: Facebook-compatible encoding');
-    const compatibleFile = await this.createFacebookCompatible(filePath);
-    if (compatibleFile) {
-      const compatibleStats = statSync(compatibleFile);
-      const compatibleSizeMB = compatibleStats.size / 1024 / 1024;
-      
-      const cleanup = () => {
-        if (existsSync(compatibleFile)) {
-          unlinkSync(compatibleFile);
-          console.log('🗑️ Compatible video cleaned');
-        }
-      };
-      
-      const result = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, compatibleFile, description, customLabels, language, cleanup
-      );
-      
-      console.log('📊 Strategy 2 result:', JSON.stringify(result, null, 2));
-      if (result.success) {
-        return { ...result, method: 'facebook_compatible', finalSizeMB: compatibleSizeMB };
-      }
-    }
-    
-    // Strategy 3: Compressed but high quality
-    console.log('📤 Strategy 3: High-quality compression');
-    const compressedFile = await this.createHighQualityCompressed(filePath);
-    if (compressedFile) {
-      const compressedStats = statSync(compressedFile);
-      const compressedSizeMB = compressedStats.size / 1024 / 1024;
-      
-      const cleanup = () => {
-        if (existsSync(compressedFile)) {
-          unlinkSync(compressedFile);
-          console.log('🗑️ Compressed video cleaned');
-        }
-      };
-      
-      const result = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, compressedFile, description, customLabels, language, cleanup
-      );
-      
-      if (result.success) {
-        return { ...result, method: 'high_quality_compressed', finalSizeMB: compressedSizeMB };
-      }
-    }
-    
-    // Strategy 4: Standard compression
-    console.log('📤 Strategy 4: Standard compression');
-    const standardFile = await this.createStandardCompressed(filePath);
-    if (standardFile) {
-      const standardStats = statSync(standardFile);
-      const standardSizeMB = standardStats.size / 1024 / 1024;
-      
-      const cleanup = () => {
-        if (existsSync(standardFile)) {
-          unlinkSync(standardFile);
-          console.log('🗑️ Standard video cleaned');
-        }
-      };
-      
-      const result = await HootsuiteStyleFacebookService.uploadVideoFile(
-        pageId, pageAccessToken, standardFile, description, customLabels, language, cleanup
-      );
-      
-      if (result.success) {
-        return { ...result, method: 'standard_compressed', finalSizeMB: standardSizeMB };
-      }
-    }
-    
-    console.log('❌ ALL VIDEO UPLOAD STRATEGIES FAILED');
-    return {
-      success: false,
-      error: 'All video upload strategies failed'
-    };
-  }
-  
-  /**
-   * Create Facebook-compatible version (good quality, reasonable size)
-   */
-  private static async createFacebookCompatible(inputPath: string): Promise<string | null> {
+  static async uploadActualVideo(
+    videoUrl: string,
+    accountId: number
+  ): Promise<VideoUploadResult> {
     try {
-      const outputPath = `/tmp/facebook_compatible_${Date.now()}.mp4`;
+      console.log('Starting actual video file upload to Facebook');
+
+      // Step 1: Download video using aria2c
+      const videoFile = await this.downloadVideoFile(videoUrl);
       
-      await new Promise<void>((resolve, reject) => {
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', inputPath,
-          '-c:v', 'libx264',
-          '-c:a', 'aac',
-          '-s', '1920x1080',
-          '-crf', '20', // High quality
-          '-preset', 'medium',
-          '-movflags', '+faststart',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'high',
-          '-level', '4.0',
-          '-maxrate', '5M',
-          '-bufsize', '10M',
-          '-b:a', '192k',
-          '-y',
-          outputPath
-        ]);
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`FFmpeg failed: ${code}`));
-        });
-        
-        ffmpeg.on('error', reject);
-      });
-      
-      if (existsSync(outputPath)) {
-        const stats = statSync(outputPath);
-        console.log(`✅ Facebook-compatible: ${(stats.size / 1024 / 1024).toFixed(1)}MB`);
-        return outputPath;
+      if (!videoFile) {
+        throw new Error('Video download failed');
       }
+
+      // Step 2: Upload actual video file to Facebook
+      const account = await storage.getFacebookAccount(accountId);
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      const stats = fs.statSync(videoFile);
+      const fileSizeMB = stats.size / (1024 * 1024);
+
+      console.log(`Uploading actual video file: ${fileSizeMB.toFixed(1)}MB`);
+
+      // Use Facebook's video API to upload actual file
+      const result = await this.uploadVideoFile(videoFile, account, fileSizeMB);
+
+      if (result.success) {
+        // Save to database
+        const newPost = await storage.createPost({
+          userId: 3,
+          accountId: account.id,
+          content: `Actual Video Upload - ${fileSizeMB.toFixed(1)}MB`,
+          mediaUrl: videoUrl,
+          mediaType: 'video',
+          language: 'en',
+          status: 'published',
+          publishedAt: new Date()
+        });
+
+        // Clean up
+        fs.unlinkSync(videoFile);
+
+        return {
+          success: true,
+          videoId: result.videoId,
+          postId: newPost.id
+        };
+      }
+
+      // Clean up on failure
+      fs.unlinkSync(videoFile);
       
-      return null;
+      return {
+        success: false,
+        error: result.error
+      };
+
     } catch (error) {
-      console.log('Facebook-compatible encoding failed:', error);
+      console.error('Actual video upload error:', error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
+    }
+  }
+
+  private static async downloadVideoFile(videoUrl: string): Promise<string | null> {
+    try {
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+
+      const fileId = videoUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1];
+      if (!fileId) {
+        throw new Error('Invalid Google Drive URL');
+      }
+
+      const timestamp = Date.now();
+      const outputFile = `/tmp/actual_video_${timestamp}.mp4`;
+      const downloadUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+
+      console.log('Downloading video file with aria2c...');
+
+      const downloadCommand = `aria2c -x 16 -s 16 -k 1M --file-allocation=none --check-certificate=false -d /tmp -o actual_video_${timestamp}.mp4 '${downloadUrl}'`;
+
+      await execAsync(downloadCommand, { timeout: 300000 });
+
+      if (!fs.existsSync(outputFile)) {
+        throw new Error('Download failed - file not created');
+      }
+
+      const stats = fs.statSync(outputFile);
+      if (stats.size < 1024 * 1024) { // Less than 1MB
+        throw new Error('Download failed - file too small');
+      }
+
+      console.log(`Downloaded ${(stats.size / (1024 * 1024)).toFixed(1)}MB video file`);
+      return outputFile;
+
+    } catch (error) {
+      console.error('Download error:', error);
       return null;
     }
   }
-  
-  /**
-   * Create high-quality compressed version
-   */
-  private static async createHighQualityCompressed(inputPath: string): Promise<string | null> {
+
+  private static async uploadVideoFile(
+    videoFile: string,
+    account: any,
+    fileSizeMB: number
+  ): Promise<{ success: boolean; videoId?: string; error?: any }> {
     try {
-      const outputPath = `/tmp/hq_compressed_${Date.now()}.mp4`;
-      
-      await new Promise<void>((resolve, reject) => {
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', inputPath,
-          '-c:v', 'libx264',
-          '-c:a', 'aac',
-          '-s', '1280x720',
-          '-crf', '22', // Good quality
-          '-preset', 'medium',
-          '-movflags', '+faststart',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'high',
-          '-level', '3.1',
-          '-maxrate', '3M',
-          '-bufsize', '6M',
-          '-b:a', '128k',
-          '-y',
-          outputPath
-        ]);
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`FFmpeg failed: ${code}`));
-        });
-        
-        ffmpeg.on('error', reject);
-      });
-      
-      if (existsSync(outputPath)) {
-        const stats = statSync(outputPath);
-        console.log(`✅ High-quality compressed: ${(stats.size / 1024 / 1024).toFixed(1)}MB`);
-        return outputPath;
+      console.log('Uploading actual video file to Facebook (not link)');
+
+      const fetch = (await import('node-fetch')).default;
+      const FormData = (await import('form-data')).default;
+
+      // For large files, use chunked upload
+      if (fileSizeMB > 100) {
+        console.log('Using chunked upload for large video file');
+        return await this.uploadLargeVideoFile(videoFile, account, fileSizeMB);
       }
-      
-      return null;
+
+      // Standard upload for smaller files
+      const formData = new FormData();
+      const fileStream = fs.createReadStream(videoFile);
+
+      formData.append('access_token', account.accessToken);
+      formData.append('description', `Actual Video File - ${fileSizeMB.toFixed(1)}MB - ${new Date().toISOString()}`);
+      formData.append('privacy', JSON.stringify({ value: 'EVERYONE' }));
+      formData.append('published', 'true');
+      formData.append('source', fileStream, {
+        filename: 'video.mp4',
+        contentType: 'video/mp4'
+      });
+
+      const uploadUrl = `https://graph.facebook.com/v18.0/${account.pageId}/videos`;
+
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          ...formData.getHeaders()
+        }
+      });
+
+      const uploadResult = await uploadResponse.json() as any;
+
+      if (uploadResult.id) {
+        console.log('Actual video file uploaded successfully:', uploadResult.id);
+        return {
+          success: true,
+          videoId: uploadResult.id
+        };
+      } else {
+        console.log('Video file upload failed:', uploadResult);
+        return {
+          success: false,
+          error: uploadResult
+        };
+      }
+
     } catch (error) {
-      console.log('High-quality compression failed:', error);
-      return null;
+      console.error('Video file upload error:', error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
     }
   }
-  
-  /**
-   * Create standard compressed version (guaranteed to work)
-   */
-  private static async createStandardCompressed(inputPath: string): Promise<string | null> {
+
+  private static async uploadLargeVideoFile(
+    videoFile: string,
+    account: any,
+    fileSizeMB: number
+  ): Promise<{ success: boolean; videoId?: string; error?: any }> {
     try {
-      const outputPath = `/tmp/standard_compressed_${Date.now()}.mp4`;
+      console.log('Uploading large video file using resumable upload');
+
+      const fetch = (await import('node-fetch')).default;
+      const FormData = (await import('form-data')).default;
       
-      await new Promise<void>((resolve, reject) => {
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', inputPath,
-          '-c:v', 'libx264',
-          '-c:a', 'aac',
-          '-s', '854x480',
-          '-crf', '25', // Standard quality
-          '-preset', 'fast',
-          '-movflags', '+faststart',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'baseline',
-          '-level', '3.0',
-          '-maxrate', '1M',
-          '-bufsize', '2M',
-          '-b:a', '96k',
-          '-y',
-          outputPath
-        ]);
-        
-        ffmpeg.on('close', (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`FFmpeg failed: ${code}`));
-        });
-        
-        ffmpeg.on('error', reject);
+      const fileSize = fs.statSync(videoFile).size;
+
+      // Step 1: Initialize upload session
+      const initFormData = new FormData();
+      initFormData.append('access_token', account.accessToken);
+      initFormData.append('upload_phase', 'start');
+      initFormData.append('file_size', fileSize.toString());
+
+      const initUrl = `https://graph.facebook.com/v18.0/${account.pageId}/videos`;
+      
+      const initResponse = await fetch(initUrl, {
+        method: 'POST',
+        body: initFormData,
+        headers: initFormData.getHeaders()
       });
-      
-      if (existsSync(outputPath)) {
-        const stats = statSync(outputPath);
-        console.log(`✅ Standard compressed: ${(stats.size / 1024 / 1024).toFixed(1)}MB`);
-        return outputPath;
+
+      const initResult = await initResponse.json() as any;
+
+      if (!initResult.upload_session_id) {
+        throw new Error('Failed to initialize upload session');
       }
-      
-      return null;
+
+      const sessionId = initResult.upload_session_id;
+      console.log('Upload session created:', sessionId);
+
+      // Step 2: Upload file in chunks
+      const chunkSize = 8 * 1024 * 1024; // 8MB chunks
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, fileSize);
+        
+        console.log(`Uploading chunk ${i + 1}/${totalChunks}`);
+
+        const chunk = Buffer.alloc(end - start);
+        const fd = fs.openSync(videoFile, 'r');
+        fs.readSync(fd, chunk, 0, end - start, start);
+        fs.closeSync(fd);
+
+        const chunkFormData = new FormData();
+        chunkFormData.append('access_token', account.accessToken);
+        chunkFormData.append('upload_phase', 'transfer');
+        chunkFormData.append('upload_session_id', sessionId);
+        chunkFormData.append('start_offset', start.toString());
+        chunkFormData.append('video_file_chunk', chunk, {
+          filename: 'chunk',
+          contentType: 'application/octet-stream'
+        });
+
+        const chunkResponse = await fetch(initUrl, {
+          method: 'POST',
+          body: chunkFormData,
+          headers: chunkFormData.getHeaders()
+        });
+
+        const chunkResult = await chunkResponse.json() as any;
+        
+        if (!chunkResult.success && chunkResponse.status !== 200) {
+          throw new Error(`Chunk upload failed: ${JSON.stringify(chunkResult)}`);
+        }
+      }
+
+      // Step 3: Finalize upload
+      const finalFormData = new FormData();
+      finalFormData.append('access_token', account.accessToken);
+      finalFormData.append('upload_phase', 'finish');
+      finalFormData.append('upload_session_id', sessionId);
+      finalFormData.append('description', `Large Video File - ${fileSizeMB.toFixed(1)}MB - ${new Date().toISOString()}`);
+      finalFormData.append('privacy', JSON.stringify({ value: 'EVERYONE' }));
+      finalFormData.append('published', 'true');
+
+      const finalResponse = await fetch(initUrl, {
+        method: 'POST',
+        body: finalFormData,
+        headers: finalFormData.getHeaders()
+      });
+
+      const finalResult = await finalResponse.json() as any;
+
+      if (finalResult.id) {
+        console.log('Large video file uploaded successfully:', finalResult.id);
+        return {
+          success: true,
+          videoId: finalResult.id
+        };
+      } else {
+        return {
+          success: false,
+          error: finalResult
+        };
+      }
+
     } catch (error) {
-      console.log('Standard compression failed:', error);
-      return null;
+      console.error('Large video upload error:', error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
     }
   }
 }
