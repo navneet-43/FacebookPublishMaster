@@ -200,4 +200,78 @@ export class CompleteVideoUploadService {
       };
     }
   }
+
+  async uploadProcessedVideoFile(options: {
+    videoFilePath: string;
+    pageId: string;
+    pageAccessToken: string;
+    description: string;
+    customLabels: string[];
+    language: string;
+  }): Promise<CompleteVideoUploadResult> {
+    try {
+      console.log('Starting upload of processed video file');
+      
+      const fileStats = require('fs').statSync(options.videoFilePath);
+      const fileSizeMB = fileStats.size / (1024 * 1024);
+      
+      console.log(`Video file size: ${fileSizeMB.toFixed(1)}MB`);
+      
+      let uploadResult;
+      
+      // Use chunked upload for larger files (>50MB)
+      if (fileSizeMB > 50) {
+        console.log('Using chunked upload for large video file');
+        uploadResult = await this.uploader.uploadLargeVideo({
+          filePath: options.videoFilePath,
+          pageId: options.pageId,
+          pageAccessToken: options.pageAccessToken,
+          description: options.description,
+          customLabels: options.customLabels
+        });
+      } else {
+        console.log('Using standard upload for video file');
+        uploadResult = await this.uploader.uploadVideo({
+          filePath: options.videoFilePath,
+          pageId: options.pageId,
+          pageAccessToken: options.pageAccessToken,
+          description: options.description,
+          customLabels: options.customLabels
+        });
+      }
+      
+      if (uploadResult.success) {
+        console.log('✅ Processed video file uploaded successfully');
+        
+        // Clean up the processed file
+        try {
+          require('fs').unlinkSync(options.videoFilePath);
+          console.log('✅ Temporary video file cleaned up');
+        } catch (cleanupError) {
+          console.warn('⚠️ Could not clean up temporary file:', cleanupError);
+        }
+        
+        return {
+          success: true,
+          facebookVideoId: uploadResult.videoId,
+          method: 'processed_video_file_upload',
+          uploadedSizeMB: fileSizeMB
+        };
+      } else {
+        return {
+          success: false,
+          error: uploadResult.error || 'Video upload failed',
+          method: 'processed_video_file_upload'
+        };
+      }
+      
+    } catch (error) {
+      console.error('Processed video file upload error:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+        method: 'processed_video_file_upload'
+      };
+    }
+  }
 }

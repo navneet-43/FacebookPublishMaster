@@ -436,12 +436,20 @@ export class HootsuiteStyleFacebookService {
             encodingCleanup = encodedResult.cleanup;
           }
           
-          // Upload to Facebook
+          // Upload to Facebook using the working chunked upload system
           console.log('🚀 STARTING FACEBOOK UPLOAD for Google Drive video');
-          const { ActualVideoUploadService } = await import('./actualVideoUploadService');
-          const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
-            pageId, pageAccessToken, finalPath, description, customLabels, language
-          );
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
+          
+          // Upload the processed video file directly
+          const uploadResult = await uploadService.uploadProcessedVideoFile({
+            videoFilePath: finalPath,
+            pageId: pageId,
+            pageAccessToken: pageAccessToken,
+            description: description,
+            customLabels: customLabels || [],
+            language: language || 'en'
+          });
           
           console.log('📊 UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
           
