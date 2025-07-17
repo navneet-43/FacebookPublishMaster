@@ -1,0 +1,227 @@
+import fs from 'fs';
+
+interface GoogleDriveDownloadOptions {
+  googleDriveUrl: string;
+  outputPath?: string;
+}
+
+interface GoogleDriveDownloadResult {
+  success: boolean;
+  filePath?: string;
+  fileSize?: number;
+  error?: string;
+}
+
+export class CorrectGoogleDriveDownloader {
+  
+  private extractFileId(url: string): string {
+    // Convert drive link to file ID (matching Python script)
+    const match = url.match(/\/d\/([\w-]+)/);
+    if (match) {
+      return match[1];
+    } else if (url.includes('open?id=')) {
+      return url.split('open?id=')[1];
+    } else {
+      return url;
+    }
+  }
+
+  private async getConfirmationInfoFromForm(html: string): Promise<{ confirm: string | null; uuid: string | null }> {
+    // Parse HTML to find download form (matching Python BeautifulSoup approach)
+    const formMatch = html.match(/<form[^>]*id="download-form"[^>]*>([\s\S]*?)<\/form>/);
+    
+    if (!formMatch) {
+      return { confirm: null, uuid: null };
+    }
+    
+    const formContent = formMatch[1];
+    
+    // Extract confirm and uuid values from input elements
+    const confirmMatch = formContent.match(/<input[^>]*name="confirm"[^>]*value="([^"]+)"/);
+    const uuidMatch = formContent.match(/<input[^>]*name="uuid"[^>]*value="([^"]+)"/);
+    
+    return {
+      confirm: confirmMatch ? confirmMatch[1] : null,
+      uuid: uuidMatch ? uuidMatch[1] : null
+    };
+  }
+
+  async downloadVideoFile(options: GoogleDriveDownloadOptions): Promise<GoogleDriveDownloadResult> {
+    const fileId = this.extractFileId(options.googleDriveUrl);
+    const outputPath = options.outputPath || `/tmp/google_drive_${Date.now()}.mp4`;
+    
+    console.log(`Starting correct Google Drive download for file: ${fileId}`);
+    
+    try {
+      const fetch = (await import('node-fetch')).default;
+      
+      // Use session approach like Python requests.Session()
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      };
+      
+      // Step 1: Initial request to get download page (matching Python script)
+      const baseUrl = "https://drive.google.com/uc?export=download";
+      const response = await fetch(`${baseUrl}&id=${fileId}`, { 
+        headers,
+        redirect: 'follow'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Initial request failed: ${response.status}`);
+      }
+      
+      const html = await response.text();
+      
+      // Step 2: Extract confirmation info from form (matching Python BeautifulSoup approach)
+      const { confirm, uuid } = await this.getConfirmationInfoFromForm(html);
+      
+      if (!confirm || !uuid) {
+        throw new Error('Could not extract confirmation token from download form');
+      }
+      
+      console.log(`Confirmation token extracted: ${confirm.substring(0, 10)}...`);
+      
+      // Step 3: Download with confirmation token using session headers
+      const confirmUrl = "https://drive.usercontent.google.com/download";
+      const params = new URLSearchParams({
+        id: fileId,
+        export: 'download',
+        confirm: confirm,
+        uuid: uuid
+      });
+      
+      const downloadResponse = await fetch(`${confirmUrl}?${params}`, {
+        headers,
+        redirect: 'follow'
+      });
+      
+      if (!downloadResponse.ok) {
+        throw new Error(`Download request failed: ${downloadResponse.status}`);
+      }
+      
+      // Step 4: Validate content (matching Python script validation)
+      const contentType = downloadResponse.headers.get('content-type') || '';
+      const contentLength = parseInt(downloadResponse.headers.get('content-length') || '0');
+      
+      if (contentType.toLowerCase().includes('html') || contentLength < 1000000) {
+        console.error('❌ Received invalid content type.');
+        
+        // Save error HTML for debugging (matching Python script)
+        const errorHtml = await downloadResponse.text();
+        fs.writeFileSync('/tmp/error.html', errorHtml, 'utf-8');
+        
+        throw new Error('Received invalid content type - possibly access restricted file');
+      }
+      
+      console.log(`Downloading ${(contentLength / (1024 * 1024)).toFixed(1)}MB video file...`);
+      
+      // Step 5: Stream download with robust chunk handling (32KB chunks like Python)
+      return await this.robustStreamDownload(downloadResponse, outputPath, contentLength);
+      
+    } catch (error) {
+      console.error('Google Drive download error:', error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
+    }
+  }
+
+  private async robustStreamDownload(response: any, outputPath: string, expectedSize: number): Promise<GoogleDriveDownloadResult> {
+    return new Promise((resolve, reject) => {
+      const writeStream = fs.createWriteStream(outputPath, { highWaterMark: 32768 }); // 32KB buffer like Python
+      let downloadedBytes = 0;
+      let lastReportedProgress = -1;
+      let stagnationTimer: NodeJS.Timeout | null = null;
+      let lastProgressTime = Date.now();
+      
+      // Set up stagnation detection
+      const checkStagnation = () => {
+        const now = Date.now();
+        if (now - lastProgressTime > 30000) { // No progress for 30 seconds
+          reject(new Error('Download stagnated - no progress for 30 seconds'));
+          return;
+        }
+        stagnationTimer = setTimeout(checkStagnation, 10000);
+      };
+      stagnationTimer = setTimeout(checkStagnation, 10000);
+      
+      response.body.on('data', (chunk: Buffer) => {
+        writeStream.write(chunk);
+        
+        downloadedBytes += chunk.length;
+        lastProgressTime = Date.now();
+        
+        // Progress reporting (matching Python script style)
+        if (expectedSize > 0) {
+          const progress = Math.min(100, Math.floor((downloadedBytes * 100) / expectedSize));
+          if (progress !== lastReportedProgress && progress % 5 === 0) {  // Report every 5%
+            console.log(`Download progress: ${progress}%`);
+            lastReportedProgress = progress;
+          }
+        }
+      });
+      
+      response.body.on('end', () => {
+        if (stagnationTimer) clearTimeout(stagnationTimer);
+        
+        writeStream.end((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          
+          if (!fs.existsSync(outputPath)) {
+            reject(new Error('Download completed but file not found'));
+            return;
+          }
+          
+          const finalSize = fs.statSync(outputPath).size;
+          const finalSizeMB = finalSize / (1024 * 1024);
+          
+          console.log(`✅ Download complete: ${finalSizeMB.toFixed(3)}MB`);
+          
+          // Enhanced size validation
+          if (expectedSize > 0) {
+            const sizeDifference = Math.abs(finalSize - expectedSize);
+            const sizeDifferencePercent = (sizeDifference / expectedSize) * 100;
+            
+            console.log(`Expected: ${(expectedSize / (1024 * 1024)).toFixed(3)}MB`);
+            console.log(`Downloaded: ${finalSizeMB.toFixed(3)}MB`);
+            console.log(`Difference: ${(sizeDifference / (1024 * 1024)).toFixed(3)}MB (${sizeDifferencePercent.toFixed(4)}%)`);
+            
+            if (sizeDifferencePercent > 0.001) { // More than 0.001% difference
+              console.warn(`⚠️  Size mismatch detected: ${sizeDifferencePercent.toFixed(4)}% difference`);
+              
+              if (sizeDifferencePercent > 0.1) { // More than 0.1% is significant
+                reject(new Error(`Significant size mismatch: Expected ${(expectedSize / (1024 * 1024)).toFixed(3)}MB, got ${finalSizeMB.toFixed(3)}MB`));
+                return;
+              }
+            }
+          }
+          
+          resolve({
+            success: true,
+            filePath: outputPath,
+            fileSize: finalSize
+          });
+        });
+      });
+      
+      response.body.on('error', (error: Error) => {
+        if (stagnationTimer) clearTimeout(stagnationTimer);
+        writeStream.destroy();
+        if (fs.existsSync(outputPath)) {
+          fs.unlinkSync(outputPath);
+        }
+        reject(error);
+      });
+      
+      writeStream.on('error', (error: Error) => {
+        if (stagnationTimer) clearTimeout(stagnationTimer);
+        reject(error);
+      });
+    });
+  }
+}

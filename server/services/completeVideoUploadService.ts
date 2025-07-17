@@ -1,4 +1,4 @@
-import { EnhancedGoogleDriveDownloader } from './enhancedGoogleDriveDownloader';
+import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
 import { ChunkedVideoUploadService } from './chunkedVideoUploadService';
 import { storage } from '../storage';
 
@@ -24,7 +24,7 @@ export interface CompleteVideoUploadResult {
 }
 
 export class CompleteVideoUploadService {
-  private downloader = new EnhancedGoogleDriveDownloader();
+  private downloader = new CorrectGoogleDriveDownloader();
   private uploader = new ChunkedVideoUploadService();
   
   async uploadGoogleDriveVideoInChunks(options: CompleteVideoUploadOptions): Promise<CompleteVideoUploadResult> {
@@ -47,7 +47,7 @@ export class CompleteVideoUploadService {
       console.log('Step 1: Downloading from Google Drive with token confirmation');
       steps.push('Starting Google Drive download');
       
-      const downloadResult = await this.downloader.downloadAndValidate({
+      const downloadResult = await this.downloader.downloadVideoFile({
         googleDriveUrl: options.googleDriveUrl
       });
       

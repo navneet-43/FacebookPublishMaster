@@ -52,7 +52,7 @@ export class EnhancedGoogleDriveDownloader {
     };
   }
   
-  async downloadLargeFile(options: GoogleDriveDownloadOptions): Promise<GoogleDriveDownloadResult> {
+  async downloadLargeFile(options: GoogleDriveDownloadOptions, retryCount: number = 0): Promise<GoogleDriveDownloadResult> {
     try {
       const fileId = this.extractFileId(options.googleDriveUrl);
       const outputPath = options.outputPath || `/tmp/google_drive_${Date.now()}.mp4`;
@@ -113,6 +113,14 @@ export class EnhancedGoogleDriveDownloader {
       
     } catch (error) {
       console.error('Google Drive download error:', error);
+      
+      // Retry logic for incomplete downloads
+      if (retryCount < 2 && (error as Error).message.includes('Incomplete download')) {
+        console.log(`Retrying download (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        return this.downloadLargeFile(options, retryCount + 1);
+      }
+      
       return {
         success: false,
         error: (error as Error).message
@@ -153,7 +161,27 @@ export class EnhancedGoogleDriveDownloader {
         const finalSize = fs.statSync(outputPath).size;
         const finalSizeMB = finalSize / (1024 * 1024);
         
-        console.log(`Download completed: ${finalSizeMB.toFixed(1)}MB`);
+        console.log(`Download completed: ${finalSizeMB.toFixed(3)}MB`);
+        
+        // Enhanced validation: Check for complete download
+        if (contentLength > 0) {
+          const expectedSizeMB = contentLength / (1024 * 1024);
+          const sizeDifference = Math.abs(finalSize - contentLength);
+          const sizeDifferencePercent = (sizeDifference / contentLength) * 100;
+          
+          console.log(`Expected: ${expectedSizeMB.toFixed(3)}MB, Downloaded: ${finalSizeMB.toFixed(3)}MB`);
+          console.log(`Size difference: ${(sizeDifference / (1024 * 1024)).toFixed(3)}MB (${sizeDifferencePercent.toFixed(3)}%)`);
+          
+          if (sizeDifferencePercent > 0.05) { // More than 0.05% difference (stricter validation)
+            console.warn(`WARNING: Incomplete download detected - missing ${(sizeDifference / (1024 * 1024)).toFixed(3)}MB`);
+            
+            if (sizeDifferencePercent > 0.15) { // More than 0.15% difference triggers retry
+              fs.unlinkSync(outputPath);
+              reject(new Error(`Incomplete download: Expected ${expectedSizeMB.toFixed(3)}MB, got ${finalSizeMB.toFixed(3)}MB (missing ${(sizeDifference / (1024 * 1024)).toFixed(3)}MB)`));
+              return;
+            }
+          }
+        }
         
         // Validate minimum file size
         if (finalSize < 1000000) { // Less than 1MB
