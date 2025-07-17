@@ -1,6 +1,7 @@
 import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
 import { ChunkedVideoUploadService } from './chunkedVideoUploadService';
 import { storage } from '../storage';
+import { statSync, unlinkSync } from 'fs';
 
 export interface CompleteVideoUploadOptions {
   googleDriveUrl: string;
@@ -212,7 +213,7 @@ export class CompleteVideoUploadService {
     try {
       console.log('Starting upload of processed video file');
       
-      const fileStats = require('fs').statSync(options.videoFilePath);
+      const fileStats = statSync(options.videoFilePath);
       const fileSizeMB = fileStats.size / (1024 * 1024);
       
       console.log(`Video file size: ${fileSizeMB.toFixed(1)}MB`);
@@ -245,7 +246,7 @@ export class CompleteVideoUploadService {
         
         // Clean up the processed file
         try {
-          require('fs').unlinkSync(options.videoFilePath);
+          unlinkSync(options.videoFilePath);
           console.log('✅ Temporary video file cleaned up');
         } catch (cleanupError) {
           console.warn('⚠️ Could not clean up temporary file:', cleanupError);
