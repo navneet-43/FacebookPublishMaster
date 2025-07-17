@@ -1,163 +1,202 @@
-import { RobustGoogleDriveService } from './robustGoogleDriveService';
-import { FacebookVideoUploadService } from './facebookVideoUploadService';
+import { EnhancedGoogleDriveDownloader } from './enhancedGoogleDriveDownloader';
+import { ChunkedVideoUploadService } from './chunkedVideoUploadService';
 import { storage } from '../storage';
-import * as fs from 'fs';
+
+export interface CompleteVideoUploadOptions {
+  googleDriveUrl: string;
+  accountId: number;
+  userId: number;
+  content?: string;
+  customLabels?: string[];
+  language?: string;
+}
+
+export interface CompleteVideoUploadResult {
+  success: boolean;
+  facebookVideoId?: string;
+  facebookPostId?: string;
+  facebookUrl?: string;
+  downloadedSize?: number;
+  uploadedSize?: number;
+  error?: string;
+  method: 'google_drive_chunked_upload';
+  steps?: string[];
+}
 
 export class CompleteVideoUploadService {
+  private downloader = new EnhancedGoogleDriveDownloader();
+  private uploader = new ChunkedVideoUploadService();
   
-  static async processGoogleDriveVideo(
-    url: string,
-    accountId: number,
-    pageId: string,
-    accessToken: string,
-    description: string,
-    customLabels: string[] = []
-  ): Promise<{ success: boolean; videoId?: string; sizeMB?: number; error?: string; step?: string }> {
-    
-    console.log('🎯 COMPLETE VIDEO UPLOAD PROCESS');
-    console.log('📁 Google Drive URL:', url);
-    console.log('📄 Facebook Page:', pageId);
-    console.log('💬 Description:', description);
-    
-    let downloadedFile: string | undefined;
+  async uploadGoogleDriveVideoInChunks(options: CompleteVideoUploadOptions): Promise<CompleteVideoUploadResult> {
+    const steps: string[] = [];
     
     try {
-      // Step 1: Download video using robust methods
-      console.log('⬇️ Step 1: Downloading video with robust methods...');
+      console.log('Starting complete Google Drive to Facebook chunked upload');
+      steps.push('Process initiated');
       
-      const downloadResult = await RobustGoogleDriveService.downloadVideo(url);
-      
-      if (!downloadResult.success || !downloadResult.filePath) {
-        console.log('❌ Download failed:', downloadResult.error);
-        return { 
-          success: false, 
-          error: downloadResult.error || 'Download failed', 
-          step: 'download' 
-        };
+      // Step 1: Get Facebook account details
+      const account = await storage.getFacebookAccount(options.accountId);
+      if (!account) {
+        throw new Error('Facebook account not found');
       }
       
-      downloadedFile = downloadResult.filePath;
-      console.log('✅ Download completed:', downloadResult.sizeMB?.toFixed(1) + 'MB');
+      steps.push('Facebook account validated');
+      console.log(`Using Facebook account: ${account.name} (${account.pageId})`);
       
-      // Step 2: Upload to Facebook as actual video
-      console.log('⬆️ Step 2: Uploading to Facebook...');
+      // Step 2: Download from Google Drive using enhanced downloader
+      console.log('Step 1: Downloading from Google Drive with token confirmation');
+      steps.push('Starting Google Drive download');
       
-      const uploadResult = await FacebookVideoUploadService.uploadVideoFile(
-        downloadedFile,
-        pageId,
-        accessToken,
-        description,
-        customLabels
-      );
-      
-      if (!uploadResult.success) {
-        console.log('❌ Facebook upload failed:', uploadResult.error);
-        return { 
-          success: false, 
-          error: uploadResult.error || 'Facebook upload failed', 
-          step: 'facebook_upload' 
-        };
-      }
-      
-      console.log('✅ Facebook upload successful');
-      console.log('🎬 Video ID:', uploadResult.videoId);
-      
-      // Step 3: Save to database
-      console.log('💾 Step 3: Saving to database...');
-      
-      await storage.createPost({
-        userId: 3, // Default user
-        accountId: accountId,
-        content: description,
-        mediaUrl: url,
-        mediaType: 'video',
-        customLabels: customLabels,
-        language: 'en',
-        status: 'published',
-        publishedAt: new Date()
+      const downloadResult = await this.downloader.downloadAndValidate({
+        googleDriveUrl: options.googleDriveUrl
       });
       
-      console.log('✅ Saved to database');
-      
-      // Step 4: Clean up temporary file
-      if (fs.existsSync(downloadedFile)) {
-        fs.unlinkSync(downloadedFile);
-        console.log('🧹 Temporary file cleaned up');
+      if (!downloadResult.success) {
+        throw new Error(`Google Drive download failed: ${downloadResult.error}`);
       }
+      
+      if (!downloadResult.filePath || !downloadResult.fileSize) {
+        throw new Error('Download completed but file information missing');
+      }
+      
+      const downloadSizeMB = downloadResult.fileSize / (1024 * 1024);
+      steps.push(`Downloaded: ${downloadSizeMB.toFixed(1)}MB`);
+      console.log(`Download successful: ${downloadSizeMB.toFixed(1)}MB`);
+      
+      // Step 3: Upload to Facebook using chunked upload
+      console.log('Step 2: Uploading to Facebook using chunked upload API');
+      steps.push('Starting Facebook chunked upload');
+      
+      const title = 'Google Drive Video Upload';
+      const description = `Video uploaded from Google Drive (${downloadSizeMB.toFixed(1)}MB) using chunked upload method. ${options.content || ''} Original source: ${options.googleDriveUrl}`;
+      
+      const uploadResult = await this.uploader.uploadVideoInChunks({
+        accessToken: account.accessToken,
+        pageId: account.pageId,
+        filePath: downloadResult.filePath,
+        title: title,
+        description: description
+      });
+      
+      if (!uploadResult.success) {
+        throw new Error(`Facebook upload failed: ${uploadResult.error}`);
+      }
+      
+      const uploadSizeMB = (uploadResult.totalSize || 0) / (1024 * 1024);
+      steps.push(`Uploaded: ${uploadSizeMB.toFixed(1)}MB`);
+      steps.push('Chunked upload completed');
+      
+      console.log(`Upload successful: ${uploadResult.videoId}`);
+      console.log(`Facebook URL: ${uploadResult.facebookUrl}`);
+      
+      // Step 4: Wait for Facebook processing and get post ID
+      console.log('Step 3: Waiting for Facebook processing');
+      steps.push('Waiting for Facebook processing');
+      
+      await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
+      
+      // Get recent posts to find the uploaded video
+      const posts = await this.getRecentFacebookPosts(account.accessToken, account.pageId);
+      const videoPost = posts.find(post => 
+        post.attachments?.data?.[0]?.type === 'video_inline' &&
+        (Date.now() - new Date(post.created_time).getTime()) < 5 * 60 * 1000 // Within 5 minutes
+      );
+      
+      let facebookPostId = videoPost?.id;
+      
+      if (facebookPostId) {
+        steps.push('Video post identified');
+        console.log(`Facebook Post ID: ${facebookPostId}`);
+      } else {
+        steps.push('Video uploaded, post ID pending');
+        console.log('Video uploaded successfully, post ID will be available after processing');
+      }
+      
+      // Step 5: Save to database
+      const postData = {
+        userId: options.userId,
+        accountId: options.accountId,
+        content: `Google Drive video uploaded successfully using chunked upload method - Video ID: ${uploadResult.videoId} - Size: ${downloadSizeMB.toFixed(1)}MB - Original: ${options.googleDriveUrl}`,
+        mediaUrl: options.googleDriveUrl,
+        mediaType: 'video' as const,
+        customLabels: options.customLabels || [],
+        language: options.language || 'en',
+        status: 'published' as const,
+        publishedAt: new Date(),
+        facebookPostId: uploadResult.videoId
+      };
+      
+      await storage.createPost(postData);
+      steps.push('Database record created');
       
       return {
         success: true,
-        videoId: uploadResult.videoId,
-        sizeMB: downloadResult.sizeMB
+        facebookVideoId: uploadResult.videoId,
+        facebookPostId: facebookPostId,
+        facebookUrl: uploadResult.facebookUrl,
+        downloadedSize: downloadResult.fileSize,
+        uploadedSize: uploadResult.totalSize,
+        method: 'google_drive_chunked_upload',
+        steps: steps
       };
       
     } catch (error) {
-      console.log('❌ Process error:', (error as Error).message);
+      console.error('Complete video upload error:', error);
+      steps.push(`Error: ${(error as Error).message}`);
       
-      // Clean up on error
-      if (downloadedFile && fs.existsSync(downloadedFile)) {
-        fs.unlinkSync(downloadedFile);
-        console.log('🧹 Cleaned up temporary file after error');
-      }
-      
-      return { 
-        success: false, 
-        error: (error as Error).message, 
-        step: 'unknown' 
+      return {
+        success: false,
+        error: (error as Error).message,
+        method: 'google_drive_chunked_upload',
+        steps: steps
       };
     }
   }
   
-  static async testGoogleDriveUpload(
-    url: string = 'https://drive.google.com/file/d/1FUVs4-34qJ-7d-jlVW3kn6btiNtq4pDH/view?usp=drive_link'
-  ): Promise<any> {
-    
-    console.log('🧪 TESTING GOOGLE DRIVE VIDEO UPLOAD');
-    
-    // Get Alright Tamil account
-    const accounts = await storage.getFacebookAccounts(3);
-    const tamilAccount = accounts.find(acc => acc.name === 'Alright Tamil');
-    
-    if (!tamilAccount) {
-      console.log('❌ Alright Tamil account not found');
-      return { error: 'Account not found' };
+  private async getRecentFacebookPosts(accessToken: string, pageId: string): Promise<any[]> {
+    try {
+      const fetch = (await import('node-fetch')).default;
+      const url = `https://graph.facebook.com/v19.0/${pageId}/posts?fields=id,message,attachments,created_time&access_token=${accessToken}&limit=10`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Facebook API error: ${response.status}`);
+      }
+      
+      const data = await response.json() as any;
+      return data.data || [];
+      
+    } catch (error) {
+      console.error('Error fetching Facebook posts:', error);
+      return [];
     }
-    
-    console.log('📄 Using account:', tamilAccount.name);
-    
-    const result = await this.processGoogleDriveVideo(
-      url,
-      tamilAccount.id,
-      tamilAccount.pageId,
-      tamilAccount.accessToken,
-      'FFmpeg Google Drive Video Upload - Actual Video File (Not Link)',
-      ['ffmpeg-download', 'google-drive', 'actual-video']
-    );
-    
-    if (result.success) {
-      console.log('🎉 TEST SUCCESSFUL');
-      console.log('✅ Video downloaded with robust methods');
-      console.log('✅ Video uploaded as actual Facebook video file');
-      console.log('📊 File size:', result.sizeMB?.toFixed(1) + 'MB');
-      console.log('🎬 Facebook Video ID:', result.videoId);
-      console.log('🔗 Facebook Page: https://facebook.com/101307726083031');
+  }
+  
+  async testGoogleDriveChunkedUpload(googleDriveUrl: string): Promise<CompleteVideoUploadResult> {
+    try {
+      // Get Tamil account for testing
+      const accounts = await storage.getFacebookAccounts(3);
+      const tamilAccount = accounts.find(acc => acc.name === 'Alright Tamil');
       
-      return {
-        success: true,
-        method: 'robust_download_facebook_upload',
-        downloadSizeMB: result.sizeMB,
-        facebookVideoId: result.videoId,
-        type: 'actual_video_file'
-      };
-    } else {
-      console.log('❌ TEST FAILED');
-      console.log('Failed at step:', result.step);
-      console.log('Error:', result.error);
+      if (!tamilAccount) {
+        throw new Error('Alright Tamil account not found for testing');
+      }
       
+      console.log('Testing Google Drive chunked upload with Alright Tamil page');
+      
+      return await this.uploadGoogleDriveVideoInChunks({
+        googleDriveUrl: googleDriveUrl,
+        accountId: tamilAccount.id,
+        userId: 3,
+        content: 'Testing chunked upload method for large Google Drive videos',
+        language: 'en'
+      });
+      
+    } catch (error) {
       return {
         success: false,
-        failedStep: result.step,
-        error: result.error
+        error: (error as Error).message,
+        method: 'google_drive_chunked_upload'
       };
     }
   }
