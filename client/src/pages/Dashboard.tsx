@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Video, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X } from "lucide-react";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -25,7 +25,8 @@ export default function Dashboard() {
     mediaUrl: '',
     content: '',
     accountId: '',
-    language: 'en'
+    language: 'en',
+    selectedLabels: [] as string[]
   });
 
   const publishDraftsMutation = useMutation({
@@ -66,10 +67,20 @@ export default function Dashboard() {
   };
 
   // Query for Facebook accounts
-  const { data: facebookAccounts = [] } = useQuery({
+  const { data: facebookAccountsData = [] } = useQuery({
     queryKey: ['/api/facebook-accounts'],
     queryFn: () => apiRequest('/api/facebook-accounts')
   });
+
+  // Query for custom labels
+  const { data: customLabelsData = [] } = useQuery({
+    queryKey: ['/api/custom-labels'],
+    queryFn: () => apiRequest('/api/custom-labels')
+  });
+
+  // Ensure we have arrays for rendering
+  const facebookAccounts = Array.isArray(facebookAccountsData) ? facebookAccountsData : [];
+  const customLabels = Array.isArray(customLabelsData) ? customLabelsData : [];
 
   // Enhanced Google Drive Video Upload Mutation
   const videoUploadMutation = useMutation({
@@ -78,11 +89,13 @@ export default function Dashboard() {
       content: string;
       accountId: string;
       language: string;
+      selectedLabels: string[];
     }) => {
       console.log('🚀 STARTING ENHANCED GOOGLE DRIVE + CHUNKED UPLOAD');
       console.log('📊 Upload Data:', data);
       console.log('📱 Account ID:', data.accountId);
       console.log('🔗 Google Drive URL:', data.mediaUrl);
+      console.log('🏷️ Custom Labels:', data.selectedLabels);
       
       const response = await apiRequest('/api/posts', {
         method: 'POST',
@@ -93,7 +106,7 @@ export default function Dashboard() {
           mediaType: 'video',
           accountId: parseInt(data.accountId),
           language: data.language,
-          labels: ["2"], // Default label
+          labels: data.selectedLabels.length > 0 ? data.selectedLabels : ["2"], // Use selected labels or default
           status: 'immediate'
         })
       });
@@ -116,7 +129,7 @@ export default function Dashboard() {
       });
       
       setVideoUploadDialogOpen(false);
-      setVideoFormData({ mediaUrl: '', content: '', accountId: '', language: 'en' });
+      setVideoFormData({ mediaUrl: '', content: '', accountId: '', language: 'en', selectedLabels: [] });
     },
     onError: (error: any) => {
       console.error('❌ UPLOAD ERROR:', error);
@@ -148,6 +161,17 @@ export default function Dashboard() {
 
   const isGoogleDriveUrl = (url: string) => {
     return url.includes('drive.google.com');
+  };
+
+  const toggleLabel = (labelId: string) => {
+    setVideoFormData(prev => {
+      const newLabels = prev.selectedLabels.includes(labelId)
+        ? prev.selectedLabels.filter(id => id !== labelId)
+        : [...prev.selectedLabels, labelId];
+      
+      console.log('🏷️ Updated selected labels:', newLabels);
+      return { ...prev, selectedLabels: newLabels };
+    });
   };
 
   return (
@@ -335,6 +359,51 @@ export default function Dashboard() {
                   <SelectItem value="hi">Hindi</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Custom Labels (Meta Insights)
+              </Label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {customLabels.map((label: any) => {
+                    const isSelected = videoFormData.selectedLabels.includes(label.id.toString());
+                    return (
+                      <button
+                        key={label.id}
+                        type="button"
+                        onClick={() => {
+                          console.log(`🏷️ Toggling label: ${label.name} (ID: ${label.id})`);
+                          toggleLabel(label.id.toString());
+                        }}
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          isSelected 
+                            ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                            : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                        }`}
+                      >
+                        <div 
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: label.color }}
+                        ></div>
+                        {label.name}
+                        {isSelected && <X className="h-3 w-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {videoFormData.selectedLabels.length > 0 && (
+                  <p className="text-xs text-blue-600 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    {videoFormData.selectedLabels.length} label(s) selected for Meta Insights tracking
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Select labels to track video performance in Facebook Meta Insights
+                </p>
+              </div>
             </div>
 
             <div className="bg-green-50 p-3 rounded-lg border border-green-200">
