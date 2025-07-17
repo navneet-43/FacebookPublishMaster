@@ -442,12 +442,13 @@ export class HootsuiteStyleFacebookService {
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
         console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
         
-        const { EnhancedGoogleDriveHelper } = await import('./enhancedGoogleDriveHelper');
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
         
-        const result = await EnhancedGoogleDriveHelper.downloadLargeVideo(videoUrl);
+        const downloader = new CorrectGoogleDriveDownloader();
+        const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
         
         if (result.success && result.filePath) {
-          console.log(`✅ Google Drive video downloaded: ${(result.size! / 1024 / 1024).toFixed(2)}MB`);
+          console.log(`✅ Google Drive video downloaded: ${(result.fileSize! / 1024 / 1024).toFixed(2)}MB`);
           
           // Apply simple encoding for Facebook compatibility
           const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
