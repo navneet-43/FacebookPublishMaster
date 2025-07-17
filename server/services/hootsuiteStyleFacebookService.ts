@@ -283,10 +283,16 @@ export class HootsuiteStyleFacebookService {
           if (optimizedResult.success && optimizedResult.outputPath) {
             console.log('✅ Ultra-compatible encoding completed, uploading optimized video...');
             
-            const { ActualVideoUploadService } = await import('./actualVideoUploadService');
-            const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
-              pageId, pageAccessToken, optimizedResult.outputPath, description, customLabels, language
-            );
+            const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+            const uploadService = new CompleteVideoUploadService();
+            const uploadResult = await uploadService.uploadProcessedVideoFile({
+              videoFilePath: optimizedResult.outputPath,
+              pageId: pageId,
+              pageAccessToken: pageAccessToken,
+              description: description || 'Local video upload',
+              customLabels: customLabels || [],
+              language: language || 'en'
+            });
             
             // Clean up optimized file
             if (optimizedResult.cleanup) optimizedResult.cleanup();
@@ -304,10 +310,16 @@ export class HootsuiteStyleFacebookService {
           
           // Fallback to direct upload if optimization fails
           console.log('⚠️ Optimization failed, trying direct upload...');
-          const { ActualVideoUploadService } = await import('./actualVideoUploadService');
-          const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
-            pageId, pageAccessToken, videoUrl, description, customLabels, language
-          );
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
+          const uploadResult = await uploadService.uploadProcessedVideoFile({
+            videoFilePath: videoUrl,
+            pageId: pageId,
+            pageAccessToken: pageAccessToken,
+            description: description || 'Direct video upload',
+            customLabels: customLabels || [],
+            language: language || 'en'
+          });
           
           if (uploadResult.success) {
             console.log('✅ LOCAL VIDEO UPLOADED SUCCESSFULLY');
@@ -364,9 +376,16 @@ export class HootsuiteStyleFacebookService {
             if (optimizedResult.success && optimizedResult.outputPath) {
               console.log('✅ Definitive Facebook encoding completed for YouTube video');
               
-              const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
-                pageId, pageAccessToken, optimizedResult.outputPath, description, customLabels, language
-              );
+              const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+              const uploadService = new CompleteVideoUploadService();
+              const uploadResult = await uploadService.uploadProcessedVideoFile({
+                videoFilePath: optimizedResult.outputPath,
+                pageId: pageId,
+                pageAccessToken: pageAccessToken,
+                description: description || 'High-quality YouTube video',
+                customLabels: customLabels || [],
+                language: language || 'en'
+              });
               
               // Clean up both original and optimized files
               if (result.cleanup) result.cleanup();
@@ -383,9 +402,16 @@ export class HootsuiteStyleFacebookService {
             
             // Fallback to direct upload if optimization fails
             console.log('⚠️ Optimization failed, using direct upload...');
-            const uploadResult = await ActualVideoUploadService.guaranteeActualVideoUpload(
-              pageId, pageAccessToken, result.filePath, description, customLabels, language
-            );
+            const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+            const uploadService = new CompleteVideoUploadService();
+            const uploadResult = await uploadService.uploadProcessedVideoFile({
+              videoFilePath: result.filePath,
+              pageId: pageId,
+              pageAccessToken: pageAccessToken,
+              description: description || 'YouTube video upload',
+              customLabels: customLabels || [],
+              language: language || 'en'
+            });
             
             // Clean up original file
             cleanup();
