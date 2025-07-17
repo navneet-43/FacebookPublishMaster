@@ -223,21 +223,22 @@ export class CompleteVideoUploadService {
       // Use chunked upload for larger files (>50MB)
       if (fileSizeMB > 50) {
         console.log('Using chunked upload for large video file');
-        uploadResult = await this.uploader.uploadLargeVideo({
-          filePath: options.videoFilePath,
+        uploadResult = await this.uploader.uploadVideoInChunks({
+          accessToken: options.pageAccessToken,
           pageId: options.pageId,
-          pageAccessToken: options.pageAccessToken,
-          description: options.description,
-          customLabels: options.customLabels
+          filePath: options.videoFilePath,
+          title: 'Enhanced Google Drive Video',
+          description: options.description
         });
       } else {
         console.log('Using standard upload for video file');
-        uploadResult = await this.uploader.uploadVideo({
-          filePath: options.videoFilePath,
+        // For smaller files, still use chunked upload as it's more reliable
+        uploadResult = await this.uploader.uploadVideoInChunks({
+          accessToken: options.pageAccessToken,
           pageId: options.pageId,
-          pageAccessToken: options.pageAccessToken,
-          description: options.description,
-          customLabels: options.customLabels
+          filePath: options.videoFilePath,
+          title: 'Enhanced Google Drive Video',
+          description: options.description
         });
       }
       
