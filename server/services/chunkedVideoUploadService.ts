@@ -222,12 +222,13 @@ export class ChunkedVideoUploadService {
         throw new Error(`Finish phase error: ${result.error.message || result.error}`);
       }
       
-      const videoId = result.id;
-      const facebookUrl = `https://www.facebook.com/video.php?v=${videoId}`;
+      const videoId = result.id || result.video_id;
+      const facebookUrl = videoId ? `https://www.facebook.com/video.php?v=${videoId}` : 'Processing...';
       
       console.log(`Upload completed successfully`);
       console.log(`Video ID: ${videoId}`);
       console.log(`Facebook URL: ${facebookUrl}`);
+      console.log(`Full result: ${JSON.stringify(result)}`);
       
       return {
         success: true,
