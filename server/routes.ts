@@ -186,9 +186,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         try {
+          // Import deployment configuration
+          const { deploymentConfig } = await import('./config/deploymentConfig');
+          
+          // Set longer timeout for large video uploads (30 minutes)
+          req.setTimeout(deploymentConfig.REQUEST_TIMEOUT);
+          res.setTimeout(deploymentConfig.RESPONSE_TIMEOUT);
+          
           // Use uploadId from request or generate new one
           const uploadId = req.body.uploadId || `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          console.log(`🔍 Using upload tracking ID: ${uploadId}`);
+          console.log(`🔍 Using upload tracking ID: ${uploadId} with extended timeout (deployment: ${deploymentConfig.isDeployment()})`);
           
           const { publishPostToFacebook } = await import('./services/postService');
           const publishResult = await publishPostToFacebook({

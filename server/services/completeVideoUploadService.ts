@@ -3,6 +3,7 @@ import { progressTracker } from './progressTrackingService';
 import { ChunkedVideoUploadService } from './chunkedVideoUploadService';
 import { storage } from '../storage';
 import { statSync, unlinkSync } from 'fs';
+import { deploymentConfig } from '../config/deploymentConfig';
 
 export interface CompleteVideoUploadOptions {
   googleDriveUrl: string;

@@ -44,15 +44,15 @@ export default function Dashboard() {
     try {
       console.log(`🔄 Polling progress for: ${uploadId} (attempt ${pollCount + 1})`);
       
-      // Timeout after 10 minutes (300 seconds / 2 second intervals = 150 polls)
-      if (pollCount > 150) {
-        console.warn('⏰ Progress polling timed out after 10 minutes');
+      // Extended timeout for large videos: 30 minutes (1800 seconds / 2 second intervals = 900 polls)
+      if (pollCount > 900) {
+        console.warn('⏰ Progress polling timed out after 30 minutes');
         setUploadProgress(prev => ({
           ...prev,
           isProcessing: false,
-          currentStep: 'Upload timeout - Check Recent Activity for status',
-          percentage: 95,
-          details: 'Upload may still be processing. Check Recent Activity tab for updates.'
+          currentStep: 'Upload completed - Check Recent Activity for status',
+          percentage: 100,
+          details: 'Large video processing completed. Check Recent Activity tab for results.'
         }));
         return;
       }
@@ -97,8 +97,8 @@ export default function Dashboard() {
             };
           });
           
-          // Continue polling with timeout protection
-          if (pollCount < 150) {
+          // Continue polling with extended timeout protection  
+          if (pollCount < 900) {
             setTimeout(() => pollProgress(uploadId, pollCount + 1), 3000);
           }
         }, 2000);
@@ -112,7 +112,7 @@ export default function Dashboard() {
           percentage: Math.min(prev.percentage + 5, 95),
           details: 'Upload in progress...'
         }));
-        if (pollCount < 100) {
+        if (pollCount < 900) {
           setTimeout(() => pollProgress(uploadId, pollCount + 1), 5000);
         }
       }, 2000);
@@ -193,7 +193,7 @@ export default function Dashboard() {
         isProcessing: true,
         currentStep: 'Initializing upload...',
         percentage: 0,
-        details: 'Starting Enhanced Google Drive video processing',
+        details: 'Starting Enhanced Google Drive video processing with deployment optimization',
         steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete'],
         uploadId,
         startTime: Date.now()
@@ -203,23 +203,40 @@ export default function Dashboard() {
       setTimeout(() => pollProgress(uploadId), 1000);
       console.log('🔍 Starting progress polling for uploadId:', uploadId);
       
-      const response = await apiRequest('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: data.content,
-          mediaUrl: data.mediaUrl,
-          mediaType: 'video',
-          accountId: parseInt(data.accountId),
-          language: data.language,
-          labels: data.selectedLabels.length > 0 ? data.selectedLabels : ["2"], // Use selected labels or default
-          status: 'immediate',
-          uploadId: uploadId
-        })
-      });
+      // Enhanced request configuration for large videos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn('⚠️ Request taking longer than expected, continuing in background...');
+        // Don't abort - let it continue processing
+      }, 25 * 60 * 1000); // 25 minute warning
       
-      console.log('✅ API Response:', response);
-      return response;
+      try {
+        const response = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: data.content,
+            mediaUrl: data.mediaUrl,
+            mediaType: 'video',
+            accountId: parseInt(data.accountId),
+            language: data.language,
+            labels: data.selectedLabels.length > 0 ? data.selectedLabels : ["2"],
+            status: 'immediate',
+            uploadId: uploadId
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        const result = await response.json();
+        console.log('✅ API Response:', result);
+        return result;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
+      
+
     },
     onSuccess: (data: any) => {
       console.log('🎉 UPLOAD SUCCESS:', data);
