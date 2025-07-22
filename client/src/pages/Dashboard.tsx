@@ -171,6 +171,12 @@ export default function Dashboard() {
   // Ensure we have arrays for rendering
   const facebookAccounts = Array.isArray(facebookAccountsData) ? facebookAccountsData : [];
   const customLabels = Array.isArray(customLabelsData) ? customLabelsData : [];
+  
+  // Debug custom labels data
+  console.log('🏷️ Custom Labels Debug:');
+  console.log('- Raw data:', customLabelsData);
+  console.log('- Processed labels:', customLabels);
+  console.log('- Array length:', customLabels.length);
 
   // Enhanced Google Drive Video Upload Mutation
   const videoUploadMutation = useMutation({
@@ -532,42 +538,54 @@ export default function Dashboard() {
                 Custom Labels (Meta Insights)
               </Label>
               <div className="space-y-2">
-                <div className="flex flex-wrap gap-2">
-                  {customLabels.map((label: any) => {
-                    const isSelected = videoFormData.selectedLabels.includes(label.id.toString());
-                    return (
-                      <button
-                        key={label.id}
-                        type="button"
-                        onClick={() => {
-                          console.log(`🏷️ Toggling label: ${label.name} (ID: ${label.id})`);
-                          toggleLabel(label.id.toString());
-                        }}
-                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                          isSelected 
-                            ? 'bg-blue-100 text-blue-800 border border-blue-300' 
-                            : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
-                        }`}
-                      >
-                        <div 
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: label.color }}
-                        ></div>
-                        {label.name}
-                        {isSelected && <X className="h-3 w-3" />}
-                      </button>
-                    );
-                  })}
+                <div className="text-xs text-gray-400 mb-1">
+                  Debug: {customLabels.length} labels loaded
                 </div>
-                {videoFormData.selectedLabels.length > 0 && (
-                  <p className="text-xs text-blue-600 flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    {videoFormData.selectedLabels.length} label(s) selected for Meta Insights tracking
-                  </p>
+                {customLabels && customLabels.length > 0 ? (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {customLabels.map((label: any) => {
+                        const isSelected = videoFormData.selectedLabels.includes(label.id.toString());
+                        return (
+                          <button
+                            key={label.id}
+                            type="button"
+                            onClick={() => {
+                              console.log(`🏷️ Toggling label: ${label.name} (ID: ${label.id})`);
+                              toggleLabel(label.id.toString());
+                            }}
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                              isSelected 
+                                ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                                : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                            }`}
+                          >
+                            <div 
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: label.color }}
+                            ></div>
+                            {label.name}
+                            {isSelected && <X className="h-3 w-3" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {videoFormData.selectedLabels.length > 0 && (
+                      <p className="text-xs text-blue-600 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        {videoFormData.selectedLabels.length} label(s) selected for Meta Insights tracking
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      Select labels to track video performance in Facebook Meta Insights
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-md border">
+                    <p>No custom labels available.</p>
+                    <p className="text-xs mt-1">Create labels in the Custom Labels section to use them for Meta Insights tracking.</p>
+                  </div>
                 )}
-                <p className="text-xs text-gray-500">
-                  Select labels to track video performance in Facebook Meta Insights
-                </p>
               </div>
             </div>
 
