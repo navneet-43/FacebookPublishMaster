@@ -186,9 +186,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         try {
-          // Generate tracking ID for progress updates
-          const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          console.log(`🔍 Generated upload tracking ID: ${uploadId}`);
+          // Use uploadId from request or generate new one
+          const uploadId = req.body.uploadId || `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          console.log(`🔍 Using upload tracking ID: ${uploadId}`);
           
           const { publishPostToFacebook } = await import('./services/postService');
           const publishResult = await publishPostToFacebook({

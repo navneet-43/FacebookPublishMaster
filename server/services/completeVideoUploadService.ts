@@ -11,6 +11,7 @@ export interface CompleteVideoUploadOptions {
   content?: string;
   customLabels?: string[];
   language?: string;
+  uploadId?: string;
 }
 
 export interface CompleteVideoUploadResult {
@@ -31,10 +32,10 @@ export class CompleteVideoUploadService {
   
   async uploadGoogleDriveVideoInChunks(options: CompleteVideoUploadOptions): Promise<CompleteVideoUploadResult> {
     const steps: string[] = [];
-    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const uploadId = options.uploadId || `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
-      console.log('Starting complete Google Drive to Facebook chunked upload');
+      console.log(`Starting complete Google Drive to Facebook chunked upload with ID: ${uploadId}`);
       steps.push('Process initiated');
       
       // Initialize progress tracking

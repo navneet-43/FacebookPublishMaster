@@ -35,30 +35,87 @@ export default function Dashboard() {
     percentage: 0,
     details: '',
     steps: [] as string[],
-    uploadId: ''
+    uploadId: '',
+    startTime: 0
   });
 
-  // Poll for progress updates
-  const pollProgress = async (uploadId: string) => {
+  // Poll for progress updates with timeout protection
+  const pollProgress = async (uploadId: string, pollCount = 0) => {
     try {
+      console.log(`🔄 Polling progress for: ${uploadId} (attempt ${pollCount + 1})`);
+      
+      // Timeout after 10 minutes (300 seconds / 2 second intervals = 150 polls)
+      if (pollCount > 150) {
+        console.warn('⏰ Progress polling timed out after 10 minutes');
+        setUploadProgress(prev => ({
+          ...prev,
+          isProcessing: false,
+          currentStep: 'Upload timeout - Check Recent Activity for status',
+          percentage: 95,
+          details: 'Upload may still be processing. Check Recent Activity tab for updates.'
+        }));
+        return;
+      }
+      
       const response = await fetch(`/api/upload-progress/${uploadId}`);
       if (response.ok) {
         const progressData = await response.json();
+        console.log('📊 Progress data:', progressData);
         setUploadProgress(prev => ({
           ...prev,
-          currentStep: progressData.step,
-          percentage: progressData.percentage,
-          details: progressData.details,
-          isProcessing: progressData.percentage < 100
+          currentStep: progressData.step || prev.currentStep,
+          percentage: progressData.percentage || prev.percentage,
+          details: progressData.details || prev.details,
+          isProcessing: (progressData.percentage || prev.percentage) < 100
         }));
         
         // Continue polling if not complete
-        if (progressData.percentage < 100) {
-          setTimeout(() => pollProgress(uploadId), 2000); // Poll every 2 seconds
+        if ((progressData.percentage || 0) < 100) {
+          setTimeout(() => pollProgress(uploadId, pollCount + 1), 2000);
+        } else {
+          console.log('✅ Progress polling complete');
         }
+      } else {
+        console.warn('⚠️ Progress polling failed:', response.status);
+        // Simulate progress to prevent UI freeze
+        setTimeout(() => {
+          setUploadProgress(prev => {
+            const elapsed = Date.now() - prev.startTime;
+            const minutes = Math.floor(elapsed / 60000);
+            
+            // Estimate progress based on elapsed time (average 5 minutes for large video)
+            const estimatedProgress = Math.min(Math.floor(elapsed / 300000 * 100), 98);
+            const newPercentage = Math.max(prev.percentage, estimatedProgress);
+            
+            return {
+              ...prev,
+              percentage: newPercentage,
+              currentStep: newPercentage < 30 ? 'Downloading from Google Drive...' : 
+                          newPercentage < 60 ? 'Processing with FFmpeg...' : 
+                          newPercentage < 90 ? 'Uploading to Facebook...' : 'Finalizing...',
+              details: `Processing for ${minutes} minutes (${newPercentage}% estimated)`
+            };
+          });
+          
+          // Continue polling with timeout protection
+          if (pollCount < 150) {
+            setTimeout(() => pollProgress(uploadId, pollCount + 1), 3000);
+          }
+        }, 2000);
       }
     } catch (error) {
       console.error('Progress polling error:', error);
+      // Continue with basic progress simulation
+      setTimeout(() => {
+        setUploadProgress(prev => ({
+          ...prev,
+          percentage: Math.min(prev.percentage + 5, 95),
+          details: 'Upload in progress...'
+        }));
+        if (pollCount < 100) {
+          setTimeout(() => pollProgress(uploadId, pollCount + 1), 5000);
+        }
+      }, 2000);
     }
   };
 
@@ -138,11 +195,13 @@ export default function Dashboard() {
         percentage: 0,
         details: 'Starting Enhanced Google Drive video processing',
         steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete'],
-        uploadId
+        uploadId,
+        startTime: Date.now()
       });
       
       // Start polling for progress updates
       setTimeout(() => pollProgress(uploadId), 1000);
+      console.log('🔍 Starting progress polling for uploadId:', uploadId);
       
       const response = await apiRequest('/api/posts', {
         method: 'POST',
@@ -154,7 +213,8 @@ export default function Dashboard() {
           accountId: parseInt(data.accountId),
           language: data.language,
           labels: data.selectedLabels.length > 0 ? data.selectedLabels : ["2"], // Use selected labels or default
-          status: 'immediate'
+          status: 'immediate',
+          uploadId: uploadId
         })
       });
       
@@ -193,7 +253,8 @@ export default function Dashboard() {
           percentage: 0,
           details: '',
           steps: [],
-          uploadId: ''
+          uploadId: '',
+          startTime: 0
         });
       }, 3000);
     },
@@ -223,7 +284,8 @@ export default function Dashboard() {
           percentage: 0,
           details: '',
           steps: [],
-          uploadId: ''
+          uploadId: '',
+          startTime: 0
         });
       }, 5000);
     }
