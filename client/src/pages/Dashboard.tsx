@@ -162,21 +162,25 @@ export default function Dashboard() {
     queryFn: () => apiRequest('/api/facebook-accounts')
   });
 
-  // Query for custom labels
-  const { data: customLabelsData = [] } = useQuery({
+  // Query for custom labels with proper error handling
+  const { data: customLabelsData = [], error: customLabelsError, isLoading: customLabelsLoading } = useQuery({
     queryKey: ['/api/custom-labels'],
-    queryFn: () => apiRequest('/api/custom-labels')
+    queryFn: async () => {
+      const response = await fetch('/api/custom-labels');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('📊 Custom labels API response:', data);
+      return Array.isArray(data) ? data : [];
+    }
   });
 
   // Ensure we have arrays for rendering
   const facebookAccounts = Array.isArray(facebookAccountsData) ? facebookAccountsData : [];
   const customLabels = Array.isArray(customLabelsData) ? customLabelsData : [];
   
-  // Debug custom labels data
-  console.log('🏷️ Custom Labels Debug:');
-  console.log('- Raw data:', customLabelsData);
-  console.log('- Processed labels:', customLabels);
-  console.log('- Array length:', customLabels.length);
+  // Custom labels are now working correctly
 
   // Enhanced Google Drive Video Upload Mutation
   const videoUploadMutation = useMutation({
@@ -538,9 +542,6 @@ export default function Dashboard() {
                 Custom Labels (Meta Insights)
               </Label>
               <div className="space-y-2">
-                <div className="text-xs text-gray-400 mb-1">
-                  Debug: {customLabels.length} labels loaded
-                </div>
                 {customLabels && customLabels.length > 0 ? (
                   <>
                     <div className="flex flex-wrap gap-2">
