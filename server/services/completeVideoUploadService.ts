@@ -1,4 +1,5 @@
 import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
+import { progressTracker } from './progressTrackingService';
 import { ChunkedVideoUploadService } from './chunkedVideoUploadService';
 import { storage } from '../storage';
 import { statSync, unlinkSync } from 'fs';
@@ -30,10 +31,14 @@ export class CompleteVideoUploadService {
   
   async uploadGoogleDriveVideoInChunks(options: CompleteVideoUploadOptions): Promise<CompleteVideoUploadResult> {
     const steps: string[] = [];
+    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
       console.log('Starting complete Google Drive to Facebook chunked upload');
       steps.push('Process initiated');
+      
+      // Initialize progress tracking
+      progressTracker.updateProgress(uploadId, 'Starting Google Drive download...', 5, 'Initializing Enhanced Google Drive download process');
       
       // Step 1: Get Facebook account details
       const account = await storage.getFacebookAccount(options.accountId);
@@ -47,6 +52,9 @@ export class CompleteVideoUploadService {
       // Step 2: Download from Google Drive using enhanced downloader
       console.log('Step 1: Downloading from Google Drive with token confirmation');
       steps.push('Starting Google Drive download');
+      
+      // Progress tracking for download start
+      progressTracker.updateProgress(uploadId, 'Downloading from Google Drive...', 15, 'Enhanced downloader with token confirmation initiated');
       
       const downloadResult = await this.downloader.downloadVideoFile({
         googleDriveUrl: options.googleDriveUrl
@@ -64,9 +72,15 @@ export class CompleteVideoUploadService {
       steps.push(`Downloaded: ${downloadSizeMB.toFixed(1)}MB`);
       console.log(`Download successful: ${downloadSizeMB.toFixed(1)}MB`);
       
+      // Progress tracking for download complete
+      progressTracker.updateProgress(uploadId, 'Download completed, starting Facebook upload...', 40, `Downloaded ${downloadSizeMB.toFixed(1)}MB from Google Drive`);
+      
       // Step 3: Upload to Facebook using chunked upload
       console.log('Step 2: Uploading to Facebook using chunked upload API');
       steps.push('Starting Facebook chunked upload');
+      
+      // Progress tracking for upload start
+      progressTracker.updateProgress(uploadId, 'Processing video with FFmpeg...', 50, 'Preparing video for Facebook upload with chunked method');
       
       const title = 'Google Drive Video Upload';
       const description = `Video uploaded from Google Drive (${downloadSizeMB.toFixed(1)}MB) using chunked upload method. ${options.content || ''} Original source: ${options.googleDriveUrl}`;
@@ -87,12 +101,18 @@ export class CompleteVideoUploadService {
       steps.push(`Uploaded: ${uploadSizeMB.toFixed(1)}MB`);
       steps.push('Chunked upload completed');
       
+      // Progress tracking for upload complete
+      progressTracker.updateProgress(uploadId, 'Facebook upload completed!', 95, `Uploaded ${uploadSizeMB.toFixed(1)}MB video to Facebook successfully`);
+      
       console.log(`Upload successful: ${uploadResult.videoId}`);
       console.log(`Facebook URL: ${uploadResult.facebookUrl}`);
       
       // Step 4: Wait for Facebook processing and get post ID
       console.log('Step 3: Waiting for Facebook processing');
       steps.push('Waiting for Facebook processing');
+      
+      // Progress tracking for Facebook processing
+      progressTracker.updateProgress(uploadId, 'Facebook processing video...', 98, 'Video uploaded successfully, waiting for Facebook processing to complete');
       
       await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
       

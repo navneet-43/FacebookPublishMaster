@@ -186,12 +186,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         try {
+          // Generate tracking ID for progress updates
+          const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          console.log(`🔍 Generated upload tracking ID: ${uploadId}`);
+          
           const { publishPostToFacebook } = await import('./services/postService');
           const publishResult = await publishPostToFacebook({
             ...result.data,
             userId: user.id,
             id: 0,
-            createdAt: new Date()
+            createdAt: new Date(),
+            uploadId
           } as any);
 
           if (publishResult.success) {
@@ -711,6 +716,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing from Google Sheets:", error);
       res.status(500).json({ message: "Failed to import from Google Sheets" });
+    }
+  });
+
+  // Progress tracking endpoint for real-time video upload updates
+  app.get('/api/upload-progress/:uploadId', async (req: Request, res: Response) => {
+    try {
+      const { uploadId } = req.params;
+      const { progressTracker } = await import('./services/progressTrackingService');
+      
+      const progress = progressTracker.getProgress(uploadId);
+      if (!progress) {
+        return res.status(404).json({ message: 'Upload not found' });
+      }
+      
+      res.json(progress);
+    } catch (error) {
+      console.error('Error fetching upload progress:', error);
+      res.status(500).json({ message: 'Failed to fetch upload progress' });
     }
   });
 

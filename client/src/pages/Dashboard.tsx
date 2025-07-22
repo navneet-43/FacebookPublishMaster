@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X } from "lucide-react";
+import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -28,6 +29,38 @@ export default function Dashboard() {
     language: 'en',
     selectedLabels: [] as string[]
   });
+  const [uploadProgress, setUploadProgress] = useState({
+    isProcessing: false,
+    currentStep: '',
+    percentage: 0,
+    details: '',
+    steps: [] as string[],
+    uploadId: ''
+  });
+
+  // Poll for progress updates
+  const pollProgress = async (uploadId: string) => {
+    try {
+      const response = await fetch(`/api/upload-progress/${uploadId}`);
+      if (response.ok) {
+        const progressData = await response.json();
+        setUploadProgress(prev => ({
+          ...prev,
+          currentStep: progressData.step,
+          percentage: progressData.percentage,
+          details: progressData.details,
+          isProcessing: progressData.percentage < 100
+        }));
+        
+        // Continue polling if not complete
+        if (progressData.percentage < 100) {
+          setTimeout(() => pollProgress(uploadId), 2000); // Poll every 2 seconds
+        }
+      }
+    } catch (error) {
+      console.error('Progress polling error:', error);
+    }
+  };
 
   const publishDraftsMutation = useMutation({
     mutationFn: () => {
@@ -97,6 +130,20 @@ export default function Dashboard() {
       console.log('🔗 Google Drive URL:', data.mediaUrl);
       console.log('🏷️ Custom Labels:', data.selectedLabels);
       
+      // Generate upload ID and initialize progress tracking
+      const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setUploadProgress({
+        isProcessing: true,
+        currentStep: 'Initializing upload...',
+        percentage: 0,
+        details: 'Starting Enhanced Google Drive video processing',
+        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete'],
+        uploadId
+      });
+      
+      // Start polling for progress updates
+      setTimeout(() => pollProgress(uploadId), 1000);
+      
       const response = await apiRequest('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,18 +175,57 @@ export default function Dashboard() {
         description: `Enhanced Google Drive video uploaded successfully! Processing ${data.uploadedSizeMB ? data.uploadedSizeMB.toFixed(1) + 'MB' : 'large file'} with chunked upload.`,
       });
       
-      setVideoUploadDialogOpen(false);
-      setVideoFormData({ mediaUrl: '', content: '', accountId: '', language: 'en', selectedLabels: [] });
+      // Complete progress tracking
+      setUploadProgress({
+        isProcessing: false,
+        currentStep: 'Upload completed successfully!',
+        percentage: 100,
+        details: `Video uploaded and published to Facebook`,
+        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete']
+      });
+      
+      setTimeout(() => {
+        setVideoUploadDialogOpen(false);
+        setVideoFormData({ mediaUrl: '', content: '', accountId: '', language: 'en', selectedLabels: [] });
+        setUploadProgress({
+          isProcessing: false,
+          currentStep: '',
+          percentage: 0,
+          details: '',
+          steps: [],
+          uploadId: ''
+        });
+      }, 3000);
     },
     onError: (error: any) => {
       console.error('❌ UPLOAD ERROR:', error);
       console.error('🔧 Error Details:', error.message);
+      
+      // Update progress to show error
+      setUploadProgress({
+        isProcessing: false,
+        currentStep: 'Upload failed',
+        percentage: 0,
+        details: error.message || 'Upload failed. Check console for details.',
+        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Error']
+      });
       
       toast({
         title: "Upload Failed",
         description: error.message || "Enhanced Google Drive upload failed. Check console for details.",
         variant: "destructive"
       });
+      
+      setTimeout(() => {
+        setUploadProgress({
+          isProcessing: false,
+          currentStep: '',
+          percentage: 0,
+          details: '',
+          steps: [],
+          uploadId: ''
+        });
+      }, 5000);
     }
   });
 
@@ -406,6 +492,72 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Real-time Progress Bar */}
+            {uploadProgress.isProcessing && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin">
+                    {uploadProgress.currentStep.includes('Download') ? <Download className="h-4 w-4 text-blue-600" /> :
+                     uploadProgress.currentStep.includes('Process') ? <Cog className="h-4 w-4 text-blue-600" /> :
+                     uploadProgress.currentStep.includes('Upload') ? <Upload className="h-4 w-4 text-blue-600" /> :
+                     uploadProgress.currentStep.includes('Complete') ? <CheckCircle className="h-4 w-4 text-green-600" /> :
+                     <Loader2 className="h-4 w-4 text-blue-600" />}
+                  </div>
+                  <h4 className="text-sm font-medium text-blue-800">Processing Video</h4>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-blue-700">{uploadProgress.currentStep}</span>
+                    <span className="text-xs text-blue-600">{uploadProgress.percentage}%</span>
+                  </div>
+                  <Progress value={uploadProgress.percentage} className="h-2" />
+                  <p className="text-xs text-blue-600">{uploadProgress.details}</p>
+                </div>
+
+                {/* Step Progress Indicators */}
+                <div className="flex items-center justify-between">
+                  {uploadProgress.steps.map((step, index) => {
+                    const isActive = uploadProgress.currentStep.toLowerCase().includes(step.toLowerCase());
+                    const isComplete = index < uploadProgress.steps.indexOf(uploadProgress.currentStep.split(' ')[0]) || uploadProgress.percentage === 100;
+                    const isError = step === 'Error';
+                    
+                    return (
+                      <div key={step} className="flex items-center">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                          isError ? 'bg-red-100 text-red-600' :
+                          isComplete ? 'bg-green-100 text-green-600' :
+                          isActive ? 'bg-blue-100 text-blue-600 animate-pulse' :
+                          'bg-gray-100 text-gray-400'
+                        }`}>
+                          {isError ? <X className="h-3 w-3" /> :
+                           isComplete ? <CheckCircle className="h-3 w-3" /> :
+                           step === 'Download' ? <Download className="h-3 w-3" /> :
+                           step === 'Process' ? <Cog className="h-3 w-3" /> :
+                           step === 'Upload' ? <Upload className="h-3 w-3" /> :
+                           step === 'Complete' ? <Facebook className="h-3 w-3" /> :
+                           index + 1}
+                        </div>
+                        <span className={`ml-1 text-xs ${
+                          isError ? 'text-red-600' :
+                          isComplete ? 'text-green-600' :
+                          isActive ? 'text-blue-600' :
+                          'text-gray-400'
+                        }`}>
+                          {step}
+                        </span>
+                        {index < uploadProgress.steps.length - 1 && (
+                          <div className={`w-8 h-0.5 mx-2 ${
+                            isComplete ? 'bg-green-200' : 'bg-gray-200'
+                          }`} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="bg-green-50 p-3 rounded-lg border border-green-200">
               <h4 className="text-sm font-medium text-green-800 mb-2">Enhanced Upload Features</h4>
               <ul className="text-xs text-green-700 space-y-1">
@@ -413,7 +565,7 @@ export default function Dashboard() {
                 <li>• FFmpeg encoding for Facebook compatibility</li>
                 <li>• Chunked upload supports up to 1.75GB</li>
                 <li>• Quality preservation with zero compression loss</li>
-                <li>• Console logging for real-time progress tracking</li>
+                <li>• Real-time progress tracking with visual indicators</li>
               </ul>
             </div>
 
