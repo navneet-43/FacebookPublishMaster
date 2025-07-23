@@ -330,6 +330,21 @@ export default function Dashboard() {
     
     console.log('🎯 INITIATING ENHANCED GOOGLE DRIVE UPLOAD');
     console.log('📋 Form Data:', videoFormData);
+    console.log('🔍 Current upload progress state:', uploadProgress);
+    
+    // Immediately show progress UI
+    setUploadProgress({
+      isProcessing: true,
+      currentStep: 'Preparing upload...',
+      percentage: 0,
+      details: 'Initializing Enhanced Google Drive video processing',
+      steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete'],
+      uploadId: `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      startTime: Date.now()
+    });
+    
+    // Close the dialog to show progress overlay
+    setVideoUploadDialogOpen(false);
     
     videoUploadMutation.mutate(videoFormData);
   };
@@ -590,85 +605,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Real-time Progress Bar - Moved to overlay */}
-            {uploadProgress.isProcessing && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-white p-6 rounded-lg border shadow-lg max-w-md w-full mx-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin">
-                      {uploadProgress.currentStep.includes('Download') ? <Download className="h-5 w-5 text-blue-600" /> :
-                       uploadProgress.currentStep.includes('Process') ? <Cog className="h-5 w-5 text-blue-600" /> :
-                       uploadProgress.currentStep.includes('Upload') ? <Upload className="h-5 w-5 text-blue-600" /> :
-                       uploadProgress.currentStep.includes('Complete') ? <CheckCircle className="h-5 w-5 text-green-600" /> :
-                       <Loader2 className="h-5 w-5 text-blue-600" />}
-                    </div>
-                    <h4 className="text-lg font-medium text-gray-900">Processing Video</h4>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-700">{uploadProgress.currentStep}</span>
-                      <span className="text-sm text-blue-600 font-medium">{uploadProgress.percentage}%</span>
-                    </div>
-                    <Progress value={uploadProgress.percentage} className="h-3" />
-                    <p className="text-sm text-gray-600">{uploadProgress.details}</p>
-                  </div>
 
-                  {/* Step Progress Indicators */}
-                  <div className="flex items-center justify-between">
-                    {uploadProgress.steps.map((step, index) => {
-                      const isActive = uploadProgress.currentStep.toLowerCase().includes(step.toLowerCase());
-                      const isComplete = index < uploadProgress.steps.indexOf(uploadProgress.currentStep.split(' ')[0]) || uploadProgress.percentage === 100;
-                      const isError = step === 'Error';
-                      
-                      return (
-                        <div key={step} className="flex items-center">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                            isError ? 'bg-red-100 text-red-600' :
-                            isComplete ? 'bg-green-100 text-green-600' :
-                            isActive ? 'bg-blue-100 text-blue-600 animate-pulse' :
-                            'bg-gray-100 text-gray-400'
-                          }`}>
-                            {isError ? <X className="h-3 w-3" /> :
-                             isComplete ? <CheckCircle className="h-3 w-3" /> :
-                             step === 'Download' ? <Download className="h-3 w-3" /> :
-                             step === 'Process' ? <Cog className="h-3 w-3" /> :
-                             step === 'Upload' ? <Upload className="h-3 w-3" /> :
-                             step === 'Complete' ? <Facebook className="h-3 w-3" /> :
-                             index + 1}
-                          </div>
-                          <span className={`ml-1 text-xs ${
-                            isError ? 'text-red-600' :
-                            isComplete ? 'text-green-600' :
-                            isActive ? 'text-blue-600' :
-                            'text-gray-400'
-                          }`}>
-                            {step}
-                          </span>
-                          {index < uploadProgress.steps.length - 1 && (
-                            <div className={`w-8 h-0.5 mx-2 ${
-                              isComplete ? 'bg-green-200' : 'bg-gray-200'
-                            }`} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Processing Time Display */}
-                  {uploadProgress.startTime > 0 && (
-                    <div className="text-sm text-gray-500 flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Processing for {Math.floor((Date.now() - uploadProgress.startTime) / 1000)} seconds
-                    </div>
-                  )}
-                  
-                  <p className="text-xs text-gray-400 text-center">
-                    Please wait while your video is being processed...
-                  </p>
-                </div>
-              </div>
-            )}
 
             <div className="bg-green-50 p-3 rounded-lg border border-green-200">
               <h4 className="text-sm font-medium text-green-800 mb-2">Enhanced Upload Features</h4>
@@ -710,6 +647,86 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Global Progress Overlay - Outside dialog */}
+      {uploadProgress.isProcessing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white p-6 rounded-lg border shadow-lg max-w-md w-full mx-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin">
+                {uploadProgress.currentStep.includes('Download') ? <Download className="h-5 w-5 text-blue-600" /> :
+                 uploadProgress.currentStep.includes('Process') ? <Cog className="h-5 w-5 text-blue-600" /> :
+                 uploadProgress.currentStep.includes('Upload') ? <Upload className="h-5 w-5 text-blue-600" /> :
+                 uploadProgress.currentStep.includes('Complete') ? <CheckCircle className="h-5 w-5 text-green-600" /> :
+                 <Loader2 className="h-5 w-5 text-blue-600" />}
+              </div>
+              <h4 className="text-lg font-medium text-gray-900">Processing Video</h4>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-700">{uploadProgress.currentStep}</span>
+                <span className="text-sm text-blue-600 font-medium">{uploadProgress.percentage}%</span>
+              </div>
+              <Progress value={uploadProgress.percentage} className="h-3" />
+              <p className="text-sm text-gray-600">{uploadProgress.details}</p>
+            </div>
+
+            {/* Step Progress Indicators */}
+            <div className="flex items-center justify-between">
+              {uploadProgress.steps.map((step, index) => {
+                const isActive = uploadProgress.currentStep.toLowerCase().includes(step.toLowerCase());
+                const isComplete = index < uploadProgress.steps.indexOf(uploadProgress.currentStep.split(' ')[0]) || uploadProgress.percentage === 100;
+                const isError = step === 'Error';
+                
+                return (
+                  <div key={step} className="flex items-center">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                      isError ? 'bg-red-100 text-red-600' :
+                      isComplete ? 'bg-green-100 text-green-600' :
+                      isActive ? 'bg-blue-100 text-blue-600 animate-pulse' :
+                      'bg-gray-100 text-gray-400'
+                    }`}>
+                      {isError ? <X className="h-3 w-3" /> :
+                       isComplete ? <CheckCircle className="h-3 w-3" /> :
+                       step === 'Download' ? <Download className="h-3 w-3" /> :
+                       step === 'Process' ? <Cog className="h-3 w-3" /> :
+                       step === 'Upload' ? <Upload className="h-3 w-3" /> :
+                       step === 'Complete' ? <Facebook className="h-3 w-3" /> :
+                       index + 1}
+                    </div>
+                    <span className={`ml-1 text-xs ${
+                      isError ? 'text-red-600' :
+                      isComplete ? 'text-green-600' :
+                      isActive ? 'text-blue-600' :
+                      'text-gray-400'
+                    }`}>
+                      {step}
+                    </span>
+                    {index < uploadProgress.steps.length - 1 && (
+                      <div className={`w-8 h-0.5 mx-2 ${
+                        isComplete ? 'bg-green-200' : 'bg-gray-200'
+                      }`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Processing Time Display */}
+            {uploadProgress.startTime > 0 && (
+              <div className="text-sm text-gray-500 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Processing for {Math.floor((Date.now() - uploadProgress.startTime) / 1000)} seconds
+              </div>
+            )}
+            
+            <p className="text-xs text-gray-400 text-center">
+              Please wait while your video is being processed...
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }
