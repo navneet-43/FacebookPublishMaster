@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook } from "lucide-react";
+import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 export default function Dashboard() {
