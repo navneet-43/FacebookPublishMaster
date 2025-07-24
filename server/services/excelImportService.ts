@@ -184,15 +184,33 @@ export class ExcelImportService {
       
       // Extract headers and convert to objects
       const headers = jsonData[0] as string[];
-      const dataRows = jsonData.slice(1) as any[][];
+      const dataRows = jsonData.slice(1);
       
-      const posts = dataRows.map((row: any[]) => {
-        const obj: any = {};
-        headers.forEach((header, index) => {
-          obj[header.toLowerCase().replace(/\s+/g, '')] = row[index];
+      console.log('Excel parsing - Headers:', headers);
+      console.log('Excel parsing - DataRows type:', typeof dataRows, 'isArray:', Array.isArray(dataRows));
+      console.log('Excel parsing - DataRows length:', dataRows?.length);
+      
+      if (!Array.isArray(dataRows)) {
+        return {
+          success: false,
+          imported: 0,
+          failed: 0,
+          errors: ['Invalid Excel data format - expected array of rows']
+        };
+      }
+      
+      const posts = dataRows
+        .filter((row: unknown): row is any[] => Array.isArray(row) && row.some(cell => cell !== null && cell !== undefined && cell !== ''))
+        .map((row: any[], rowIndex: number) => {
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            if (header && typeof header === 'string') {
+              obj[header.toLowerCase().replace(/\s+/g, '')] = row[index];
+            }
+          });
+          console.log(`Row ${rowIndex + 1} parsed:`, obj);
+          return obj;
         });
-        return obj;
-      });
       
       return await this.processPostsData(posts, userId, accountId);
     } catch (error) {
@@ -247,11 +265,13 @@ export class ExcelImportService {
     
     // Get user's Facebook accounts
     const userAccounts = await storage.getFacebookAccounts(userId);
-    const accountMap = new Map(userAccounts.map((acc: any) => [acc.name.toLowerCase(), acc]));
+    console.log('User accounts:', userAccounts);
+    const accountMap = new Map(Array.isArray(userAccounts) ? userAccounts.map((acc: any) => [acc.name.toLowerCase(), acc]) : []);
     
     // Get user's custom labels
     const userLabels = await storage.getCustomLabels(userId);
-    const labelMap = new Map(userLabels.map((label: any) => [label.name.toLowerCase(), label]));
+    console.log('User labels:', userLabels);
+    const labelMap = new Map(Array.isArray(userLabels) ? userLabels.map((label: any) => [label.name.toLowerCase(), label]) : []);
     
     for (let i = 0; i < posts.length; i++) {
       const validation = this.validatePostData(posts[i], i);
@@ -306,7 +326,7 @@ export class ExcelImportService {
         
         // Process custom labels - store as label names for Meta Insights
         const labelNames: string[] = [];
-        if (postData.customLabels) {
+        if (postData.customLabels && typeof postData.customLabels === 'string' && postData.customLabels.trim().length > 0) {
           const rawLabels = postData.customLabels.split(',').map(name => name.trim()).filter(name => name.length > 0);
           labelNames.push(...rawLabels);
           console.log(`Row ${i + 1}: Processing custom labels for Meta Insights:`, rawLabels);
