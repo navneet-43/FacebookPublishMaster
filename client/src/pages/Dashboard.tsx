@@ -69,21 +69,36 @@ export default function Dashboard() {
       
       const response = await fetch(`/api/upload-progress/${uploadId}`);
       if (response.ok) {
-        const progressData = await response.json();
-        console.log('📊 Progress data:', progressData);
-        setUploadProgress(prev => ({
-          ...prev,
-          currentStep: progressData.step || prev.currentStep,
-          percentage: progressData.percentage || prev.percentage,
-          details: progressData.details || prev.details,
-          isProcessing: (progressData.percentage || prev.percentage) < 100
-        }));
-        
-        // Continue polling if not complete
-        if ((progressData.percentage || 0) < 100) {
-          setTimeout(() => pollProgress(uploadId, pollCount + 1), 2000);
-        } else {
-          console.log('✅ Progress polling complete');
+        try {
+          const progressData = await response.json();
+          console.log('📊 Progress data:', progressData);
+          setUploadProgress(prev => ({
+            ...prev,
+            currentStep: progressData.step || prev.currentStep,
+            percentage: progressData.percentage || prev.percentage,
+            details: progressData.details || prev.details,
+            isProcessing: (progressData.percentage || prev.percentage) < 100
+          }));
+          
+          // Continue polling if not complete
+          if ((progressData.percentage || 0) < 100) {
+            setTimeout(() => pollProgress(uploadId, pollCount + 1), 2000);
+          } else {
+            console.log('✅ Progress polling complete');
+          }
+        } catch (jsonError) {
+          console.error('❌ Failed to parse progress JSON response:', jsonError);
+          // Continue polling with simulated progress on JSON errors
+          setTimeout(() => {
+            setUploadProgress(prev => ({
+              ...prev,
+              percentage: Math.min(prev.percentage + 3, 95),
+              details: 'Processing video upload...'
+            }));
+            if (pollCount < 900) {
+              setTimeout(() => pollProgress(uploadId, pollCount + 1), 5000);
+            }
+          }, 1000);
         }
       } else {
         console.warn('⚠️ Progress polling failed:', response.status);

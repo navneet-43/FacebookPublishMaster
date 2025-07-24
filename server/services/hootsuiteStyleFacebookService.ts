@@ -254,9 +254,16 @@ export class HootsuiteStyleFacebookService {
   /**
    * Publish video post to Facebook page (supports Google Drive links)
    */
-  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string, uploadId?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
+      
+      // Import progress tracker for upload progress updates
+      const { progressTracker } = await import('./progressTrackingService');
+      
+      if (uploadId) {
+        progressTracker.updateProgress(uploadId, 'Analyzing video source...', 30, 'Determining video platform and processing method');
+      }
       
       // Handle local file uploads (from previous processing)
       if (videoUrl.startsWith('/tmp/') || videoUrl.startsWith('file://')) {
@@ -442,6 +449,10 @@ export class HootsuiteStyleFacebookService {
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
         console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
         
+        if (uploadId) {
+          progressTracker.updateProgress(uploadId, 'Downloading from Google Drive...', 40, 'Starting enhanced Google Drive download');
+        }
+        
         const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
         
         const downloader = new CorrectGoogleDriveDownloader();
@@ -449,6 +460,10 @@ export class HootsuiteStyleFacebookService {
         
         if (result.success && result.filePath) {
           console.log(`✅ Google Drive video downloaded: ${(result.fileSize! / 1024 / 1024).toFixed(2)}MB`);
+          
+          if (uploadId) {
+            progressTracker.updateProgress(uploadId, 'Processing video for Facebook...', 60, 'Optimizing video format for Facebook compatibility');
+          }
           
           // Apply simple encoding for Facebook compatibility
           const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
@@ -461,6 +476,10 @@ export class HootsuiteStyleFacebookService {
             console.log('✅ Facebook encoding applied to Google Drive video');
             finalPath = encodedResult.outputPath;
             encodingCleanup = encodedResult.cleanup;
+          }
+          
+          if (uploadId) {
+            progressTracker.updateProgress(uploadId, 'Uploading to Facebook...', 80, 'Starting Facebook upload with chunked method');
           }
           
           // Upload to Facebook using the working chunked upload system

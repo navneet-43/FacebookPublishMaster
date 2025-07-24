@@ -12,9 +12,18 @@ const activeJobs: Record<number, schedule.Job> = {};
  * @returns Result of the operation
  */
 export async function publishPostToFacebook(post: Post): Promise<{success: boolean, data?: any, error?: string}> {
+  // Import services at function level for error handler access
+  const { progressTracker } = await import('./progressTrackingService');
+  
   try {
-    // Import Hootsuite-style service
     const { HootsuiteStyleFacebookService } = await import('./hootsuiteStyleFacebookService');
+    
+    // Initialize progress tracking if uploadId is provided
+    if ((post as any).uploadId && post.userId) {
+      console.log(`📊 Initializing progress tracking for upload: ${(post as any).uploadId}`);
+      progressTracker.startUpload((post as any).uploadId, post.userId);
+      progressTracker.updateProgress((post as any).uploadId, 'Starting Facebook publish process...', 5, 'Validating account and preparing upload');
+    }
     
     // Verify post has all required data
     if (!post.accountId) {
@@ -35,10 +44,18 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       return { success: false, error: 'Facebook account is not properly authenticated' };
     }
     
+    // Update progress
+    if ((post as any).uploadId) {
+      progressTracker.updateProgress((post as any).uploadId, 'Validating Facebook authentication...', 10, 'Checking page access token');
+    }
+    
     // Validate token before using it
     const isValidToken = await HootsuiteStyleFacebookService.validatePageToken(account.pageId, account.accessToken);
     if (!isValidToken) {
       console.log('Invalid page token detected, attempting refresh...');
+      if ((post as any).uploadId) {
+        progressTracker.completeUpload((post as any).uploadId, false, 'Facebook access token is invalid or expired');
+      }
       return { 
         success: false, 
         error: 'Facebook access token is invalid or expired. Please refresh your Facebook connection.' 
@@ -46,6 +63,11 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     }
     
     console.log(`Publishing post ${post.id} to Facebook page: ${account.name} (${account.pageId})`);
+    
+    // Update progress
+    if ((post as any).uploadId) {
+      progressTracker.updateProgress((post as any).uploadId, 'Processing custom labels...', 15, 'Resolving label IDs to names');
+    }
     
     // Resolve label IDs to label names if labels are provided as IDs
     let resolvedLabels = post.labels;
@@ -82,6 +104,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     if (post.mediaUrl && post.mediaType && post.mediaType !== 'none') {
       switch (post.mediaType) {
         case 'photo':
+          if ((post as any).uploadId) {
+            progressTracker.updateProgress((post as any).uploadId, 'Publishing photo to Facebook...', 30, 'Uploading image content');
+          }
           result = await HootsuiteStyleFacebookService.publishPhotoPost(
             account.pageId,
             account.accessToken,
@@ -94,17 +119,24 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           
         case 'video':
         case 'reel':
+          if ((post as any).uploadId) {
+            progressTracker.updateProgress((post as any).uploadId, 'Processing video for Facebook upload...', 25, 'Starting video processing and upload');
+          }
           result = await HootsuiteStyleFacebookService.publishVideoPost(
             account.pageId,
             account.accessToken,
             post.mediaUrl,
             post.content || undefined,
             resolvedLabels || undefined,
-            post.language || undefined
+            post.language || undefined,
+            (post as any).uploadId // Pass uploadId for progress tracking
           );
           break;
           
         default:
+          if ((post as any).uploadId) {
+            progressTracker.updateProgress((post as any).uploadId, 'Publishing content to Facebook...', 30, 'Processing text with media link');
+          }
           // Fallback to text post with media as link
           result = await HootsuiteStyleFacebookService.publishTextPost(
             account.pageId,
@@ -117,6 +149,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       }
     } else {
       // Text-only post
+      if ((post as any).uploadId) {
+        progressTracker.updateProgress((post as any).uploadId, 'Publishing text post to Facebook...', 30, 'Processing text content');
+      }
       result = await HootsuiteStyleFacebookService.publishTextPost(
         account.pageId,
         account.accessToken,
@@ -128,6 +163,11 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     }
     
     if (result.success) {
+      // Complete progress tracking
+      if ((post as any).uploadId) {
+        progressTracker.completeUpload((post as any).uploadId, true, 'Video uploaded and published to Facebook successfully');
+      }
+      
       // Log activity for successful publication
       const languageInfo = post.language ? ` (${post.language.toUpperCase()})` : '';
       const labelsInfo = resolvedLabels && resolvedLabels.length > 0 ? ` with labels: ${resolvedLabels.join(', ')}` : '';
@@ -157,6 +197,11 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
         }
       };
     } else {
+      // Complete progress tracking for failed upload
+      if ((post as any).uploadId) {
+        progressTracker.completeUpload((post as any).uploadId, false, result.error || 'Facebook publishing failed');
+      }
+      
       console.error(`Failed to publish post ${post.id} to Facebook:`, result.error);
       return { 
         success: false, 
@@ -165,6 +210,11 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     }
     
   } catch (error) {
+    // Complete progress tracking for error
+    if ((post as any).uploadId) {
+      progressTracker.completeUpload((post as any).uploadId, false, error instanceof Error ? error.message : 'Unknown error occurred');
+    }
+    
     console.error('Error publishing to Facebook:', error);
     return { 
       success: false, 
