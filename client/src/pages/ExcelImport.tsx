@@ -30,7 +30,8 @@ export default function ExcelImport() {
     queryKey: ["/api/facebook-accounts"],
   });
 
-  const accounts = facebookAccounts as any[];
+  // Ensure accounts is always an array
+  const accounts = Array.isArray(facebookAccounts) ? facebookAccounts : [];
 
   const downloadTemplateMutation = useMutation({
     mutationFn: async () => {
@@ -318,7 +319,7 @@ export default function ExcelImport() {
                       <SelectContent>
                         {accountsLoading ? (
                           <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
-                        ) : accounts.length === 0 ? (
+                        ) : !Array.isArray(accounts) || accounts.length === 0 ? (
                           <SelectItem value="no-accounts" disabled>No Facebook accounts found</SelectItem>
                         ) : (
                           accounts.map((account: any) => (
