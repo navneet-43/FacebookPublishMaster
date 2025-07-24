@@ -368,7 +368,7 @@ export class HootsuiteStyleFacebookService {
             // Force actual video upload using guaranteed service
             const { ActualVideoUploadService } = await import('./actualVideoUploadService');
             // Apply definitive Facebook encoding for reliable display
-            // Remove encoding step to simplify processing
+            const { FacebookDefinitiveEncoder } = await import('./facebookDefinitiveEncoder');
             console.log('🎯 Applying definitive Facebook encoding to YouTube video...');
             
             const optimizedResult = await FacebookDefinitiveEncoder.createDefinitiveVideo(result.filePath);
@@ -442,9 +442,10 @@ export class HootsuiteStyleFacebookService {
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
         console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
         
-        const { PythonStyleGoogleDriveDownloader } = await import('./pythonStyleGoogleDriveDownloader');
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
         
-        const result = await PythonStyleGoogleDriveDownloader.downloadVideoFile(videoUrl);
+        const downloader = new CorrectGoogleDriveDownloader();
+        const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
         
         if (result.success && result.filePath) {
           console.log(`✅ Google Drive video downloaded: ${(result.fileSize! / 1024 / 1024).toFixed(2)}MB`);
@@ -483,7 +484,7 @@ export class HootsuiteStyleFacebookService {
             console.log('✅ ENHANCED GOOGLE DRIVE VIDEO UPLOADED SUCCESSFULLY');
             
             // Clean up temporary files after successful upload
-            PythonStyleGoogleDriveDownloader.cleanupFile(result.filePath);
+            if (result.cleanup) result.cleanup();
             if (encodingCleanup) encodingCleanup();
             
             return {
@@ -529,7 +530,7 @@ export class HootsuiteStyleFacebookService {
       }
       
       // Force upload method based on Facebook validation
-      const forcedUploadMethod = fbValidation?.uploadMethod;
+      const forcedUploadMethod = fbValidation.uploadMethod;
       
       const { VideoProcessor } = await import('./videoProcessor');
 
