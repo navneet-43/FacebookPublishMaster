@@ -15,15 +15,38 @@ interface GoogleDriveDownloadResult {
 export class CorrectGoogleDriveDownloader {
   
   private extractFileId(url: string): string {
-    // Convert drive link to file ID (matching Python script)
-    const match = url.match(/\/d\/([\w-]+)/);
+    // Handle multiple Google Drive URL formats
+    console.log(`🔍 Extracting file ID from URL: ${url}`);
+    
+    // Format 1: /file/d/FILE_ID/view or /file/d/FILE_ID/edit
+    let match = url.match(/\/file\/d\/([\w-]+)/);
     if (match) {
+      console.log(`✅ Extracted file ID: ${match[1]} (from /file/d/ format)`);
       return match[1];
-    } else if (url.includes('open?id=')) {
-      return url.split('open?id=')[1];
-    } else {
+    }
+    
+    // Format 2: /d/FILE_ID
+    match = url.match(/\/d\/([\w-]+)/);
+    if (match) {
+      console.log(`✅ Extracted file ID: ${match[1]} (from /d/ format)`);
+      return match[1];
+    }
+    
+    // Format 3: ?id=FILE_ID or open?id=FILE_ID
+    match = url.match(/[?&]id=([\w-]+)/);
+    if (match) {
+      console.log(`✅ Extracted file ID: ${match[1]} (from ?id= format)`);
+      return match[1];
+    }
+    
+    // Format 4: Already a file ID (fallback)
+    if (url.match(/^[\w-]+$/)) {
+      console.log(`✅ URL appears to be file ID: ${url}`);
       return url;
     }
+    
+    console.log(`⚠️ Could not extract file ID from URL, using as-is: ${url}`);
+    return url;
   }
 
   private async getConfirmationInfoFromForm(html: string): Promise<{ confirm: string | null; uuid: string | null }> {
