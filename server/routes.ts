@@ -770,5 +770,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Emergency cleanup endpoint for stuck processes
+  app.post('/api/emergency-cleanup', async (req: Request, res: Response) => {
+    try {
+      const { ProcessCleanupService } = await import('./services/processCleanupService');
+      await ProcessCleanupService.emergencyCleanup();
+      
+      // Clear all video processing locks
+      const { VideoProcessLock } = await import('./services/videoProcessLock');
+      VideoProcessLock.clearAllLocks();
+      
+      res.json({
+        success: true,
+        message: 'Emergency cleanup completed - all processes killed and locks cleared'
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   return httpServer;
 }
