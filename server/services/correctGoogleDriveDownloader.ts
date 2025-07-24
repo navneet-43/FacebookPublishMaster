@@ -46,6 +46,36 @@ export class CorrectGoogleDriveDownloader {
     };
   }
 
+  private async handleVirusScanWarning(html: string, fileId: string, headers: any): Promise<string> {
+    // Check if this is a virus scan warning page
+    if (html.includes('virus scan') || html.includes('Google Drive can\'t scan') || html.includes('Download anyway')) {
+      console.log('🦠 Virus scan warning detected - bypassing...');
+      
+      // Extract the bypass URL from the "Download anyway" link
+      const downloadAnywayMatch = html.match(/href="([^"]*download[^"]*confirm=t[^"]*)"/);
+      if (downloadAnywayMatch) {
+        const bypassUrl = downloadAnywayMatch[1].replace(/&amp;/g, '&');
+        console.log('🔓 Found virus scan bypass URL');
+        return bypassUrl;
+      }
+      
+      // Alternative method: construct bypass URL manually
+      const confirmMatch = html.match(/confirm=([^&"]+)/);
+      if (confirmMatch) {
+        const confirmToken = confirmMatch[1];
+        const bypassUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=${confirmToken}`;
+        console.log('🔧 Constructed virus scan bypass URL');
+        return bypassUrl;
+      }
+      
+      // Fallback: try direct download with confirm=t parameter
+      console.log('⚡ Using fallback virus scan bypass method');
+      return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+    }
+    
+    return '';
+  }
+
   async downloadVideoFile(options: GoogleDriveDownloadOptions): Promise<GoogleDriveDownloadResult> {
     const fileId = this.extractFileId(options.googleDriveUrl);
     const outputPath = options.outputPath || `/tmp/google_drive_${Date.now()}.mp4`;
@@ -73,28 +103,46 @@ export class CorrectGoogleDriveDownloader {
       
       const html = await response.text();
       
-      // Step 2: Extract confirmation info from form (matching Python BeautifulSoup approach)
-      const { confirm, uuid } = await this.getConfirmationInfoFromForm(html);
+      // Step 2: Check for virus scan warning and handle bypass
+      const virusBypassUrl = await this.handleVirusScanWarning(html, fileId, headers);
+      let downloadResponse;
       
-      if (!confirm || !uuid) {
-        throw new Error('Could not extract confirmation token from download form');
+      if (virusBypassUrl) {
+        console.log('🦠 Using virus scan bypass URL');
+        downloadResponse = await fetch(virusBypassUrl, {
+          headers,
+          redirect: 'follow'
+        });
+      } else {
+        // Step 3: Extract confirmation info from form (matching Python BeautifulSoup approach)
+        const { confirm, uuid } = await this.getConfirmationInfoFromForm(html);
+        
+        if (!confirm || !uuid) {
+          // Try alternative virus scan bypass methods
+          console.log('⚠️ No confirmation tokens found, trying virus scan bypass...');
+          const bypassUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+          downloadResponse = await fetch(bypassUrl, {
+            headers,
+            redirect: 'follow'
+          });
+        } else {
+          console.log(`Confirmation token extracted: ${confirm.substring(0, 10)}...`);
+          
+          // Step 4: Download with confirmation token using session headers
+          const confirmUrl = "https://drive.usercontent.google.com/download";
+          const params = new URLSearchParams({
+            id: fileId,
+            export: 'download',
+            confirm: confirm,
+            uuid: uuid
+          });
+          
+          downloadResponse = await fetch(`${confirmUrl}?${params}`, {
+            headers,
+            redirect: 'follow'
+          });
+        }
       }
-      
-      console.log(`Confirmation token extracted: ${confirm.substring(0, 10)}...`);
-      
-      // Step 3: Download with confirmation token using session headers
-      const confirmUrl = "https://drive.usercontent.google.com/download";
-      const params = new URLSearchParams({
-        id: fileId,
-        export: 'download',
-        confirm: confirm,
-        uuid: uuid
-      });
-      
-      const downloadResponse = await fetch(`${confirmUrl}?${params}`, {
-        headers,
-        redirect: 'follow'
-      });
       
       if (!downloadResponse.ok) {
         throw new Error(`Download request failed: ${downloadResponse.status}`);
@@ -166,7 +214,7 @@ export class CorrectGoogleDriveDownloader {
       response.body.on('end', () => {
         if (stagnationTimer) clearTimeout(stagnationTimer);
         
-        writeStream.end((error) => {
+        writeStream.end((error: any) => {
           if (error) {
             reject(error);
             return;
