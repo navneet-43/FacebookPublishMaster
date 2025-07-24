@@ -347,15 +347,22 @@ export default function Dashboard() {
       );
       
       if (!alrightTamilAccount) {
-        setStressTestProgress(prev => ({
-          ...prev,
-          isRunning: false,
-          currentTest: 'Error: Alright Tamil page not found',
-          uploadId: '',
-          startTime: 0
-        }));
-        return;
+        // Use first available account if Alright Tamil not found
+        if (accounts.length === 0) {
+          setStressTestProgress(prev => ({
+            ...prev,
+            isRunning: false,
+            currentTest: 'Error: No Facebook accounts found',
+            uploadId: '',
+            startTime: 0
+          }));
+          return;
+        }
+        console.warn('Alright Tamil page not found, using first available account:', accounts[0].name);
       }
+      
+      const targetAccount = alrightTamilAccount || accounts[0];
+      console.log(`🎯 Using Facebook account: ${targetAccount.name} (ID: ${targetAccount.id}) for stress testing`);
 
       const testVideos = [
       {
@@ -393,9 +400,11 @@ export default function Dashboard() {
           body: JSON.stringify({
             mediaUrl: test.url,
             content: test.content,
-            accountId: alrightTamilAccount.id.toString(),
+            accountId: parseInt(targetAccount.id),
+            userId: 3, // Default user ID
             language: 'en',
-            selectedLabels: test.labels
+            selectedLabels: test.labels,
+            status: 'immediate' // Publish immediately
           })
         });
         
