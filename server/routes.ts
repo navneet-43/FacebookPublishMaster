@@ -735,14 +735,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { progressTracker } = await import('./services/progressTrackingService');
       
       const progress = progressTracker.getProgress(uploadId);
+      
+      // Always return valid JSON structure
       if (!progress) {
-        return res.status(404).json({ message: 'Upload not found' });
+        return res.json({
+          uploadId,
+          step: 'Processing...',
+          percentage: 10,
+          details: 'Upload in progress',
+          timestamp: new Date().toISOString(),
+          status: 'not_found'
+        });
       }
       
-      res.json(progress);
+      res.json({
+        uploadId,
+        step: progress.step || 'Processing...',
+        percentage: progress.percentage || 0,
+        details: progress.details || 'Upload in progress',
+        timestamp: progress.timestamp || new Date().toISOString(),
+        status: 'active'
+      });
     } catch (error) {
       console.error('Error fetching upload progress:', error);
-      res.status(500).json({ message: 'Failed to fetch upload progress' });
+      res.json({
+        uploadId: req.params.uploadId,
+        step: 'Error occurred',
+        percentage: 0,
+        details: 'Progress tracking unavailable',
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
