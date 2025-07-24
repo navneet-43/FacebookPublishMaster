@@ -20,6 +20,7 @@ import platformAuthRouter, { sessionMiddleware, requireAuth as requirePlatformAu
 import { GoogleSheetsService } from "./services/googleSheetsService";
 import { setupGoogleOAuthRoutes } from "./routes/googleOAuth";
 import { ExcelImportService } from "./services/excelImportService";
+import { progressTracker } from "./services/progressTrackingService";
 
 const authenticateUser = async (req: Request) => {
   // Use default Facebook OAuth user (ID 3) without authentication
