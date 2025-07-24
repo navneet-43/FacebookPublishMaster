@@ -391,7 +391,7 @@ export class ExcelImportService {
         let processedMediaType = postData.mediaType;
         
         if (postData.mediaUrl && YouTubeHelper.isYouTubeUrl(postData.mediaUrl)) {
-          console.log(`🎥 Row ${i + 1}: Processing YouTube video for CSV import: ${postData.mediaUrl}`);
+          console.log(`🎥 Row ${i + 1}: Processing YouTube video for Excel import: ${postData.mediaUrl}`);
           
           try {
             // Use the video processor to handle YouTube download
@@ -419,6 +419,16 @@ export class ExcelImportService {
             failed++;
             continue;
           }
+        } else if (postData.mediaUrl && (postData.mediaUrl.includes('drive.google.com') || postData.mediaUrl.includes('docs.google.com'))) {
+          console.log(`🔄 Row ${i + 1}: Google Drive video detected for Excel import: ${postData.mediaUrl}`);
+          console.log(`📝 Row ${i + 1}: Google Drive videos will be processed using enhanced downloader during Facebook upload`);
+          
+          // For Google Drive videos, we keep the original URL and let the Facebook service handle
+          // the enhanced downloading during the actual upload process
+          processedMediaUrl = postData.mediaUrl;
+          processedMediaType = 'video';
+          
+          console.log(`✅ Row ${i + 1}: Google Drive video URL preserved for enhanced processing`);
         }
         
         // Parse date and convert from IST to UTC for storage
