@@ -438,27 +438,17 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Google Drive URLs with intelligent auto-detection
+      // Handle Google Drive URLs with enhanced large file access
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('🎥 GOOGLE DRIVE VIDEO: Using intelligent size-based processing');
+        console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
         
-        // Use intelligent video processor for automatic size detection and method selection
-        const { IntelligentVideoProcessor } = await import('./intelligentVideoProcessor');
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
         
-        // Get recommended method first
-        try {
-          const recommendation = await IntelligentVideoProcessor.getRecommendedMethod(videoUrl);
-          console.log(`📊 SIZE ANALYSIS: ${recommendation.estimatedSize} - ${recommendation.reason}`);
-          console.log(`🎯 SELECTED METHOD: ${recommendation.method.toUpperCase()}`);
-        } catch (e) {
-          console.log('📊 SIZE ANALYSIS: Failed to detect size, proceeding with intelligent fallback');
-        }
-        
-        // Process with automatic method selection
-        const result = await IntelligentVideoProcessor.processVideo(videoUrl);
+        const downloader = new CorrectGoogleDriveDownloader();
+        const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
         
         if (result.success && result.filePath) {
-          console.log(`✅ Google Drive video processed via ${result.method}: ${result.sizeMB?.toFixed(2)}MB`);
+          console.log(`✅ Google Drive video downloaded: ${(result.fileSize! / 1024 / 1024).toFixed(2)}MB`);
           
           // Apply simple encoding for Facebook compatibility
           const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');

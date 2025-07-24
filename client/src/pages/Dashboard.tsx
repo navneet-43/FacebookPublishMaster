@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook, Clock } from "lucide-react";
-import { EmergencyCleanupButton } from "@/components/EmergencyCleanupButton";
 import { Progress } from "@/components/ui/progress";
 
 export default function Dashboard() {
@@ -510,15 +509,12 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="flex justify-between items-center mb-6">
-        <DashboardHeader 
-          title="Dashboard" 
-          lastUpdated="Updated just now" 
-          onExport={handleExport}
-          onImport={handleImport}
-        />
-        <EmergencyCleanupButton />
-      </div>
+      <DashboardHeader 
+        title="Dashboard" 
+        lastUpdated="Updated just now" 
+        onExport={handleExport}
+        onImport={handleImport}
+      />
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <StatsCards />

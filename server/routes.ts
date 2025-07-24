@@ -735,60 +735,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { progressTracker } = await import('./services/progressTrackingService');
       
       const progress = progressTracker.getProgress(uploadId);
-      
-      // Always return valid JSON structure
       if (!progress) {
-        return res.json({
-          uploadId,
-          step: 'Processing...',
-          percentage: 10,
-          details: 'Upload in progress',
-          timestamp: new Date().toISOString(),
-          status: 'not_found'
-        });
+        return res.status(404).json({ message: 'Upload not found' });
       }
       
-      res.json({
-        uploadId,
-        step: progress.step || 'Processing...',
-        percentage: progress.percentage || 0,
-        details: progress.details || 'Upload in progress',
-        timestamp: progress.timestamp || new Date().toISOString(),
-        status: 'active'
-      });
+      res.json(progress);
     } catch (error) {
       console.error('Error fetching upload progress:', error);
-      res.json({
-        uploadId: req.params.uploadId,
-        step: 'Error occurred',
-        percentage: 0,
-        details: 'Progress tracking unavailable',
-        timestamp: new Date().toISOString(),
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Emergency cleanup endpoint for stuck processes
-  app.post('/api/emergency-cleanup', async (req: Request, res: Response) => {
-    try {
-      const { ProcessCleanupService } = await import('./services/processCleanupService');
-      await ProcessCleanupService.emergencyCleanup();
-      
-      // Clear all video processing locks
-      const { VideoProcessLock } = await import('./services/videoProcessLock');
-      VideoProcessLock.clearAllLocks();
-      
-      res.json({
-        success: true,
-        message: 'Emergency cleanup completed - all processes killed and locks cleared'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      res.status(500).json({ message: 'Failed to fetch upload progress' });
     }
   });
 
