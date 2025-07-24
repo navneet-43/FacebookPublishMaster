@@ -39,6 +39,16 @@ export default function Dashboard() {
     startTime: 0
   });
 
+  // Stress testing state
+  const [stressTestDialogOpen, setStressTestDialogOpen] = useState(false);
+  const [stressTestProgress, setStressTestProgress] = useState({
+    isRunning: false,
+    completed: 0,
+    total: 0,
+    currentTest: '',
+    results: [] as any[]
+  });
+
   // Poll for progress updates with timeout protection
   const pollProgress = async (uploadId: string, pollCount = 0) => {
     try {
@@ -318,6 +328,130 @@ export default function Dashboard() {
     }
   });
 
+  // Stress test function
+  const runStressTest = async () => {
+    setStressTestProgress({
+      isRunning: true,
+      completed: 0,
+      total: 3,
+      currentTest: 'Initializing stress test...',
+      results: []
+    });
+
+    // Get Alright Tamil page ID
+    try {
+      const accountsResponse = await fetch('/api/facebook-accounts');
+      const accounts = await accountsResponse.json();
+      const alrightTamilAccount = accounts.find((account: any) => 
+        account.name.toLowerCase().includes('alright tamil')
+      );
+      
+      if (!alrightTamilAccount) {
+        setStressTestProgress(prev => ({
+          ...prev,
+          isRunning: false,
+          currentTest: 'Error: Alright Tamil page not found',
+          uploadId: '',
+          startTime: 0
+        }));
+        return;
+      }
+
+      const testVideos = [
+      {
+        name: 'Small Video Test',
+        url: 'https://drive.google.com/file/d/1Fl_HSrPtUiIPeNpaGJNrZ_nQc2iWhFz6/view',
+        content: 'Stress Test #1: Small video with DI custom label for Meta Insights verification',
+        labels: ['DI']
+      },
+      {
+        name: 'Medium Video Test', 
+        url: 'https://drive.google.com/file/d/1Fl_HSrPtUiIPeNpaGJNrZ_nQc2iWhFz6/view',
+        content: 'Stress Test #2: Medium video with L3M custom label for Meta Insights verification',
+        labels: ['L3M']
+      },
+      {
+        name: 'Large Video Test',
+        url: 'https://drive.google.com/file/d/1Fl_HSrPtUiIPeNpaGJNrZ_nQc2iWhFz6/view', 
+        content: 'Stress Test #3: Large video with DI+L3M custom labels for Meta Insights verification',
+        labels: ['DI', 'L3M']
+      }
+    ];
+
+    for (let i = 0; i < testVideos.length; i++) {
+      const test = testVideos[i];
+      
+      setStressTestProgress(prev => ({
+        ...prev,
+        currentTest: `${test.name} - Uploading with ${test.labels.join(', ')} labels`
+      }));
+
+      try {
+        const response = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mediaUrl: test.url,
+            content: test.content,
+            accountId: alrightTamilAccount.id.toString(),
+            language: 'en',
+            selectedLabels: test.labels
+          })
+        });
+        
+        const result = await response.json();
+
+        setStressTestProgress(prev => ({
+          ...prev,
+          completed: prev.completed + 1,
+          results: [...prev.results, {
+            name: test.name,
+            labels: test.labels.join(', '),
+            success: true,
+            details: `Published with Post ID: ${result.id}`
+          }]
+        }));
+
+        // Wait between uploads
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      } catch (error) {
+        setStressTestProgress(prev => ({
+          ...prev,
+          completed: prev.completed + 1,
+          results: [...prev.results, {
+            name: test.name,
+            labels: test.labels.join(', '),
+            success: false,
+            details: `Error: ${error}`
+          }]
+        }));
+      }
+    }
+
+    setStressTestProgress(prev => ({
+      ...prev,
+      isRunning: false,
+      currentTest: 'Stress test completed! Check Recent Activity for all published posts.',
+      uploadId: '',
+      startTime: 0
+    }));
+    
+    } catch (mainError) {
+      setStressTestProgress(prev => ({
+        ...prev,
+        isRunning: false,
+        currentTest: `Error: ${mainError}`,
+        uploadId: '',
+        startTime: 0
+      }));
+    }
+
+    // Refresh activities to show new posts
+    queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+  };
+
   const handleVideoUpload = () => {
     if (!videoFormData.mediaUrl || !videoFormData.content || !videoFormData.accountId) {
       toast({
@@ -397,13 +531,23 @@ export default function Dashboard() {
                   Enhanced downloader + FFmpeg encoding + Facebook chunked upload for quality preservation
                 </p>
               </div>
-              <Button 
-                onClick={() => setVideoUploadDialogOpen(true)}
-                className="ml-4 bg-green-600 hover:bg-green-700"
-              >
-                <Video className="h-4 w-4 mr-2" />
-                Upload Video
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setVideoUploadDialogOpen(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Video className="h-4 w-4 mr-2" />
+                  Upload Video
+                </Button>
+                <Button 
+                  onClick={() => setStressTestDialogOpen(true)}
+                  variant="outline"
+                  className="border-orange-200 text-orange-700 hover:bg-orange-50"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Stress Test
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -644,6 +788,103 @@ export default function Dashboard() {
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stress Test Dialog */}
+      <Dialog open={stressTestDialogOpen} onOpenChange={setStressTestDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+              Video Publishing Stress Test - Alright Tamil Page
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <h4 className="font-medium text-orange-800 mb-2">Test Configuration</h4>
+              <ul className="text-sm text-orange-700 space-y-1">
+                <li>• Target: Alright Tamil Facebook Page</li>
+                <li>• Custom Labels: DI, L3M (Meta Insights integration)</li>
+                <li>• Videos: Multiple Google Drive test videos</li>
+                <li>• Quality: Preserve original resolution</li>
+                <li>• Upload Method: Chunked upload for large files</li>
+              </ul>
+            </div>
+            
+            {!stressTestProgress.isRunning ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  This will test video publishing with custom labels to verify Meta Insights integration works correctly.
+                  Each video will be uploaded with different custom label combinations.
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="font-medium">Test Videos:</div>
+                    <div className="text-gray-600">
+                      • Small video (DI label)
+                      • Medium video (L3M label)  
+                      • Large video (DI + L3M labels)
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded">
+                    <div className="font-medium">Verification:</div>
+                    <div className="text-gray-600">
+                      • Upload success rate
+                      • Custom label attachment
+                      • Meta Insights data
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={runStressTest}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Start Stress Test
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setStressTestDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progress: {stressTestProgress.completed}/{stressTestProgress.total}</span>
+                    <span>{Math.round((stressTestProgress.completed / stressTestProgress.total) * 100)}%</span>
+                  </div>
+                  <Progress value={(stressTestProgress.completed / stressTestProgress.total) * 100} />
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <div className="font-medium text-blue-800">Current Test:</div>
+                  <div className="text-blue-700 text-sm">{stressTestProgress.currentTest}</div>
+                </div>
+                
+                {stressTestProgress.results.length > 0 && (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    <div className="font-medium text-sm">Results:</div>
+                    {stressTestProgress.results.map((result, index) => (
+                      <div key={index} className={`text-xs p-2 rounded border ${
+                        result.success ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+                      }`}>
+                        {result.success ? '✅' : '❌'} {result.name} - {result.labels} - {result.details}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
