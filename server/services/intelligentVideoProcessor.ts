@@ -1,6 +1,7 @@
 import { GoogleDriveHelper } from './googleDriveHelper.js';
 import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader.js';
 import { FFmpegGoogleDriveService } from './ffmpegGoogleDriveService.js';
+import { VideoProcessLock } from './videoProcessLock.js';
 
 interface VideoProcessingResult {
   success: boolean;
@@ -96,24 +97,37 @@ export class IntelligentVideoProcessor {
   static async processVideo(url: string, outputPath?: string): Promise<VideoProcessingResult> {
     console.log(`🚀 STARTING INTELLIGENT VIDEO PROCESSING: ${url}`);
     
+    // Prevent concurrent processing of the same video
+    const lockAcquired = await VideoProcessLock.acquireLock(url);
+    if (!lockAcquired) {
+      return {
+        success: false,
+        method: 'failed',
+        error: 'Video processing already in progress for this URL'
+      };
+    }
+    
     try {
       // Step 1: Analyze video size
       console.log(`📊 STEP 1: Analyzing video size...`);
       const sizeInfo = await this.getVideoSizeInfo(url);
       console.log(`📊 VIDEO SIZE ANALYSIS: ${sizeInfo.sizeMB.toFixed(2)}MB, needsFFmpeg: ${sizeInfo.needsFFmpeg}`);
       
+      let result: VideoProcessingResult;
+      
       // Step 2: Select processing method based on size
       if (sizeInfo.needsFFmpeg) {
         console.log(`📥 STEP 2: USING FFMPEG METHOD for ${sizeInfo.sizeMB.toFixed(2)}MB video`);
-        const result = await this.processWithFFmpeg(url, outputPath, sizeInfo);
+        result = await this.processWithFFmpeg(url, outputPath, sizeInfo);
         console.log(`📥 FFMPEG RESULT: Success=${result.success}, Method=${result.method}`);
-        return result;
       } else {
         console.log(`📥 STEP 2: USING STANDARD METHOD for ${sizeInfo.sizeMB.toFixed(2)}MB video`);
-        const result = await this.processWithStandard(url, outputPath, sizeInfo);
+        result = await this.processWithStandard(url, outputPath, sizeInfo);
         console.log(`📥 STANDARD RESULT: Success=${result.success}, Method=${result.method}`);
-        return result;
       }
+      
+      VideoProcessLock.releaseLock(url);
+      return result;
       
     } catch (error) {
       console.error(`❌ INTELLIGENT PROCESSING FAILED:`, error);
@@ -123,9 +137,11 @@ export class IntelligentVideoProcessor {
       try {
         const fallbackResult = await this.processWithFFmpeg(url, outputPath);
         console.log(`🚨 FALLBACK RESULT: Success=${fallbackResult.success}`);
+        VideoProcessLock.releaseLock(url);
         return fallbackResult;
       } catch (fallbackError) {
         console.error(`❌ Even fallback failed:`, fallbackError);
+        VideoProcessLock.releaseLock(url);
         return {
           success: false,
           method: 'failed',
