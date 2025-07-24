@@ -98,24 +98,40 @@ export class IntelligentVideoProcessor {
     
     try {
       // Step 1: Analyze video size
+      console.log(`📊 STEP 1: Analyzing video size...`);
       const sizeInfo = await this.getVideoSizeInfo(url);
+      console.log(`📊 VIDEO SIZE ANALYSIS: ${sizeInfo.sizeMB.toFixed(2)}MB, needsFFmpeg: ${sizeInfo.needsFFmpeg}`);
       
       // Step 2: Select processing method based on size
       if (sizeInfo.needsFFmpeg) {
-        console.log(`📥 USING FFMPEG METHOD for ${sizeInfo.sizeMB.toFixed(2)}MB video`);
-        return await this.processWithFFmpeg(url, outputPath, sizeInfo);
+        console.log(`📥 STEP 2: USING FFMPEG METHOD for ${sizeInfo.sizeMB.toFixed(2)}MB video`);
+        const result = await this.processWithFFmpeg(url, outputPath, sizeInfo);
+        console.log(`📥 FFMPEG RESULT: Success=${result.success}, Method=${result.method}`);
+        return result;
       } else {
-        console.log(`📥 USING STANDARD METHOD for ${sizeInfo.sizeMB.toFixed(2)}MB video`);
-        return await this.processWithStandard(url, outputPath, sizeInfo);
+        console.log(`📥 STEP 2: USING STANDARD METHOD for ${sizeInfo.sizeMB.toFixed(2)}MB video`);
+        const result = await this.processWithStandard(url, outputPath, sizeInfo);
+        console.log(`📥 STANDARD RESULT: Success=${result.success}, Method=${result.method}`);
+        return result;
       }
       
     } catch (error) {
-      console.error(`❌ Intelligent processing failed:`, error);
-      return {
-        success: false,
-        method: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error(`❌ INTELLIGENT PROCESSING FAILED:`, error);
+      
+      // Emergency fallback to FFmpeg 
+      console.log(`🚨 EMERGENCY FALLBACK: Attempting FFmpeg as last resort...`);
+      try {
+        const fallbackResult = await this.processWithFFmpeg(url, outputPath);
+        console.log(`🚨 FALLBACK RESULT: Success=${fallbackResult.success}`);
+        return fallbackResult;
+      } catch (fallbackError) {
+        console.error(`❌ Even fallback failed:`, fallbackError);
+        return {
+          success: false,
+          method: 'failed',
+          error: `Primary error: ${error instanceof Error ? error.message : 'Unknown'}, Fallback error: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown'}`
+        };
+      }
     }
   }
   
@@ -164,12 +180,26 @@ export class IntelligentVideoProcessor {
     outputPath?: string, 
     sizeInfo?: VideoSizeInfo
   ): Promise<VideoProcessingResult> {
+    console.log(`🎬 STARTING FFMPEG PROCESSING for: ${url}`);
+    
     try {
+      console.log(`🎬 CALLING FFmpegGoogleDriveService.downloadLargeVideo...`);
       const result = await FFmpegGoogleDriveService.downloadLargeVideo(url);
+      console.log(`🎬 FFMPEG SERVICE RETURNED: Success=${result.success}, FilePath=${result.filePath}, SizeMB=${result.sizeMB}`);
       
       if (result.success && result.filePath) {
-        console.log(`✅ FFMPEG DOWNLOAD SUCCESS: ${result.sizeMB}MB`);
+        console.log(`✅ FFMPEG DOWNLOAD SUCCESS: ${result.sizeMB}MB at ${result.filePath}`);
         const fileSize = (result.sizeMB || 0) * 1024 * 1024; // Convert MB to bytes
+        
+        // Verify file exists
+        try {
+          const fs = await import('fs');
+          const stats = fs.statSync(result.filePath);
+          console.log(`✅ FILE VERIFIED: ${stats.size} bytes on disk`);
+        } catch (fileError) {
+          console.error(`❌ FILE VERIFICATION FAILED:`, fileError);
+        }
+        
         return {
           success: true,
           filePath: result.filePath,
@@ -178,6 +208,7 @@ export class IntelligentVideoProcessor {
           sizeMB: result.sizeMB || 0
         };
       } else {
+        console.error(`❌ FFMPEG FAILED: ${result.error}`);
         return {
           success: false,
           method: 'failed',
@@ -186,7 +217,7 @@ export class IntelligentVideoProcessor {
       }
       
     } catch (error) {
-      console.error(`❌ FFmpeg processing error:`, error);
+      console.error(`❌ FFMPEG PROCESSING EXCEPTION:`, error);
       return {
         success: false,
         method: 'failed',
