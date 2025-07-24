@@ -215,11 +215,11 @@ export class DatabaseStorage implements IStorage {
 
   async createOrUpdateGoogleSheetsIntegration(data: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration> {
     // Check if integration exists
-    const existing = await this.getGoogleSheetsIntegration(data.userId);
+    const existing = await this.getGoogleSheetsIntegration(data.userId!);
     
     if (existing) {
       // Update existing integration
-      const updated = await this.updateGoogleSheetsIntegration(data.userId, data);
+      const updated = await this.updateGoogleSheetsIntegration(data.userId!, data);
       return updated!;
     } else {
       // Create new integration
@@ -349,7 +349,7 @@ export class DatabaseStorage implements IStorage {
   async createPost(post: InsertPost): Promise<Post> {
     const [newPost] = await db
       .insert(posts)
-      .values(post)
+      .values([post])
       .returning();
     return newPost;
   }
@@ -411,6 +411,7 @@ export class MemStorage implements IStorage {
 
   constructor() {
     this.users = new Map();
+    this.platformUsers = new Map();
     this.facebookAccounts = new Map();
     this.googleSheetsIntegrations = new Map();
     this.customLabels = new Map();
@@ -418,6 +419,7 @@ export class MemStorage implements IStorage {
     this.activities = new Map();
     this.currentIds = {
       users: 1,
+      platformUsers: 1,
       facebookAccounts: 1,
       googleSheetsIntegrations: 1,
       customLabels: 1,
@@ -467,9 +469,71 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentIds.users++;
     const now = new Date();
-    const user: User = { ...insertUser, id, createdAt: now };
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      createdAt: now,
+      password: insertUser.password || null,
+      fullName: insertUser.fullName || null,
+      facebookId: insertUser.facebookId || null,
+      facebookToken: insertUser.facebookToken || null
+    };
     this.users.set(id, user);
     return user;
+  }
+
+  // Platform user operations
+  async getPlatformUser(id: number): Promise<PlatformUser | undefined> {
+    return this.platformUsers.get(id);
+  }
+
+  async getPlatformUserByUsername(username: string): Promise<PlatformUser | undefined> {
+    return Array.from(this.platformUsers.values()).find(
+      (user) => user.username === username,
+    );
+  }
+
+  async getPlatformUserByEmail(email: string): Promise<PlatformUser | undefined> {
+    return Array.from(this.platformUsers.values()).find(
+      (user) => user.email === email,
+    );
+  }
+
+  async createPlatformUser(userData: InsertPlatformUser): Promise<PlatformUser> {
+    const id = this.currentIds.platformUsers++;
+    const now = new Date();
+    const user: PlatformUser = { 
+      ...userData, 
+      id, 
+      createdAt: now,
+      updatedAt: now,
+      role: userData.role || "user",
+      isActive: true,
+      lastLoginAt: null
+    };
+    this.platformUsers.set(id, user);
+    return user;
+  }
+
+  async updatePlatformUser(id: number, data: Partial<PlatformUser>): Promise<PlatformUser | undefined> {
+    const user = this.platformUsers.get(id);
+    if (!user) return undefined;
+    
+    const updatedUser = { ...user, ...data, updatedAt: new Date() };
+    this.platformUsers.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  async updatePlatformUserLastLogin(id: number): Promise<void> {
+    const user = this.platformUsers.get(id);
+    if (user) {
+      user.lastLoginAt = new Date();
+      this.platformUsers.set(id, user);
+    }
+  }
+
+  async getAllPlatformUsers(): Promise<PlatformUser[]> {
+    return Array.from(this.platformUsers.values());
   }
 
   // Facebook account operations
@@ -492,7 +556,13 @@ export class MemStorage implements IStorage {
   async createFacebookAccount(account: InsertFacebookAccount): Promise<FacebookAccount> {
     const id = this.currentIds.facebookAccounts++;
     const now = new Date();
-    const newAccount: FacebookAccount = { ...account, id, createdAt: now };
+    const newAccount: FacebookAccount = { 
+      ...account, 
+      id, 
+      createdAt: now,
+      userId: account.userId || null,
+      isActive: account.isActive !== false
+    };
     this.facebookAccounts.set(id, newAccount);
     return newAccount;
   }
@@ -520,7 +590,15 @@ export class MemStorage implements IStorage {
   async createGoogleSheetsIntegration(integration: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration> {
     const id = this.currentIds.googleSheetsIntegrations++;
     const now = new Date();
-    const newIntegration: GoogleSheetsIntegration = { ...integration, id, createdAt: now };
+    const newIntegration: GoogleSheetsIntegration = { 
+      ...integration, 
+      id, 
+      createdAt: now,
+      userId: integration.userId || null,
+      refreshToken: integration.refreshToken || null,
+      folderId: integration.folderId || null,
+      spreadsheetId: integration.spreadsheetId || null
+    };
     this.googleSheetsIntegrations.set(id, newIntegration);
     return newIntegration;
   }
@@ -537,6 +615,20 @@ export class MemStorage implements IStorage {
     return updatedIntegration;
   }
 
+  async createOrUpdateGoogleSheetsIntegration(data: InsertGoogleSheetsIntegration): Promise<GoogleSheetsIntegration> {
+    // Check if integration exists
+    const existing = await this.getGoogleSheetsIntegration(data.userId!);
+    
+    if (existing) {
+      // Update existing integration
+      const updated = await this.updateGoogleSheetsIntegration(data.userId!, data);
+      return updated!;
+    } else {
+      // Create new integration
+      return await this.createGoogleSheetsIntegration(data);
+    }
+  }
+
   // Custom label operations
   async getCustomLabels(userId: number): Promise<CustomLabel[]> {
     return Array.from(this.customLabels.values()).filter(
@@ -551,7 +643,12 @@ export class MemStorage implements IStorage {
   async createCustomLabel(label: InsertCustomLabel): Promise<CustomLabel> {
     const id = this.currentIds.customLabels++;
     const now = new Date();
-    const newLabel: CustomLabel = { ...label, id, createdAt: now };
+    const newLabel: CustomLabel = { 
+      ...label, 
+      id, 
+      createdAt: now,
+      userId: label.userId || null
+    };
     this.customLabels.set(id, newLabel);
     return newLabel;
   }

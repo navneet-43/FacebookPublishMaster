@@ -611,7 +611,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get all scheduled posts for this user
-      const scheduledPosts = await storage.getPostsByStatus(user.id, 'scheduled');
+      const allScheduledPosts = await storage.getPostsByStatus('scheduled');
+      const scheduledPosts = allScheduledPosts.filter(post => post.userId === user.id);
       
       // Delete all scheduled posts
       let deletedCount = 0;
