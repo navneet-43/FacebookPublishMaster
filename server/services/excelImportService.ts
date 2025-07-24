@@ -59,8 +59,9 @@ export class ExcelImportService {
       } else {
         const dateStr = scheduledFor.toString().trim();
         
-        // Handle time-only format like "2:30 PM"
+        // Handle different date/time formats
         if (dateStr.match(/^\d{1,2}:\d{2}\s*(AM|PM)$/i)) {
+          // Format: "2:30 PM" - time only, use today's date
           const today = new Date();
           const timeStr = dateStr.toUpperCase();
           let [time, period] = timeStr.split(/\s+/);
@@ -70,22 +71,51 @@ export class ExcelImportService {
           if (period === 'AM' && hours === 12) hours = 0;
           
           date = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+        } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(:\d{2})?$/)) {
+          // Format: "2024-07-24 14:30" or "2024-07-24 14:30:00"
+          const [datePart, timePart] = dateStr.split(' ');
+          const [year, month, day] = datePart.split('-').map(Number);
+          const timeParts = timePart.split(':').map(Number);
+          const [hours, minutes, seconds = 0] = timeParts;
+          date = new Date(year, month - 1, day, hours, minutes, seconds);
+        } else if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
+          // Format: "7/24/2024 2:30 PM" or "07/24/2024 14:30"
+          const parts = dateStr.split(/\s+/);
+          const [datePart, timePart, period] = parts;
+          const [month, day, year] = datePart.split('/').map(Number);
+          const timeParts = timePart.split(':').map(Number);
+          let [hours, minutes, seconds = 0] = timeParts;
+          
+          if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+          if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+          
+          date = new Date(year, month - 1, day, hours, minutes, seconds);
+        } else if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
+          // Format: "7-24-2024 2:30 PM" or "07-24-2024 14:30"
+          const parts = dateStr.split(/\s+/);
+          const [datePart, timePart, period] = parts;
+          const [month, day, year] = datePart.split('-').map(Number);
+          const timeParts = timePart.split(':').map(Number);
+          let [hours, minutes, seconds = 0] = timeParts;
+          
+          if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+          if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+          
+          date = new Date(year, month - 1, day, hours, minutes, seconds);
         } else {
-          // Parse as local time to avoid timezone shifts
-          if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/)) {
-            // Format: YYYY-MM-DD HH:MM:SS - parse as local time
-            const [datePart, timePart] = dateStr.split(' ');
-            const [year, month, day] = datePart.split('-').map(Number);
-            const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
-            date = new Date(year, month - 1, day, hours, minutes, seconds);
-          } else {
-            date = new Date(dateStr);
-          }
+          // Try standard Date parsing as fallback
+          date = new Date(dateStr);
         }
       }
       
       if (isNaN(date.getTime())) {
-        errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor. Use format: YYYY-MM-DD HH:MM:SS or time format like 2:30 PM`);
+        errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor. Supported formats:
+        • YYYY-MM-DD HH:MM:SS (e.g., "2024-07-24 14:30:00")
+        • YYYY-MM-DD HH:MM (e.g., "2024-07-24 14:30")
+        • MM/DD/YYYY HH:MM AM/PM (e.g., "7/24/2024 2:30 PM")
+        • MM-DD-YYYY HH:MM AM/PM (e.g., "7-24-2024 2:30 PM")
+        • HH:MM AM/PM (time only, uses today's date, e.g., "2:30 PM")
+        Your value: "${dateStr}"`);
       }
     }
     
@@ -102,8 +132,9 @@ export class ExcelImportService {
       // Handle various date/time formats including "2:30 PM" format
       const dateStr = scheduledFor.toString().trim();
       
-      // If it's just a time like "2:30 PM", combine with today's date
+      // Use the same parsing logic as validation above
       if (dateStr.match(/^\d{1,2}:\d{2}\s*(AM|PM)$/i)) {
+        // Format: "2:30 PM" - time only, use today's date
         const today = new Date();
         const timeStr = dateStr.toUpperCase();
         let [time, period] = timeStr.split(/\s+/);
@@ -113,17 +144,40 @@ export class ExcelImportService {
         if (period === 'AM' && hours === 12) hours = 0;
         
         parsedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+      } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(:\d{2})?$/)) {
+        // Format: "2024-07-24 14:30" or "2024-07-24 14:30:00"
+        const [datePart, timePart] = dateStr.split(' ');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const timeParts = timePart.split(':').map(Number);
+        const [hours, minutes, seconds = 0] = timeParts;
+        parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
+      } else if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
+        // Format: "7/24/2024 2:30 PM" or "07/24/2024 14:30"
+        const parts = dateStr.split(/\s+/);
+        const [datePart, timePart, period] = parts;
+        const [month, day, year] = datePart.split('/').map(Number);
+        const timeParts = timePart.split(':').map(Number);
+        let [hours, minutes, seconds = 0] = timeParts;
+        
+        if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+        if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        
+        parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
+      } else if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
+        // Format: "7-24-2024 2:30 PM" or "07-24-2024 14:30"
+        const parts = dateStr.split(/\s+/);
+        const [datePart, timePart, period] = parts;
+        const [month, day, year] = datePart.split('-').map(Number);
+        const timeParts = timePart.split(':').map(Number);
+        let [hours, minutes, seconds = 0] = timeParts;
+        
+        if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+        if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        
+        parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
       } else {
-        // Parse as local time to avoid timezone shifts
-        if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/)) {
-          // Format: YYYY-MM-DD HH:MM:SS - parse as local time
-          const [datePart, timePart] = dateStr.split(' ');
-          const [year, month, day] = datePart.split('-').map(Number);
-          const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
-          parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
-        } else {
-          parsedDate = new Date(dateStr);
-        }
+        // Try standard Date parsing as fallback
+        parsedDate = new Date(dateStr);
       }
     }
     
