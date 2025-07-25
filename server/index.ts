@@ -120,6 +120,17 @@ app.use((req, res, next) => {
       await postService.initializeScheduledPosts();
       log('Scheduled posts initialized');
       
+      // Set up progress tracking cleanup to prevent memory buildup
+      const cleanupJob = schedule.scheduleJob('*/10 * * * *', async () => { // Every 10 minutes
+        try {
+          const { progressTracker } = await import('./services/progressTrackingService');
+          progressTracker.cleanupCompletedUploads();
+        } catch (error) {
+          console.error('Error in progress tracking cleanup:', error);
+        }
+      });
+      log('Progress tracking cleanup job scheduled');
+      
       // Set up a daily job to retry failed posts
       const retryJob = schedule.scheduleJob('0 */4 * * *', async () => { // Every 4 hours
         try {

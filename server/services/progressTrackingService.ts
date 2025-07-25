@@ -13,6 +13,7 @@ interface ActiveUpload {
   userId: number;
   websocket?: WebSocket;
   progress: ProgressUpdate;
+  completed?: boolean;
 }
 
 class ProgressTrackingService {
@@ -97,23 +98,55 @@ class ProgressTrackingService {
     
     this.sendProgressUpdate(finalProgress);
     
+    // Mark upload as completed but keep progress data briefly for API access
+    upload.completed = true;
+    
     // Clean up after a delay
     setTimeout(() => {
-      this.activeUploads.delete(uploadId);
-      const client = this.clients.get(uploadId);
-      if (client) {
-        this.clients.delete(uploadId);
-        if (client.readyState === WebSocket.OPEN) {
+      this.cleanupUpload(uploadId);
+    }, 10000); // Increased to 10 seconds for better API access
+  }
+
+  // Clean up upload data and WebSocket connections
+  private cleanupUpload(uploadId: string): void {
+    console.log(`🧹 Cleaning up upload tracking for: ${uploadId}`);
+    
+    this.activeUploads.delete(uploadId);
+    const client = this.clients.get(uploadId);
+    if (client) {
+      this.clients.delete(uploadId);
+      if (client.readyState === WebSocket.OPEN) {
+        try {
           client.close();
+        } catch (error) {
+          console.error(`❌ Error closing WebSocket for ${uploadId}:`, error);
         }
       }
-    }, 5000);
+    }
   }
 
   // Get current progress for an upload
   getProgress(uploadId: string): ProgressUpdate | null {
     const upload = this.activeUploads.get(uploadId);
     return upload ? upload.progress : null;
+  }
+
+  // Clean up completed uploads older than threshold
+  cleanupCompletedUploads(): void {
+    const now = Date.now();
+    const threshold = 15 * 60 * 1000; // 15 minutes
+    
+    const expiredUploads: string[] = [];
+    this.activeUploads.forEach((upload, uploadId) => {
+      if (upload.completed && (now - upload.progress.timestamp.getTime()) > threshold) {
+        expiredUploads.push(uploadId);
+      }
+    });
+    
+    expiredUploads.forEach(uploadId => {
+      console.log(`🧹 Auto-cleaning expired upload: ${uploadId}`);
+      this.cleanupUpload(uploadId);
+    });
   }
 
   // Register WebSocket client for existing upload

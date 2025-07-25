@@ -732,17 +732,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/upload-progress/:uploadId', async (req: Request, res: Response) => {
     try {
       const { uploadId } = req.params;
+      
+      // Validate uploadId format
+      if (!uploadId || typeof uploadId !== 'string' || uploadId.length < 5) {
+        return res.status(400).json({ message: 'Invalid upload ID format' });
+      }
+      
       const { progressTracker } = await import('./services/progressTrackingService');
+      
+      // Clean up expired uploads periodically to prevent memory buildup
+      progressTracker.cleanupCompletedUploads();
       
       const progress = progressTracker.getProgress(uploadId);
       if (!progress) {
         return res.status(404).json({ message: 'Upload not found' });
       }
       
-      res.json(progress);
+      // Ensure we return valid JSON with sanitized data
+      const sanitizedProgress = {
+        uploadId: progress.uploadId,
+        step: String(progress.step || 'Processing...'),
+        percentage: Math.max(0, Math.min(100, Number(progress.percentage) || 0)),
+        details: String(progress.details || 'Upload in progress...'),
+        timestamp: progress.timestamp
+      };
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.json(sanitizedProgress);
+      
     } catch (error) {
       console.error('Error fetching upload progress:', error);
-      res.status(500).json({ message: 'Failed to fetch upload progress' });
+      res.status(500).json({ 
+        error: 'Failed to fetch progress',
+        message: 'Internal server error during progress tracking'
+      });
     }
   });
 
