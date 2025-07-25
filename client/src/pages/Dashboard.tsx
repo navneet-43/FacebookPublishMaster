@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import DashboardHeader from "@/components/common/DashboardHeader";
 import StatsCards from "@/components/dashboard/StatsCards";
 import UpcomingPostsCard from "@/components/dashboard/UpcomingPostsCard";
@@ -39,6 +39,9 @@ export default function Dashboard() {
     startTime: 0
   });
 
+  // Ref to store the current polling timeout for cleanup
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Stress testing state
   const [stressTestDialogOpen, setStressTestDialogOpen] = useState(false);
   const [stressTestProgress, setStressTestProgress] = useState({
@@ -49,10 +52,27 @@ export default function Dashboard() {
     results: [] as any[]
   });
 
-  // Poll for progress updates with timeout protection
-  const pollProgress = async (uploadId: string, pollCount = 0) => {
+  // Clear any existing polling
+  const clearPolling = () => {
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+      console.log('🧹 Cleared existing polling timeout');
+    }
+  };
+
+  // Poll for progress updates with timeout protection  
+  const pollProgress = async (pollCount = 0) => {
+    // Get current upload ID from state
+    const currentUploadId = uploadProgress.uploadId;
+    
+    if (!currentUploadId) {
+      console.log('🛑 No upload ID in state, stopping polling');
+      return;
+    }
+    
     try {
-      console.log(`🔄 Polling progress for: ${uploadId} (attempt ${pollCount + 1})`);
+      console.log(`🔄 Polling progress for: ${currentUploadId} (attempt ${pollCount + 1})`);
       
       // Extended timeout for large videos: 30 minutes (1800 seconds / 2 second intervals = 900 polls)
       if (pollCount > 900) {
@@ -67,7 +87,7 @@ export default function Dashboard() {
         return;
       }
       
-      const response = await fetch(`/api/upload-progress/${uploadId}`);
+      const response = await fetch(`/api/upload-progress/${currentUploadId}`);
       if (response.ok) {
         try {
           const progressData = await response.json();
@@ -82,28 +102,28 @@ export default function Dashboard() {
           
           // Continue polling if not complete
           if ((progressData.percentage || 0) < 100) {
-            setTimeout(() => pollProgress(uploadId, pollCount + 1), 2000);
+            pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 2000);
           } else {
             console.log('✅ Progress polling complete');
           }
         } catch (jsonError) {
           console.error('❌ Failed to parse progress JSON response:', jsonError);
           // Continue polling with simulated progress on JSON errors
-          setTimeout(() => {
+          pollingTimeoutRef.current = setTimeout(() => {
             setUploadProgress(prev => ({
               ...prev,
               percentage: Math.min(prev.percentage + 3, 95),
               details: 'Processing video upload...'
             }));
             if (pollCount < 900) {
-              setTimeout(() => pollProgress(uploadId, pollCount + 1), 5000);
+              pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 5000);
             }
           }, 1000);
         }
       } else {
         console.warn('⚠️ Progress polling failed:', response.status);
         // Simulate progress to prevent UI freeze
-        setTimeout(() => {
+        pollingTimeoutRef.current = setTimeout(() => {
           setUploadProgress(prev => {
             const elapsed = Date.now() - prev.startTime;
             const minutes = Math.floor(elapsed / 60000);
@@ -124,21 +144,21 @@ export default function Dashboard() {
           
           // Continue polling with extended timeout protection  
           if (pollCount < 900) {
-            setTimeout(() => pollProgress(uploadId, pollCount + 1), 3000);
+            pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 3000);
           }
         }, 2000);
       }
     } catch (error) {
       console.error('Progress polling error:', error);
       // Continue with basic progress simulation
-      setTimeout(() => {
+      pollingTimeoutRef.current = setTimeout(() => {
         setUploadProgress(prev => ({
           ...prev,
           percentage: Math.min(prev.percentage + 5, 95),
           details: 'Upload in progress...'
         }));
         if (pollCount < 900) {
-          setTimeout(() => pollProgress(uploadId, pollCount + 1), 5000);
+          pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 5000);
         }
       }, 2000);
     }
@@ -222,7 +242,10 @@ export default function Dashboard() {
       console.log('🔗 Google Drive URL:', data.mediaUrl);
       console.log('🏷️ Custom Labels:', data.selectedLabels);
       
-      // Clear any existing progress state first
+      // Clear any existing polling first
+      clearPolling();
+      
+      // Clear any existing progress state
       setUploadProgress({
         isProcessing: false,
         currentStep: '',
@@ -236,6 +259,7 @@ export default function Dashboard() {
       // Generate fresh upload ID and initialize progress tracking
       const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       console.log('🆕 Generated fresh upload ID:', uploadId);
+      console.log('🧹 Cleared old polling, starting fresh upload tracking');
       
       // Initialize fresh progress tracking
       setUploadProgress({
@@ -248,9 +272,9 @@ export default function Dashboard() {
         startTime: Date.now()
       });
       
-      // Start polling for progress updates
-      setTimeout(() => pollProgress(uploadId), 1000);
-      console.log('🔍 Starting progress polling for uploadId:', uploadId);
+      // Start polling for progress updates (using new signature without uploadId parameter)
+      pollingTimeoutRef.current = setTimeout(() => pollProgress(), 1000);
+      console.log('🔍 Starting fresh progress polling for uploadId:', uploadId);
       
       // Enhanced request configuration for large videos
       const controller = new AbortController();
