@@ -222,8 +222,22 @@ export default function Dashboard() {
       console.log('🔗 Google Drive URL:', data.mediaUrl);
       console.log('🏷️ Custom Labels:', data.selectedLabels);
       
-      // Generate upload ID and initialize progress tracking
+      // Clear any existing progress state first
+      setUploadProgress({
+        isProcessing: false,
+        currentStep: '',
+        percentage: 0,
+        details: '',
+        steps: [],
+        uploadId: '',
+        startTime: 0
+      });
+      
+      // Generate fresh upload ID and initialize progress tracking
       const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log('🆕 Generated fresh upload ID:', uploadId);
+      
+      // Initialize fresh progress tracking
       setUploadProgress({
         isProcessing: true,
         currentStep: 'Initializing upload...',
