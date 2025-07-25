@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import DashboardHeader from "@/components/common/DashboardHeader";
 import StatsCards from "@/components/dashboard/StatsCards";
 import UpcomingPostsCard from "@/components/dashboard/UpcomingPostsCard";
@@ -331,7 +331,9 @@ export default function Dashboard() {
         currentStep: 'Upload completed successfully!',
         percentage: 100,
         details: `Video uploaded and published to Facebook`,
-        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete']
+        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Complete'],
+        uploadId: '',
+        startTime: 0
       });
       
       setTimeout(() => {
@@ -358,7 +360,9 @@ export default function Dashboard() {
         currentStep: 'Upload failed',
         percentage: 0,
         details: error.message || 'Upload failed. Check console for details.',
-        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Error']
+        steps: ['Initialize', 'Download', 'Process', 'Upload', 'Error'],
+        uploadId: '',
+        startTime: 0
       });
       
       toast({
