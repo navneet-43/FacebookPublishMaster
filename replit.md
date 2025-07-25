@@ -249,6 +249,17 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **Data sanitization implemented to ensure all progress responses return valid JSON**
 - ✅ **Periodic cleanup system prevents memory leaks during consecutive upload sessions**
 
+**July 25, 2025 - DEPLOYED BUILD JSON PARSING ERROR RESOLUTION**
+- ✅ **FINAL FIX: Resolved persistent "Unexpected token 'u', 'upstream r'" error in deployed builds**
+- ✅ **Enhanced response text validation to detect HTML/proxy error pages before JSON parsing**
+- ✅ **Added comprehensive detection for gateway/proxy errors (nginx, cloudflare, upstream)**
+- ✅ **Implemented smart error classification to prevent false upload failures**
+- ✅ **JSON parsing errors no longer cause "Upload Failed" status - continue with fallback tracking**
+- ✅ **Enhanced error logging to capture and debug non-JSON responses safely**
+- ✅ **Progress polling now gracefully handles all response types including HTML error pages**
+- ✅ **Upload success protection ensures real uploads aren't marked failed due to tracking errors**
+- ✅ **Robust fallback progress system maintains UI functionality during proxy/gateway issues**
+
 **July 24, 2025 - COMPREHENSIVE STRESS TESTING SYSTEM IMPLEMENTED**
 - ✅ **Created comprehensive stress testing system for video publishing with custom labels verification**
 - ✅ **Added stress test dialog targeting Alright Tamil Facebook page with 3 test scenarios**
