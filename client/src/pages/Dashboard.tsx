@@ -74,9 +74,9 @@ export default function Dashboard() {
     try {
       console.log(`🔄 Polling progress for: ${currentUploadId} (attempt ${pollCount + 1})`);
       
-      // Extended timeout for large videos: 30 minutes (1800 seconds / 2 second intervals = 900 polls)
-      if (pollCount > 900) {
-        console.warn('⏰ Progress polling timed out after 30 minutes');
+      // Extended timeout for very large videos: 60 minutes (3600 seconds / 2 second intervals = 1800 polls)
+      if (pollCount > 1800) {
+        console.warn('⏰ Progress polling timed out after 60 minutes');
         setUploadProgress(prev => ({
           ...prev,
           isProcessing: false,
@@ -148,10 +148,10 @@ export default function Dashboard() {
           pollingTimeoutRef.current = setTimeout(() => {
             setUploadProgress(prev => ({
               ...prev,
-              percentage: Math.min(prev.percentage + 3, 95),
+              percentage: Math.min(prev.percentage + 2, 98), // Slower increment, max 98% until real completion
               details: 'Processing video upload (using fallback progress)...'
             }));
-            if (pollCount < 900) {
+            if (pollCount < 1800) {
               pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 5000);
             }
           }, 1000);
@@ -213,7 +213,7 @@ export default function Dashboard() {
           });
           
           // Continue polling with extended timeout protection  
-          if (pollCount < 900) {
+          if (pollCount < 1800) {
             pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 3000);
           }
         }, 2000);
@@ -234,7 +234,7 @@ export default function Dashboard() {
           percentage: Math.min(prev.percentage + 5, 95),
           details: 'Upload in progress (using fallback tracking)...'
         }));
-        if (pollCount < 900) {
+        if (pollCount < 1800) {
           pollingTimeoutRef.current = setTimeout(() => pollProgress(pollCount + 1), 5000);
         }
       }, 2000);

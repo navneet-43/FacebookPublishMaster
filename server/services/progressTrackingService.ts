@@ -101,10 +101,10 @@ class ProgressTrackingService {
     // Mark upload as completed but keep progress data briefly for API access
     upload.completed = true;
     
-    // Clean up after a delay
+    // Clean up after a longer delay to ensure progress bar can finish displaying
     setTimeout(() => {
       this.cleanupUpload(uploadId);
-    }, 10000); // Increased to 10 seconds for better API access
+    }, 60000); // Increased to 60 seconds for extended progress tracking
   }
 
   // Clean up upload data and WebSocket connections
@@ -134,7 +134,7 @@ class ProgressTrackingService {
   // Clean up completed uploads older than threshold
   cleanupCompletedUploads(): void {
     const now = Date.now();
-    const threshold = 15 * 60 * 1000; // 15 minutes
+    const threshold = 30 * 60 * 1000; // 30 minutes - increased for better progress tracking
     
     const expiredUploads: string[] = [];
     this.activeUploads.forEach((upload, uploadId) => {
