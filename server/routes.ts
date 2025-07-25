@@ -745,7 +745,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const progress = progressTracker.getProgress(uploadId);
       if (!progress) {
-        return res.status(404).json({ message: 'Upload not found' });
+        // Instead of 404, return a completion status for uploads that may have finished
+        return res.status(200).json({ 
+          uploadId,
+          step: 'Upload completed - Check Recent Activity for status',
+          percentage: 100,
+          details: 'Upload processing completed. Check Recent Activity tab for results.',
+          timestamp: new Date().toISOString()
+        });
       }
       
       // Ensure we return valid JSON with sanitized data

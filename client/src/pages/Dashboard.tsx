@@ -90,7 +90,22 @@ export default function Dashboard() {
       const response = await fetch(`/api/upload-progress/${currentUploadId}`);
       if (response.ok) {
         try {
-          const progressData = await response.json();
+          // Get response text first to debug JSON parsing issues
+          const responseText = await response.text();
+          console.log('📊 Raw response:', responseText);
+          
+          // Only try to parse if we have valid JSON
+          if (!responseText || responseText.trim() === '') {
+            throw new Error('Empty response from server');
+          }
+          
+          // Check if response starts with valid JSON characters
+          if (!responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
+            console.warn('⚠️ Non-JSON response received:', responseText.substring(0, 100));
+            throw new Error('Non-JSON response from server');
+          }
+          
+          const progressData = JSON.parse(responseText);
           console.log('📊 Progress data:', progressData);
           setUploadProgress(prev => ({
             ...prev,
@@ -122,6 +137,31 @@ export default function Dashboard() {
         }
       } else {
         console.warn('⚠️ Progress polling failed:', response.status);
+        
+        // Try to get error response safely
+        try {
+          const errorText = await response.text();
+          console.log('❌ Error response:', errorText);
+          
+          // Check if it's a JSON error response
+          if (errorText.trim().startsWith('{')) {
+            const errorData = JSON.parse(errorText);
+            if (errorData.message && errorData.message.includes('Upload not found')) {
+              // Upload completed but was cleaned up - mark as finished
+              setUploadProgress(prev => ({
+                ...prev,
+                isProcessing: false,
+                currentStep: 'Upload completed - Check Recent Activity for status',
+                percentage: 100,
+                details: 'Upload processing completed. Check Recent Activity tab for results.'
+              }));
+              return; // Stop polling
+            }
+          }
+        } catch (parseError) {
+          console.warn('Could not parse error response:', parseError);
+        }
+        
         // Simulate progress to prevent UI freeze
         pollingTimeoutRef.current = setTimeout(() => {
           setUploadProgress(prev => {
