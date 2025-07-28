@@ -224,10 +224,39 @@ export class ExcelImportService {
   // Analysis method for CSV preview functionality
   static async analyzeExcelFile(params: { fileBuffer: Buffer; filename: string }): Promise<AnalysisResult> {
     try {
-      const { fileBuffer, filename } = params;
-      const isCSV = filename.toLowerCase().endsWith('.csv');
+      console.log('🔍 analyzeExcelFile method called');
       
-      console.log(`🔍 Analyzing file: ${filename} (${isCSV ? 'CSV' : 'Excel'})`);
+      if (!params) {
+        console.error('No parameters provided to analyzeExcelFile');
+        return {
+          success: false,
+          error: 'No parameters provided',
+          details: 'The analyzeExcelFile method requires fileBuffer and filename parameters'
+        };
+      }
+      
+      const { fileBuffer, filename } = params;
+      
+      if (!fileBuffer) {
+        console.error('No fileBuffer provided');
+        return {
+          success: false,
+          error: 'No file buffer provided',
+          details: 'File buffer is required for analysis'
+        };
+      }
+      
+      if (!filename) {
+        console.error('No filename provided');
+        return {
+          success: false,
+          error: 'No filename provided',
+          details: 'Filename is required for analysis'
+        };
+      }
+      
+      const isCSV = filename.toLowerCase().endsWith('.csv');
+      console.log(`📁 Analyzing file: ${filename} (${isCSV ? 'CSV' : 'Excel'}), size: ${fileBuffer.length} bytes`);
       
       let posts: any[] = [];
       
