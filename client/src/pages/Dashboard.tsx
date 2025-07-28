@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [useEnhancedGoogleDrive, setUseEnhancedGoogleDrive] = useState(true);
   const [excelImportDialogOpen, setExcelImportDialogOpen] = useState(false);
   const [selectedFacebookAccount, setSelectedFacebookAccount] = useState<string>('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // Clear any existing polling
@@ -555,9 +556,65 @@ export default function Dashboard() {
       return;
     }
 
+    // Store the file for later import
+    setCsvFile(file);
+    
     // Trigger analysis
     csvAnalysisMutation.mutate(file);
   };
+
+  // CSV import mutation
+  const csvImportMutation = useMutation({
+    mutationFn: async (data: { accountId: string; useEnhancedGoogleDrive: boolean }) => {
+      if (!csvFile) throw new Error("No CSV file selected");
+      
+      const formData = new FormData();
+      formData.append("file", csvFile);
+      formData.append("accountId", data.accountId);
+      formData.append("useEnhancedGoogleDrive", data.useEnhancedGoogleDrive.toString());
+      
+      const response = await fetch("/api/excel-import", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Import failed");
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+      
+      const selectedAccount = facebookAccounts?.find((acc: any) => acc.id.toString() === selectedFacebookAccount);
+      
+      toast({
+        title: "Import Successful!",
+        description: `Successfully scheduled ${data.imported || csvPreviewData?.totalRows || 0} posts to ${selectedAccount?.name || 'your Facebook page'}`,
+      });
+      
+      // Close dialogs
+      setExcelImportDialogOpen(false);
+      setCsvPreviewOpen(false);
+      setCsvFile(null);
+      setCsvPreviewData(null);
+      setSelectedFacebookAccount('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Import Failed",
+        description: error.message || "Failed to import CSV posts",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Handle start import function
   const handleStartImport = () => {
@@ -570,21 +627,9 @@ export default function Dashboard() {
       return;
     }
 
-    // Close dialogs and show success message
-    setExcelImportDialogOpen(false);
-    setCsvPreviewOpen(false);
-    
-    const selectedAccount = facebookAccounts.find((acc: any) => acc.id.toString() === selectedFacebookAccount);
-    
-    toast({
-      title: "Import Ready",
-      description: `Ready to import ${csvPreviewData.totalRows} posts to ${selectedAccount?.name || 'selected page'}`,
-    });
-
-    // TODO: Implement actual import logic
-    console.log('🚀 Starting import with:', {
+    // Start the import process
+    csvImportMutation.mutate({
       accountId: selectedFacebookAccount,
-      data: csvPreviewData,
       useEnhancedGoogleDrive
     });
   };
@@ -1455,11 +1500,20 @@ export default function Dashboard() {
               </Button>
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700"
-                disabled={!selectedFacebookAccount || !csvPreviewData}
+                disabled={!selectedFacebookAccount || !csvPreviewData || csvImportMutation.isPending}
                 onClick={() => handleStartImport()}
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Start Import
+                {csvImportMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Start Import
+                  </>
+                )}
               </Button>
             </div>
           </div>
