@@ -220,6 +220,117 @@ export class ExcelImportService {
     
     return { isValid: true, errors: [], data };
   }
+
+  // Analysis method for CSV preview functionality
+  async analyzeExcelFile(params: { fileBuffer: Buffer; filename: string }): Promise<AnalysisResult> {
+    try {
+      const { fileBuffer, filename } = params;
+      const isCSV = filename.toLowerCase().endsWith('.csv');
+      
+      console.log(`🔍 Analyzing file: ${filename} (${isCSV ? 'CSV' : 'Excel'})`);
+      
+      let posts: any[] = [];
+      
+      if (isCSV) {
+        // Parse CSV file
+        const csvText = fileBuffer.toString('utf-8');
+        const parseResult = await new Promise<any>((resolve) => {
+          Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (header) => header.toLowerCase().replace(/\s+/g, ''),
+            complete: (results) => resolve(results),
+            error: (error) => resolve({ errors: [error] })
+          });
+        });
+        
+        if (parseResult.errors && parseResult.errors.length > 0) {
+          return {
+            success: false,
+            error: 'CSV parsing failed',
+            details: parseResult.errors.map((err: any) => err.message).join(', ')
+          };
+        }
+        
+        posts = parseResult.data || [];
+      } else {
+        // Parse Excel file
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        
+        if (!sheetName) {
+          return {
+            success: false,
+            error: 'No worksheets found in the Excel file'
+          };
+        }
+        
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (jsonData.length < 2) {
+          return {
+            success: false,
+            error: 'File must contain headers and at least one data row'
+          };
+        }
+        
+        // Extract headers and convert to objects
+        const headers = jsonData[0] as string[];
+        const dataRows = jsonData.slice(1);
+        
+        posts = dataRows
+          .filter((row: any) => Array.isArray(row) && row.some(cell => cell !== null && cell !== undefined && cell !== ''))
+          .map((row: any[]) => {
+            const obj: any = {};
+            headers.forEach((header, index) => {
+              if (header && typeof header === 'string') {
+                obj[header.toLowerCase().replace(/\s+/g, '')] = row[index];
+              }
+            });
+            return obj;
+          });
+      }
+      
+      // Analyze posts for Google Drive videos and other statistics
+      let googleDriveVideos = 0;
+      let regularVideos = 0;
+      const estimatedSizes: string[] = [];
+      
+      posts.forEach((post: any, index: number) => {
+        const mediaUrl = post.mediaurl || post.mediaUrl || post['media url'] || post['Media URL'] || '';
+        
+        if (mediaUrl && typeof mediaUrl === 'string') {
+          if (mediaUrl.includes('drive.google.com')) {
+            googleDriveVideos++;
+            estimatedSizes.push(`Row ${index + 1}: Google Drive video (size unknown)`);
+          } else if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || 
+                     mediaUrl.includes('vimeo.com') || mediaUrl.includes('dropbox.com')) {
+            regularVideos++;
+            estimatedSizes.push(`Row ${index + 1}: External video`);
+          }
+        }
+      });
+      
+      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive videos, ${regularVideos} other videos`);
+      
+      return {
+        success: true,
+        data: posts,
+        googleDriveVideos,
+        regularVideos,
+        estimatedSizes
+      };
+      
+    } catch (error) {
+      console.error('Analysis error:', error);
+      return {
+        success: false,
+        error: 'File analysis failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
   
   static async parseExcelFile(fileBuffer: Buffer, userId: number, accountId?: number): Promise<ImportResult> {
     try {
