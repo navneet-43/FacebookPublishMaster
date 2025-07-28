@@ -310,6 +310,15 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **CSV import process now resilient to temporary database connection issues**
 - ✅ **System continues processing remaining posts even if individual operations fail**
 
+**July 28, 2025 - CSV DATE FORMAT PARSING FIX COMPLETED**
+- ✅ **RESOLVED: "Invalid time value" error for DD/MM/YYYY date formats in CSV imports**
+- ✅ **Added intelligent DD/MM/YYYY vs MM/DD/YYYY format detection based on day values**
+- ✅ **Fixed invalid 24-hour + AM/PM format handling (e.g., "15:05:00 PM")**
+- ✅ **Enhanced date parsing to handle extra spaces and mixed format combinations**
+- ✅ **Added comprehensive support for international date formats**
+- ✅ **Updated error messages to include DD/MM/YYYY format examples**
+- ✅ **CSV imports now support both American (MM/DD/YYYY) and international (DD/MM/YYYY) date formats**
+
 **July 24, 2025 - COMPREHENSIVE STRESS TESTING SYSTEM IMPLEMENTED**
 - ✅ **Created comprehensive stress testing system for video publishing with custom labels verification**
 - ✅ **Added stress test dialog targeting Alright Tamil Facebook page with 3 test scenarios**

@@ -89,15 +89,35 @@ export class ExcelImportService {
           const [hours, minutes, seconds = 0] = timeParts;
           date = new Date(year, month - 1, day, hours, minutes, seconds);
         } else if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
-          // Format: "7/24/2024 2:30 PM" or "07/24/2024 14:30"
-          const parts = dateStr.split(/\s+/);
+          // Format: "7/24/2024 2:30 PM", "07/24/2024 14:30", or "28/07/2025  15:05:00 PM"
+          const parts = dateStr.split(/\s+/).filter((p: string) => p.length > 0); // Remove extra spaces
           const [datePart, timePart, period] = parts;
-          const [month, day, year] = datePart.split('/').map(Number);
+          const dateParts = datePart.split('/').map(Number);
           const timeParts = timePart.split(':').map(Number);
           let [hours, minutes, seconds = 0] = timeParts;
           
-          if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
-          if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+          // Fix invalid 24-hour format with AM/PM (like "15:05:00 PM")
+          if (period && hours > 12) {
+            // If hour is >12 and has AM/PM, treat as 24-hour format and ignore AM/PM
+            console.log(`Row ${rowIndex + 1}: Invalid format "${timePart} ${period}" - treating as 24-hour format`);
+          } else {
+            // Apply AM/PM logic only for valid 12-hour format
+            if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+            if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+          }
+          
+          // Determine if it's DD/MM/YYYY or MM/DD/YYYY format
+          let month, day, year;
+          if (dateParts[0] > 12) {
+            // First number > 12, must be DD/MM/YYYY
+            [day, month, year] = dateParts;
+          } else if (dateParts[1] > 12) {
+            // Second number > 12, must be MM/DD/YYYY
+            [month, day, year] = dateParts;
+          } else {
+            // Ambiguous case, default to DD/MM/YYYY for international format
+            [day, month, year] = dateParts;
+          }
           
           date = new Date(year, month - 1, day, hours, minutes, seconds);
         } else if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
@@ -124,6 +144,7 @@ export class ExcelImportService {
         • YYYY-MM-DD HH:MM:SS (e.g., "2024-07-24 14:30:00")
         • YYYY-MM-DD HH:MM (e.g., "2024-07-24 14:30")
         • MM/DD/YYYY HH:MM AM/PM (e.g., "7/24/2024 2:30 PM")
+        • DD/MM/YYYY HH:MM AM/PM (e.g., "28/07/2025 15:05:00")
         • MM-DD-YYYY HH:MM AM/PM (e.g., "7-24-2024 2:30 PM")
         • HH:MM AM/PM (time only, uses today's date, e.g., "2:30 PM")
         Your value: "${displayValue}"`);
@@ -163,15 +184,38 @@ export class ExcelImportService {
         const [hours, minutes, seconds = 0] = timeParts;
         parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
       } else if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
-        // Format: "7/24/2024 2:30 PM" or "07/24/2024 14:30"
-        const parts = dateStr.split(/\s+/);
+        // Format: "7/24/2024 2:30 PM", "07/24/2024 14:30", or "28/07/2025  15:05:00 PM"
+        const parts = dateStr.split(/\s+/).filter((p: string) => p.length > 0); // Remove extra spaces
         const [datePart, timePart, period] = parts;
-        const [month, day, year] = datePart.split('/').map(Number);
+        const dateParts = datePart.split('/').map(Number);
         const timeParts = timePart.split(':').map(Number);
         let [hours, minutes, seconds = 0] = timeParts;
         
-        if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
-        if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        // Fix invalid 24-hour format with AM/PM (like "15:05:00 PM")
+        if (period && hours > 12) {
+          // If hour is >12 and has AM/PM, treat as 24-hour format and ignore AM/PM
+          console.log(`Row ${rowIndex + 1}: Invalid format "${timePart} ${period}" - treating as 24-hour format`);
+        } else {
+          // Apply AM/PM logic only for valid 12-hour format
+          if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
+          if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+        }
+        
+        // Determine if it's DD/MM/YYYY or MM/DD/YYYY format
+        let month, day, year;
+        if (dateParts[0] > 12) {
+          // First number > 12, must be DD/MM/YYYY
+          [day, month, year] = dateParts;
+          console.log(`Row ${rowIndex + 1}: Detected DD/MM/YYYY format: ${day}/${month}/${year}`);
+        } else if (dateParts[1] > 12) {
+          // Second number > 12, must be MM/DD/YYYY
+          [month, day, year] = dateParts;
+          console.log(`Row ${rowIndex + 1}: Detected MM/DD/YYYY format: ${month}/${day}/${year}`);
+        } else {
+          // Ambiguous case, default to DD/MM/YYYY for international format
+          [day, month, year] = dateParts;
+          console.log(`Row ${rowIndex + 1}: Ambiguous date, using DD/MM/YYYY format: ${day}/${month}/${year}`);
+        }
         
         parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
       } else if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
