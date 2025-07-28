@@ -609,41 +609,78 @@ export class ExcelImportService {
           console.log(`Fallback date creation: ${scheduledDate.toISOString()}`);
         }
         
-        const newPost = await storage.createPost({
-          content: postData.content,
-          scheduledFor: scheduledDate,
-          userId: userId,
-          accountId: finalAccountId,
-          status: 'scheduled',
-          language: postData.language || 'EN',
-          mediaUrl: processedMediaUrl,
-          mediaType: processedMediaType,
-          labels: labelNames  // Store custom labels for Meta Insights
-        });
+        // Retry logic for database operations to handle connection issues
+        let newPost;
+        let retryCount = 0;
+        const maxRetries = 3;
         
-        // Log import activity
+        while (retryCount < maxRetries) {
+          try {
+            newPost = await storage.createPost({
+              content: postData.content,
+              scheduledFor: scheduledDate,
+              userId: userId,
+              accountId: finalAccountId,
+              status: 'scheduled',
+              language: postData.language || 'EN',
+              mediaUrl: processedMediaUrl,
+              mediaType: processedMediaType,
+              labels: labelNames  // Store custom labels for Meta Insights
+            });
+            break; // Success, exit retry loop
+          } catch (dbError: any) {
+            retryCount++;
+            console.warn(`Row ${i + 1}: Database operation attempt ${retryCount} failed:`, dbError.message);
+            
+            if (retryCount >= maxRetries) {
+              throw new Error(`Database operation failed after ${maxRetries} attempts: ${dbError.message}`);
+            }
+            
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          }
+        }
+        
+        // Log import activity with retry logic
         const isYouTubeVideo = postData.mediaUrl && YouTubeHelper.isYouTubeUrl(postData.mediaUrl);
         const activityDescription = isYouTubeVideo 
           ? `Post imported from Excel/CSV with YouTube video: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`
           : `Post imported from Excel/CSV: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`;
-          
-        await storage.createActivity({
-          userId: userId,
-          type: 'bulk_import',
-          description: activityDescription,
-          metadata: {
-            postId: newPost.id,
-            source: 'excel_csv_import',
-            scheduledFor: postData.scheduledFor,
-            account: postData.accountName,
-            labels: postData.customLabels,
-            language: postData.language || 'EN',
-            mediaType: processedMediaType || 'none',
-            originalMediaUrl: postData.mediaUrl,
-            processedMediaUrl: processedMediaUrl,
-            youtubeProcessed: isYouTubeVideo
+        
+        retryCount = 0;
+        while (retryCount < maxRetries) {
+          try {
+            await storage.createActivity({
+              userId: userId,
+              type: 'bulk_import',
+              description: activityDescription,
+              metadata: {
+                postId: newPost!.id,
+                source: 'excel_csv_import',
+                scheduledFor: postData.scheduledFor,
+                account: postData.accountName,
+                labels: postData.customLabels,
+                language: postData.language || 'EN',
+                mediaType: processedMediaType || 'none',
+                originalMediaUrl: postData.mediaUrl,
+                processedMediaUrl: processedMediaUrl,
+                youtubeProcessed: isYouTubeVideo
+              }
+            });
+            break; // Success, exit retry loop
+          } catch (dbError: any) {
+            retryCount++;
+            console.warn(`Row ${i + 1}: Activity logging attempt ${retryCount} failed:`, dbError.message);
+            
+            if (retryCount >= maxRetries) {
+              console.error(`Activity logging failed after ${maxRetries} attempts, continuing without activity log`);
+              break; // Don't fail the entire import for activity logging
+            }
+            
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           }
-        });
+        }
         
         imported++;
       } catch (error) {
@@ -653,18 +690,37 @@ export class ExcelImportService {
       }
     }
     
-    // Create summary activity
-    await storage.createActivity({
-      userId: userId,
-      type: 'bulk_import_summary',
-      description: `Bulk import completed: ${imported} posts imported, ${failed} failed`,
-      metadata: {
-        imported,
-        failed,
-        errors: errors.length,
-        source: 'excel_csv_import'
+    // Create summary activity with retry logic
+    let summaryRetryCount = 0;
+    const maxSummaryRetries = 3;
+    
+    while (summaryRetryCount < maxSummaryRetries) {
+      try {
+        await storage.createActivity({
+          userId: userId,
+          type: 'bulk_import_summary',
+          description: `Bulk import completed: ${imported} posts imported, ${failed} failed`,
+          metadata: {
+            imported,
+            failed,
+            errors: errors.length,
+            source: 'excel_csv_import'
+          }
+        });
+        break; // Success, exit retry loop
+      } catch (dbError: any) {
+        summaryRetryCount++;
+        console.warn(`Summary activity creation attempt ${summaryRetryCount} failed:`, dbError.message);
+        
+        if (summaryRetryCount >= maxSummaryRetries) {
+          console.error(`Summary activity creation failed after ${maxSummaryRetries} attempts, continuing without summary log`);
+          break; // Don't fail the entire import for summary logging
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, summaryRetryCount) * 1000));
       }
-    });
+    }
     
     return {
       success: imported > 0,
