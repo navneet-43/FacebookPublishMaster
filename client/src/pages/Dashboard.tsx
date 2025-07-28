@@ -1164,6 +1164,211 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* CSV Preview Dialog */}
+      <Dialog open={csvPreviewOpen} onOpenChange={setCsvPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+              CSV/Excel File Preview
+            </DialogTitle>
+          </DialogHeader>
+          
+          {csvPreviewData && (
+            <div className="space-y-6">
+              {/* File Statistics */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-blue-600">{csvPreviewData.totalRows || 0}</div>
+                  <div className="text-sm text-blue-700">Total Posts</div>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-600">{csvPreviewData.googleDriveVideos || 0}</div>
+                  <div className="text-sm text-green-700">Google Drive Videos</div>
+                </div>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-orange-600">{csvPreviewData.regularVideos || 0}</div>
+                  <div className="text-sm text-orange-700">Other Videos</div>
+                </div>
+              </div>
+              
+              {/* Upload Method Selection */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-medium text-gray-900">Upload Method</h4>
+                    <p className="text-sm text-gray-600">Choose how to handle large Google Drive videos</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={useEnhancedGoogleDrive}
+                      onCheckedChange={setUseEnhancedGoogleDrive}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Enhanced Google Drive
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-gray-600">
+                  {useEnhancedGoogleDrive ? (
+                    <div className="flex items-center gap-2 text-green-700 bg-green-50 p-2 rounded">
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Enhanced processing: Large videos (up to 400MB+) with FFmpeg optimization</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-blue-700 bg-blue-50 p-2 rounded">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Standard processing: Basic upload method for smaller files</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Data Preview Table */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Data Preview (First 5 rows)</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Content</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Scheduled</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Labels</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Language</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Media</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvPreviewData.data?.slice(0, 5).map((row: any, index: number) => (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="px-3 py-2 max-w-xs truncate">{row.content || '-'}</td>
+                            <td className="px-3 py-2">{row.scheduledFor || '-'}</td>
+                            <td className="px-3 py-2">{row.customLabels || '-'}</td>
+                            <td className="px-3 py-2">{row.language || 'en'}</td>
+                            <td className="px-3 py-2">
+                              {row.mediaUrl ? (
+                                <div className="flex items-center gap-1">
+                                  {row.mediaUrl.includes('drive.google.com') ? (
+                                    <>
+                                      <HardDrive className="h-3 w-3 text-green-600" />
+                                      <span className="text-xs text-green-600">Google Drive</span>
+                                    </>
+                                  ) : row.mediaUrl.includes('youtube.com') || row.mediaUrl.includes('youtu.be') ? (
+                                    <>
+                                      <Youtube className="h-3 w-3 text-red-600" />
+                                      <span className="text-xs text-red-600">YouTube</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Video className="h-3 w-3 text-blue-600" />
+                                      <span className="text-xs text-blue-600">Video</span>
+                                    </>
+                                  )}
+                                </div>
+                              ) : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setCsvPreviewOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    setCsvPreviewOpen(false);
+                    setExcelImportDialogOpen(true);
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import {csvPreviewData.totalRows} Posts
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Excel Import Dialog */}
+      <Dialog open={excelImportDialogOpen} onOpenChange={setExcelImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-blue-600" />
+              Import Posts from File
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-medium text-blue-800 mb-2">Import Summary</h4>
+              <div className="text-sm text-blue-700 space-y-1">
+                <div>• Posts to import: {csvPreviewData?.totalRows || 0}</div>
+                <div>• Google Drive videos: {csvPreviewData?.googleDriveVideos || 0}</div>
+                <div>• Other videos: {csvPreviewData?.regularVideos || 0}</div>
+                <div>• Upload method: {useEnhancedGoogleDrive ? 'Enhanced Google Drive' : 'Standard'}</div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="facebook-account">Select Facebook Page</Label>
+                <Select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a Facebook page..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="placeholder">Loading pages...</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {useEnhancedGoogleDrive && csvPreviewData?.googleDriveVideos > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h4 className="font-medium text-green-800 mb-2">Enhanced Processing Enabled</h4>
+                  <div className="text-sm text-green-700 space-y-1">
+                    <div>• Large video support (up to 400MB+)</div>
+                    <div>• FFmpeg encoding for Facebook compatibility</div>
+                    <div>• Chunked upload with progress tracking</div>
+                    <div>• Quality preservation with zero compression loss</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setExcelImportDialogOpen(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                disabled={true} // Will be enabled when account is selected
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Start Import
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Global Progress Overlay - Outside dialog */}
       {uploadProgress.isProcessing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={(e) => e.stopPropagation()}>
