@@ -539,8 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         size: req.file.size
       });
       
-      const importService = new ExcelImportService();
-      const result = await importService.analyzeExcelFile({
+      const result = await ExcelImportService.analyzeExcelFile({
         fileBuffer: req.file.buffer,
         filename: req.file.originalname
       });

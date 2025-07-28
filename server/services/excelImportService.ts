@@ -240,7 +240,7 @@ export class ExcelImportService {
             skipEmptyLines: true,
             transformHeader: (header) => header.toLowerCase().replace(/\s+/g, ''),
             complete: (results) => resolve(results),
-            error: (error) => resolve({ errors: [error] })
+            error: (error: any) => resolve({ errors: [error] })
           });
         });
         
@@ -280,7 +280,7 @@ export class ExcelImportService {
         const dataRows = jsonData.slice(1);
         
         posts = dataRows
-          .filter((row: any) => Array.isArray(row) && row.some(cell => cell !== null && cell !== undefined && cell !== ''))
+          .filter((row: unknown): row is any[] => Array.isArray(row) && row.some(cell => cell !== null && cell !== undefined && cell !== ''))
           .map((row: any[]) => {
             const obj: any = {};
             headers.forEach((header, index) => {
