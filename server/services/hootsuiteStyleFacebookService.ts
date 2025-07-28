@@ -292,11 +292,18 @@ export class HootsuiteStyleFacebookService {
             
             const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
             const uploadService = new CompleteVideoUploadService();
+            // Preserve original content from CSV imports
+            const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
+            const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
+              description, 
+              'Local video upload'
+            );
+            
             const uploadResult = await uploadService.uploadProcessedVideoFile({
               videoFilePath: optimizedResult.outputPath,
               pageId: pageId,
               pageAccessToken: pageAccessToken,
-              description: description || 'Local video upload',
+              description: finalDescription,
               customLabels: customLabels || [],
               language: language || 'en'
             });
@@ -319,11 +326,18 @@ export class HootsuiteStyleFacebookService {
           console.log('⚠️ Optimization failed, trying direct upload...');
           const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
           const uploadService = new CompleteVideoUploadService();
+          // Preserve original content from CSV imports  
+          const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
+          const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
+            description, 
+            'Direct video upload'
+          );
+          
           const uploadResult = await uploadService.uploadProcessedVideoFile({
             videoFilePath: videoUrl,
             pageId: pageId,
             pageAccessToken: pageAccessToken,
-            description: description || 'Direct video upload',
+            description: finalDescription,
             customLabels: customLabels || [],
             language: language || 'en'
           });
@@ -385,11 +399,18 @@ export class HootsuiteStyleFacebookService {
               
               const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
               const uploadService = new CompleteVideoUploadService();
+              // Preserve original content from CSV imports
+              const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
+              const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
+                description, 
+                'High-quality YouTube video'
+              );
+              
               const uploadResult = await uploadService.uploadProcessedVideoFile({
                 videoFilePath: optimizedResult.outputPath,
                 pageId: pageId,
                 pageAccessToken: pageAccessToken,
-                description: description || 'High-quality YouTube video',
+                description: finalDescription,
                 customLabels: customLabels || [],
                 language: language || 'en'
               });
@@ -411,11 +432,18 @@ export class HootsuiteStyleFacebookService {
             console.log('⚠️ Optimization failed, using direct upload...');
             const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
             const uploadService = new CompleteVideoUploadService();
+            // Preserve original content from CSV imports
+            const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
+            const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
+              description, 
+              'YouTube video upload'
+            );
+            
             const uploadResult = await uploadService.uploadProcessedVideoFile({
               videoFilePath: result.filePath,
               pageId: pageId,
               pageAccessToken: pageAccessToken,
-              description: description || 'YouTube video upload',
+              description: finalDescription,
               customLabels: customLabels || [],
               language: language || 'en'
             });
@@ -487,12 +515,18 @@ export class HootsuiteStyleFacebookService {
           const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
           const uploadService = new CompleteVideoUploadService();
           
-          // Upload the processed video file directly
+          // Upload the processed video file directly - preserve original CSV content
+          const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
+          const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
+            description, 
+            'Enhanced Google Drive Video'
+          );
+          
           const uploadResult = await uploadService.uploadProcessedVideoFile({
             videoFilePath: finalPath,
             pageId: pageId,
             pageAccessToken: pageAccessToken,
-            description: description,
+            description: finalDescription,
             customLabels: customLabels || [],
             language: language || 'en'
           });
