@@ -524,6 +524,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CSV Analysis endpoint for preview functionality
+  app.post('/api/csv-analyze', upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      console.log('🔍 CSV analysis request received');
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+      
+      console.log('📁 File details:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      });
+      
+      const importService = new ExcelImportService();
+      const result = await importService.analyzeExcelFile({
+        fileBuffer: req.file.buffer,
+        filename: req.file.originalname
+      });
+      
+      if (!result.success) {
+        console.error('CSV analysis failed:', result.error);
+        return res.status(400).json({
+          error: result.error,
+          details: result.details
+        });
+      }
+      
+      console.log('✅ CSV analysis successful:', {
+        totalRows: result.data?.length || 0,
+        googleDriveVideos: result.googleDriveVideos || 0,
+        regularVideos: result.regularVideos || 0
+      });
+      
+      res.json({
+        success: true,
+        data: result.data,
+        totalRows: result.data?.length || 0,
+        googleDriveVideos: result.googleDriveVideos || 0,
+        regularVideos: result.regularVideos || 0,
+        estimatedSizes: result.estimatedSizes || []
+      });
+      
+    } catch (error) {
+      console.error('CSV analysis error:', error);
+      res.status(500).json({
+        error: 'Internal server error during CSV analysis',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Excel/CSV Import Routes (replacing Google Sheets)
   app.get("/api/excel-import/template", async (req: Request, res: Response) => {
     try {

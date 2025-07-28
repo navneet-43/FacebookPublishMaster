@@ -24,6 +24,16 @@ export interface ImportResult {
   data?: any[];
 }
 
+export interface AnalysisResult {
+  success: boolean;
+  data?: any[];
+  error?: string;
+  details?: string;
+  googleDriveVideos?: number;
+  regularVideos?: number;
+  estimatedSizes?: string[];
+}
+
 export class ExcelImportService {
   private static validatePostData(row: any, rowIndex: number): { isValid: boolean; errors: string[]; data?: ExcelPostData } {
     const errors: string[] = [];

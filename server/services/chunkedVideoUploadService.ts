@@ -9,6 +9,8 @@ export interface ChunkedUploadOptions {
   filePath: string;
   title?: string;
   description?: string;
+  customLabels?: string[];
+  language?: string;
 }
 
 export interface ChunkedUploadResult {
@@ -171,6 +173,8 @@ export class ChunkedVideoUploadService {
     sessionId: string;
     title?: string;
     description?: string;
+    customLabels?: string[];
+    language?: string;
   }): Promise<{
     success: boolean;
     videoId?: string;
@@ -195,6 +199,24 @@ export class ChunkedVideoUploadService {
       
       if (options.description) {
         params.append('description', options.description);
+      }
+      
+      // Add custom labels for Meta Insights tracking
+      if (options.customLabels && options.customLabels.length > 0) {
+        const labelArray = options.customLabels
+          .map(label => label.toString().trim())
+          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
+          .slice(0, 10); // Facebook limit: max 10 labels per post
+        
+        if (labelArray.length > 0) {
+          params.append('custom_labels', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Adding custom labels to chunked video upload:', labelArray);
+        }
+      }
+      
+      // Include language metadata if provided
+      if (options.language) {
+        params.append('locale', options.language);
       }
       
       // Add privacy and publishing settings
@@ -307,7 +329,9 @@ export class ChunkedVideoUploadService {
         accessToken: options.accessToken,
         sessionId: startResult.sessionId!,
         title: options.title,
-        description: options.description
+        description: options.description,
+        customLabels: options.customLabels,
+        language: options.language
       });
       
       if (!finishResult.success) {

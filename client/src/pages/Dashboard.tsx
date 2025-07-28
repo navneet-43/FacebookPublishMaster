@@ -14,8 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook, Clock } from "lucide-react";
+import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook, Clock, FileSpreadsheet, Youtube, Drive } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -51,6 +52,13 @@ export default function Dashboard() {
     currentTest: '',
     results: [] as any[]
   });
+
+  // CSV Preview state
+  const [csvPreviewOpen, setCsvPreviewOpen] = useState(false);
+  const [csvPreviewData, setCsvPreviewData] = useState<any>(null);
+  const [useEnhancedGoogleDrive, setUseEnhancedGoogleDrive] = useState(true);
+  const [excelImportDialogOpen, setExcelImportDialogOpen] = useState(false);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // Clear any existing polling
   const clearPolling = () => {
@@ -304,6 +312,44 @@ export default function Dashboard() {
   
   // Custom labels are now working correctly
 
+  // CSV Analysis mutation
+  const csvAnalysisMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/csv-analyze', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to analyze file');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log('📊 CSV analysis successful:', data);
+      setCsvPreviewData(data);
+      setCsvPreviewOpen(true);
+      toast({
+        title: "File analyzed successfully",
+        description: `Found ${data.totalRows} posts, ${data.googleDriveVideos} Google Drive videos`,
+      });
+    },
+    onError: (error: any) => {
+      console.error('CSV analysis error:', error);
+      toast({
+        title: "Analysis failed",
+        description: error.message || "Failed to analyze file",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Enhanced Google Drive Video Upload Mutation
   const videoUploadMutation = useMutation({
     mutationFn: async (data: {
@@ -486,6 +532,32 @@ export default function Dashboard() {
     }
   });
 
+  // Handle CSV file selection for analysis
+  const handleCsvFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/csv',
+      'application/csv'
+    ];
+    
+    if (!validTypes.includes(file.type) && !file.name.endsWith('.csv')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload Excel (.xlsx, .xls) or CSV files only.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Trigger analysis
+    csvAnalysisMutation.mutate(file);
+  };
+
   // Stress test function
   const runStressTest = async () => {
     setStressTestProgress({
@@ -667,12 +739,48 @@ export default function Dashboard() {
 
   return (
     <>
-      <DashboardHeader 
-        title="Dashboard" 
-        lastUpdated="Updated just now" 
-        onExport={handleExport}
-        onImport={handleImport}
-      />
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+                Dashboard
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">Updated just now</p>
+            </div>
+            <div className="mt-4 flex md:mt-0 md:ml-4 space-x-3">
+              <Button variant="outline" onClick={handleExport}>
+                <i className="fa-solid fa-file-export mr-2"></i>
+                Export
+              </Button>
+              <Button onClick={handleImport}>
+                <i className="fa-solid fa-plus mr-2"></i>
+                Import Posts
+              </Button>
+              <Button 
+                onClick={() => csvFileInputRef.current?.click()} 
+                variant="outline" 
+                className="flex items-center gap-2"
+                disabled={csvAnalysisMutation.isPending}
+              >
+                {csvAnalysisMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4" />
+                )}
+                Preview CSV
+              </Button>
+              <input
+                ref={csvFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleCsvFileSelect}
+                className="hidden"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <StatsCards />
