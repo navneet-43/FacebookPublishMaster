@@ -292,6 +292,15 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **Added scheduling status dashboard component for real-time system monitoring**
 - ✅ **System now guarantees post publication even during server downtime or restarts**
 
+**July 28, 2025 - CRITICAL MANUAL VIDEO UPLOAD CONTENT PRESERVATION FIX COMPLETED**
+- 🚨 **MAJOR ISSUE RESOLVED: Manual video uploads now preserve actual user content instead of showing placeholder text**
+- ✅ **Root cause identified: CSVContentPreservationFix logic was incorrectly treating manual uploads as CSV imports**
+- ✅ **Fixed hootsuiteStyleFacebookService.ts to use actual user content for manual uploads**
+- ✅ **Removed inappropriate CSV preservation logic from all manual upload pathways**
+- ✅ **Manual video uploads now correctly use description parameter instead of hardcoded fallbacks**
+- ✅ **Separated manual and CSV upload content handling to prevent cross-contamination**
+- ✅ **System now properly passes user-provided content through entire manual upload pipeline**
+
 **July 24, 2025 - COMPREHENSIVE STRESS TESTING SYSTEM IMPLEMENTED**
 - ✅ **Created comprehensive stress testing system for video publishing with custom labels verification**
 - ✅ **Added stress test dialog targeting Alright Tamil Facebook page with 3 test scenarios**

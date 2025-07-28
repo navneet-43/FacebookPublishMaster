@@ -292,12 +292,8 @@ export class HootsuiteStyleFacebookService {
             
             const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
             const uploadService = new CompleteVideoUploadService();
-            // Preserve original content from CSV imports
-            const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
-            const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
-              description, 
-              'Local video upload'
-            );
+            // Use the actual description provided by the user for manual uploads
+            const finalDescription = description || 'Local video upload';
             
             const uploadResult = await uploadService.uploadProcessedVideoFile({
               videoFilePath: optimizedResult.outputPath,
@@ -326,12 +322,8 @@ export class HootsuiteStyleFacebookService {
           console.log('⚠️ Optimization failed, trying direct upload...');
           const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
           const uploadService = new CompleteVideoUploadService();
-          // Preserve original content from CSV imports  
-          const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
-          const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
-            description, 
-            'Direct video upload'
-          );
+          // Use the actual description provided by the user for manual uploads
+          const finalDescription = description || 'Direct video upload';
           
           const uploadResult = await uploadService.uploadProcessedVideoFile({
             videoFilePath: videoUrl,
@@ -399,12 +391,8 @@ export class HootsuiteStyleFacebookService {
               
               const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
               const uploadService = new CompleteVideoUploadService();
-              // Preserve original content from CSV imports
-              const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
-              const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
-                description, 
-                'High-quality YouTube video'
-              );
+              // Use the actual description provided by the user for manual uploads
+              const finalDescription = description || 'High-quality YouTube video';
               
               const uploadResult = await uploadService.uploadProcessedVideoFile({
                 videoFilePath: optimizedResult.outputPath,
@@ -432,12 +420,8 @@ export class HootsuiteStyleFacebookService {
             console.log('⚠️ Optimization failed, using direct upload...');
             const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
             const uploadService = new CompleteVideoUploadService();
-            // Preserve original content from CSV imports
-            const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
-            const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
-              description, 
-              'YouTube video upload'
-            );
+            // Use the actual description provided by the user for manual uploads
+            const finalDescription = description || 'YouTube video upload';
             
             const uploadResult = await uploadService.uploadProcessedVideoFile({
               videoFilePath: result.filePath,
@@ -515,12 +499,8 @@ export class HootsuiteStyleFacebookService {
           const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
           const uploadService = new CompleteVideoUploadService();
           
-          // Upload the processed video file directly - preserve original CSV content
-          const { CSVContentPreservationFix } = await import('./csvContentPreservationFix');
-          const finalDescription = CSVContentPreservationFix.preserveOriginalContent(
-            description, 
-            'Enhanced Google Drive Video'
-          );
+          // Use the actual description provided by the user for manual uploads
+          const finalDescription = description || 'Google Drive Video Upload';
           
           const uploadResult = await uploadService.uploadProcessedVideoFile({
             videoFilePath: finalPath,
