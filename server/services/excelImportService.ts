@@ -222,7 +222,7 @@ export class ExcelImportService {
   }
 
   // Analysis method for CSV preview functionality
-  async analyzeExcelFile(params: { fileBuffer: Buffer; filename: string }): Promise<AnalysisResult> {
+  static async analyzeExcelFile(params: { fileBuffer: Buffer; filename: string }): Promise<AnalysisResult> {
     try {
       const { fileBuffer, filename } = params;
       const isCSV = filename.toLowerCase().endsWith('.csv');
