@@ -828,5 +828,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Scheduling system status and debugging endpoints
+  app.get('/api/scheduling-status', async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
+      
+      const status = ReliableSchedulingService.getStatus();
+      const overduePosts = await storage.getOverduePosts();
+      const scheduledPosts = await storage.getScheduledPosts();
+      
+      res.json({
+        system: status,
+        overduePosts: overduePosts.length,
+        scheduledPosts: scheduledPosts.length,
+        lastCheck: new Date().toISOString(),
+        scheduledPostsList: scheduledPosts.map(p => ({
+          id: p.id,
+          content: p.content?.substring(0, 50) + '...',
+          scheduledFor: p.scheduledFor,
+          status: p.status
+        }))
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
+  // Force check for overdue posts (manual trigger)
+  app.post('/api/force-check-posts', async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
+      
+      await ReliableSchedulingService.forceCheck();
+      
+      const overduePosts = await storage.getOverduePosts();
+      
+      res.json({
+        success: true,
+        message: 'Manual check completed',
+        overduePosts: overduePosts.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
   return httpServer;
 }

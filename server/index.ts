@@ -116,9 +116,10 @@ app.use((req, res, next) => {
     }
     
     try {
-      // Initialize scheduled posts
-      await postService.initializeScheduledPosts();
-      log('Scheduled posts initialized');
+      // Initialize reliable scheduling system (replaces old scheduling)
+      const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
+      await ReliableSchedulingService.initialize();
+      log('Reliable scheduling system initialized');
       
       // Set up progress tracking cleanup to prevent memory buildup
       const cleanupJob = schedule.scheduleJob('*/10 * * * *', async () => { // Every 10 minutes

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Send, Video, CheckCircle, AlertCircle, Tag, X, Download, Cog, Upload, Facebook, Clock, FileSpreadsheet, Youtube, HardDrive } from "lucide-react";
+import { SchedulingStatus } from "@/components/SchedulingStatus";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 
@@ -859,6 +860,7 @@ export default function Dashboard() {
       </div>
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SchedulingStatus />
         <StatsCards />
         
         {/* Enhanced Google Drive Video Upload Card */}
