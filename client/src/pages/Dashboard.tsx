@@ -1274,31 +1274,88 @@ export default function Dashboard() {
                       <tbody>
                         {csvPreviewData.data?.map((row: any, index: number) => (
                           <tr key={index} className="border-b hover:bg-gray-50">
-                            <td className="px-3 py-2 max-w-xs truncate">{row.content || '-'}</td>
-                            <td className="px-3 py-2">{row.scheduledFor || '-'}</td>
-                            <td className="px-3 py-2">{row.customLabels || '-'}</td>
-                            <td className="px-3 py-2">{row.language || 'en'}</td>
-                            <td className="px-3 py-2">
-                              {row.mediaUrl ? (
-                                <div className="flex items-center gap-1">
-                                  {row.mediaUrl.includes('drive.google.com') ? (
-                                    <>
-                                      <HardDrive className="h-3 w-3 text-green-600" />
-                                      <span className="text-xs text-green-600">Google Drive</span>
-                                    </>
-                                  ) : row.mediaUrl.includes('youtube.com') || row.mediaUrl.includes('youtu.be') ? (
-                                    <>
-                                      <Youtube className="h-3 w-3 text-red-600" />
-                                      <span className="text-xs text-red-600">YouTube</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Video className="h-3 w-3 text-blue-600" />
-                                      <span className="text-xs text-blue-600">Video</span>
-                                    </>
-                                  )}
+                            <td className="px-3 py-2 border-b text-gray-600 max-w-xs">
+                              <div className="truncate" title={row.content || row.Content || '-'}>
+                                {row.content || row.Content || '-'}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 border-b text-gray-600">
+                              <div className="flex flex-col gap-1">
+                                <span className="font-medium text-blue-600">
+                                  {row.scheduledfor || row.scheduledFor || row.ScheduledFor || row['Scheduled Date'] || '-'}
+                                </span>
+                                {(row.scheduledfor || row.scheduledFor || row.ScheduledFor || row['Scheduled Date']) && (
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(row.scheduledfor || row.scheduledFor || row.ScheduledFor || row['Scheduled Date']).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 border-b text-gray-600">
+                              <div className="flex flex-wrap gap-1">
+                                {(row.customlabels || row.customLabels || row.CustomLabels || row['Custom Labels']) ? (
+                                  (row.customlabels || row.customLabels || row.CustomLabels || row['Custom Labels'])
+                                    .split(',')
+                                    .map((label: string, idx: number) => (
+                                      <span
+                                        key={idx}
+                                        className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full"
+                                      >
+                                        {label.trim()}
+                                      </span>
+                                    ))
+                                ) : (
+                                  <span className="text-gray-400">No labels</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 border-b text-gray-600">
+                              <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                                (row.language || 'en') === 'hi' 
+                                  ? 'bg-orange-100 text-orange-800' 
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {(row.language || 'en') === 'hi' ? 'Hindi' : 'English'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 border-b text-gray-600">
+                              {(row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']) ? (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    {(row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']).includes('drive.google.com') ? (
+                                      <>
+                                        <HardDrive className="h-3 w-3 text-green-600" />
+                                        <span className="text-xs font-medium text-green-600">Google Drive</span>
+                                      </>
+                                    ) : (row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']).includes('youtube.com') || (row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']).includes('youtu.be') ? (
+                                      <>
+                                        <Youtube className="h-3 w-3 text-red-600" />
+                                        <span className="text-xs font-medium text-red-600">YouTube</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Video className="h-3 w-3 text-blue-600" />
+                                        <span className="text-xs font-medium text-blue-600">Video</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-500 truncate max-w-32" title={row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']}>
+                                    {(row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']).includes('drive.google.com') 
+                                      ? 'drive.google.com/...' 
+                                      : (row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']).includes('youtube.com') || (row.mediaurl || row.mediaUrl || row.MediaUrl || row['Media URL']).includes('youtu.be')
+                                      ? 'youtube.com/...'
+                                      : 'External URL'
+                                    }
+                                  </div>
                                 </div>
-                              ) : '-'}
+                              ) : (
+                                <span className="text-gray-400">No media</span>
+                              )}
                             </td>
                           </tr>
                         ))}
