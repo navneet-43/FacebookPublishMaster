@@ -58,6 +58,7 @@ export default function Dashboard() {
   const [csvPreviewData, setCsvPreviewData] = useState<any>(null);
   const [useEnhancedGoogleDrive, setUseEnhancedGoogleDrive] = useState(true);
   const [excelImportDialogOpen, setExcelImportDialogOpen] = useState(false);
+  const [selectedFacebookAccount, setSelectedFacebookAccount] = useState<string>('');
   const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // Clear any existing polling
@@ -556,6 +557,36 @@ export default function Dashboard() {
 
     // Trigger analysis
     csvAnalysisMutation.mutate(file);
+  };
+
+  // Handle start import function
+  const handleStartImport = () => {
+    if (!selectedFacebookAccount || !csvPreviewData) {
+      toast({
+        title: "Missing information",
+        description: "Please select a Facebook page to continue",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Close dialogs and show success message
+    setExcelImportDialogOpen(false);
+    setCsvPreviewOpen(false);
+    
+    const selectedAccount = facebookAccounts.find((acc: any) => acc.id.toString() === selectedFacebookAccount);
+    
+    toast({
+      title: "Import Ready",
+      description: `Ready to import ${csvPreviewData.totalRows} posts to ${selectedAccount?.name || 'selected page'}`,
+    });
+
+    // TODO: Implement actual import logic
+    console.log('🚀 Starting import with:', {
+      accountId: selectedFacebookAccount,
+      data: csvPreviewData,
+      useEnhancedGoogleDrive
+    });
   };
 
   // Stress test function
@@ -1227,11 +1258,11 @@ export default function Dashboard() {
               
               {/* Data Preview Table */}
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Data Preview (First 5 rows)</h4>
-                <div className="border rounded-lg overflow-hidden">
+                <h4 className="font-medium text-gray-900">Data Preview ({csvPreviewData.data?.length || 0} rows)</h4>
+                <div className="border rounded-lg overflow-hidden max-h-80 overflow-y-auto">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
+                      <thead className="bg-gray-50 border-b sticky top-0">
                         <tr>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Content</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Scheduled</th>
@@ -1241,7 +1272,7 @@ export default function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {csvPreviewData.data?.slice(0, 5).map((row: any, index: number) => (
+                        {csvPreviewData.data?.map((row: any, index: number) => (
                           <tr key={index} className="border-b hover:bg-gray-50">
                             <td className="px-3 py-2 max-w-xs truncate">{row.content || '-'}</td>
                             <td className="px-3 py-2">{row.scheduledFor || '-'}</td>
@@ -1326,12 +1357,20 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="facebook-account">Select Facebook Page</Label>
-                <Select>
+                <Select value={selectedFacebookAccount} onValueChange={setSelectedFacebookAccount}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose a Facebook page..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="placeholder">Loading pages...</SelectItem>
+                    {facebookAccounts.length > 0 ? (
+                      facebookAccounts.map((account: any) => (
+                        <SelectItem key={account.id} value={account.id.toString()}>
+                          {account.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-accounts" disabled>No Facebook pages connected</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1359,7 +1398,8 @@ export default function Dashboard() {
               </Button>
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700"
-                disabled={true} // Will be enabled when account is selected
+                disabled={!selectedFacebookAccount || !csvPreviewData}
+                onClick={() => handleStartImport()}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Start Import
