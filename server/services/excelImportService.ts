@@ -119,13 +119,14 @@ export class ExcelImportService {
       }
       
       if (isNaN(date.getTime())) {
+        const displayValue = typeof scheduledFor === 'string' ? scheduledFor : String(scheduledFor);
         errors.push(`Row ${rowIndex + 1}: Invalid date format for scheduledFor. Supported formats:
         • YYYY-MM-DD HH:MM:SS (e.g., "2024-07-24 14:30:00")
         • YYYY-MM-DD HH:MM (e.g., "2024-07-24 14:30")
         • MM/DD/YYYY HH:MM AM/PM (e.g., "7/24/2024 2:30 PM")
         • MM-DD-YYYY HH:MM AM/PM (e.g., "7-24-2024 2:30 PM")
         • HH:MM AM/PM (time only, uses today's date, e.g., "2:30 PM")
-        Your value: "${dateStr}"`);
+        Your value: "${displayValue}"`);
       }
     }
     
