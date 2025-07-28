@@ -84,9 +84,9 @@ export class CompleteVideoUploadService {
       // Progress tracking for upload start
       progressTracker.updateProgress(uploadId, 'Processing video with FFmpeg...', 50, 'Preparing video for Facebook upload with chunked method');
       
-      // Use custom content as title, fallback to generic title
+      // Use the actual CSV content as both title and description to preserve original content
       const title = options.content || 'Google Drive Video Upload';
-      const description = `Video uploaded from Google Drive (${downloadSizeMB.toFixed(1)}MB) using Enhanced Google Drive method. Original source: ${options.googleDriveUrl}`;
+      const description = options.content || `Video uploaded from Google Drive (${downloadSizeMB.toFixed(1)}MB)`;
       
       const uploadResult = await this.uploader.uploadVideoInChunks({
         accessToken: account.accessToken,
@@ -252,7 +252,7 @@ export class CompleteVideoUploadService {
           accessToken: options.pageAccessToken,
           pageId: options.pageId,
           filePath: options.videoFilePath,
-          title: 'Enhanced Google Drive Video',
+          title: options.description || 'Video Upload',
           description: options.description
         });
       } else {
@@ -262,7 +262,7 @@ export class CompleteVideoUploadService {
           accessToken: options.pageAccessToken,
           pageId: options.pageId,
           filePath: options.videoFilePath,
-          title: 'Enhanced Google Drive Video',
+          title: options.description || 'Video Upload',
           description: options.description
         });
       }
