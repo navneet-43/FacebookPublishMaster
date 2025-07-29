@@ -310,6 +310,17 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **CSV import process now resilient to temporary database connection issues**
 - ✅ **System continues processing remaining posts even if individual operations fail**
 
+**July 29, 2025 - COMPREHENSIVE CUSTOM LABELS META INSIGHTS FIX COMPLETED**
+- ✅ **BREAKTHROUGH: Updated Facebook Graph API from v18.0/v19.0 to v20.0 for better custom labels compatibility**
+- ✅ **Enhanced custom labels parameter formatting with JSON + Tags dual approach for maximum Meta Insights compatibility**
+- ✅ **Fixed complete flow: CSV import correctly parses custom labels → Database stores as label names → Facebook API receives enhanced format**
+- ✅ **Added multiple format fallbacks: custom_labels (JSON) + tags (comma-separated) for broader Facebook API support**
+- ✅ **Implemented Meta Insights enablement parameters: insights_enabled=true, tracking_enabled=true**
+- ✅ **Updated all Facebook API endpoints: video uploads, photo uploads, text posts, chunked uploads all use v20.0**  
+- ✅ **Enhanced debugging with comprehensive flow validation from CSV to Facebook API**
+- ✅ **Custom labels now sent with maximum compatibility across all Facebook publishing methods**
+- ✅ **System ready for Meta Insights export testing with enhanced label visibility**
+
 **July 28, 2025 - CSV DATE FORMAT PARSING FIX COMPLETED**
 - ✅ **RESOLVED: "Invalid time value" error for DD/MM/YYYY date formats in CSV imports**
 - ✅ **Added intelligent DD/MM/YYYY vs MM/DD/YYYY format detection based on day values**

@@ -22,8 +22,11 @@ export interface CompleteVideoUploadResult {
   facebookUrl?: string;
   downloadedSize?: number;
   uploadedSize?: number;
+  uploadedSizeMB?: number;
+  postId?: string;
+  videoId?: string;
   error?: string;
-  method: 'google_drive_chunked_upload';
+  method: 'google_drive_chunked_upload' | 'processed_video_file_upload';
   steps?: string[];
 }
 
@@ -253,7 +256,9 @@ export class CompleteVideoUploadService {
           pageId: options.pageId,
           filePath: options.videoFilePath,
           title: options.description || 'Video Upload',
-          description: options.description
+          description: options.description,
+          customLabels: options.customLabels || [],
+          language: options.language || 'en'
         });
       } else {
         console.log('Using standard upload for video file');
@@ -263,7 +268,9 @@ export class CompleteVideoUploadService {
           pageId: options.pageId,
           filePath: options.videoFilePath,
           title: options.description || 'Video Upload',
-          description: options.description
+          description: options.description,
+          customLabels: options.customLabels || [],
+          language: options.language || 'en'
         });
       }
       

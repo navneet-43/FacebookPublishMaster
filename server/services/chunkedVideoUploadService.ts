@@ -38,7 +38,7 @@ export class ChunkedVideoUploadService {
     
     console.log(`Starting Facebook upload session for ${(fileSize / (1024 * 1024)).toFixed(1)}MB video`);
     
-    const startUrl = `https://graph-video.facebook.com/v19.0/${options.pageId}/videos`;
+    const startUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
     
     const params = new URLSearchParams({
       upload_phase: 'start',
@@ -116,7 +116,7 @@ export class ChunkedVideoUploadService {
       fs.readSync(fileHandle, buffer, 0, chunkSize, options.startOffset);
       fs.closeSync(fileHandle);
       
-      const transferUrl = `https://graph-video.facebook.com/v19.0/${options.pageId}/videos`;
+      const transferUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
       
       const formData = new FormData();
       formData.append('upload_phase', 'transfer');
@@ -185,7 +185,7 @@ export class ChunkedVideoUploadService {
     console.log('Finishing upload session');
     
     try {
-      const finishUrl = `https://graph-video.facebook.com/v19.0/${options.pageId}/videos`;
+      const finishUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
       
       const params = new URLSearchParams({
         upload_phase: 'finish',
@@ -201,7 +201,7 @@ export class ChunkedVideoUploadService {
         params.append('description', options.description);
       }
       
-      // Add custom labels for Meta Insights tracking
+      // Add custom labels for Meta Insights tracking with enhanced format
       if (options.customLabels && options.customLabels.length > 0) {
         const labelArray = options.customLabels
           .map(label => label.toString().trim())
@@ -209,8 +209,15 @@ export class ChunkedVideoUploadService {
           .slice(0, 10); // Facebook limit: max 10 labels per post
         
         if (labelArray.length > 0) {
+          // Use multiple format approaches for better Meta Insights compatibility
           params.append('custom_labels', JSON.stringify(labelArray));
-          console.log('✅ META INSIGHTS: Adding custom labels to chunked video upload:', labelArray);
+          
+          // Also add as comma-separated string (alternative format some APIs prefer)
+          params.append('tags', labelArray.join(','));
+          
+          console.log('✅ META INSIGHTS: Adding custom labels to chunked video upload (v20.0):', labelArray);
+          console.log('✅ META INSIGHTS: Labels format - JSON:', JSON.stringify(labelArray));
+          console.log('✅ META INSIGHTS: Labels format - Tags:', labelArray.join(','));
         }
       }
       
@@ -219,10 +226,14 @@ export class ChunkedVideoUploadService {
         params.append('locale', options.language);
       }
       
-      // Add privacy and publishing settings
+      // Add privacy and publishing settings with enhanced Meta Insights parameters
       params.append('privacy', JSON.stringify({ value: 'EVERYONE' }));
       params.append('published', 'true');
-      params.append('content_category', 'ENTERTAINMENT');
+      params.append('content_category', 'OTHER');
+      
+      // Add explicit Meta Insights enablement parameters
+      params.append('insights_enabled', 'true');
+      params.append('tracking_enabled', 'true');
       params.append('embeddable', 'true');
       
       const response = await fetch(finishUrl, {

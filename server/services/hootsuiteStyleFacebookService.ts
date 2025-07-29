@@ -38,7 +38,7 @@ export class HootsuiteStyleFacebookService {
         return null;
       }
 
-      const url = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
+      const url = `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
       
       const response = await fetch(url);
       const data = await response.json() as any;
@@ -61,7 +61,7 @@ export class HootsuiteStyleFacebookService {
   static async getUserManagedPages(userAccessToken: string): Promise<FacebookPageInfo[]> {
     try {
       // Updated API call without deprecated 'perms' field
-      const url = `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token&access_token=${userAccessToken}`;
+      const url = `https://graph.facebook.com/v20.0/me/accounts?fields=id,name,access_token&access_token=${userAccessToken}`;
       
       const response = await fetch(url);
       const data = await response.json() as any;
@@ -92,7 +92,7 @@ export class HootsuiteStyleFacebookService {
    */
   static async publishTextPost(pageId: string, pageAccessToken: string, message: string, link?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+      const endpoint = `https://graph.facebook.com/v20.0/${pageId}/feed`;
       
       const postData = new URLSearchParams();
       postData.append('message', message);
@@ -110,8 +110,12 @@ export class HootsuiteStyleFacebookService {
           .slice(0, 10); // Facebook limit: max 10 labels per post
         
         if (labelArray.length > 0) {
+          // Use enhanced format for better Meta Insights compatibility
           postData.append('custom_labels', JSON.stringify(labelArray));
+          postData.append('tags', labelArray.join(','));
+          
           console.log('✅ META INSIGHTS: Adding custom labels to Facebook text post:', labelArray);
+          console.log('✅ META INSIGHTS: Enhanced format - JSON + Tags for better compatibility');
         }
       }
       
@@ -184,7 +188,7 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
-      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/photos`;
+      const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
       
       const postData = new URLSearchParams();
       postData.append('url', finalPhotoUrl);
@@ -206,8 +210,12 @@ export class HootsuiteStyleFacebookService {
           .slice(0, 10); // Facebook limit: max 10 labels per post
         
         if (labelArray.length > 0) {
+          // Use enhanced format for better Meta Insights compatibility
           postData.append('custom_labels', JSON.stringify(labelArray));
+          postData.append('tags', labelArray.join(','));
+          
           console.log('✅ META INSIGHTS: Adding custom labels to Facebook photo post:', labelArray);
+          console.log('✅ META INSIGHTS: Enhanced format - JSON + Tags for better compatibility');
         }
       }
       
@@ -638,7 +646,7 @@ export class HootsuiteStyleFacebookService {
         return await HootsuiteStyleFacebookService.uploadLargeVideoResumable(pageId, pageAccessToken, finalVideoUrl, description, customLabels, language);
       }
       
-      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const endpoint = `https://graph.facebook.com/v20.0/${pageId}/videos`;
       
       const postData = new URLSearchParams();
       postData.append('file_url', finalVideoUrl);
@@ -660,8 +668,12 @@ export class HootsuiteStyleFacebookService {
           .slice(0, 10); // Facebook limit: max 10 labels per post
         
         if (labelArray.length > 0) {
+          // Use enhanced format for better Meta Insights compatibility
           postData.append('custom_labels', JSON.stringify(labelArray));
+          postData.append('tags', labelArray.join(','));
+          
           console.log('✅ META INSIGHTS: Adding custom labels to Facebook video post:', labelArray);
+          console.log('✅ META INSIGHTS: Enhanced format - JSON + Tags for better compatibility');
         }
       }
       
@@ -852,7 +864,7 @@ TROUBLESHOOTING:
    */
   static async validatePageToken(pageId: string, pageAccessToken: string): Promise<boolean> {
     try {
-      const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}?access_token=${pageAccessToken}`);
+      const response = await fetch(`https://graph.facebook.com/v20.0/${pageId}?access_token=${pageAccessToken}`);
       const data = await response.json() as any;
       
       return response.ok && !data.error;
@@ -876,7 +888,7 @@ TROUBLESHOOTING:
     try {
       console.log('🎥 PUBLISHING YOUTUBE VIDEO to Facebook via native integration');
       
-      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+      const endpoint = `https://graph.facebook.com/v20.0/${pageId}/feed`;
       
       const postData = new URLSearchParams();
       postData.append('link', youtubeUrl);
@@ -946,7 +958,7 @@ TROUBLESHOOTING:
    */
   static async getPagePermissions(pageId: string, pageAccessToken: string): Promise<string[]> {
     try {
-      const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}?fields=perms&access_token=${pageAccessToken}`);
+      const response = await fetch(`https://graph.facebook.com/v20.0/${pageId}?fields=perms&access_token=${pageAccessToken}`);
       const data = await response.json() as any;
       
       if (!response.ok || data.error) {
@@ -1013,7 +1025,7 @@ TROUBLESHOOTING:
       // Step 2: Initialize resumable upload session
       console.log('🚀 INITIALIZING RESUMABLE UPLOAD SESSION');
       
-      const initEndpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const initEndpoint = `https://graph.facebook.com/v20.0/${pageId}/videos`;
       const initData = new URLSearchParams();
       initData.append('upload_phase', 'start');
       initData.append('file_size', videoSize.toString());
@@ -1188,7 +1200,7 @@ Google Drive's security policies prevent external applications from downloading 
       }
       
       // Use standard multipart upload for smaller files
-      const endpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const endpoint = `https://graph.facebook.com/v20.0/${pageId}/videos`;
       
       // Use modern FormData for better Facebook API compatibility
       const formData = new FormData();
@@ -1370,7 +1382,7 @@ Google Drive's security policies prevent external applications from downloading 
       console.log(`📊 CHUNKED UPLOAD: File size: ${(fileSize / (1024 * 1024)).toFixed(2)}MB, Chunks: ${totalChunks}`);
       
       // Initialize upload session
-      const initEndpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const initEndpoint = `https://graph.facebook.com/v20.0/${pageId}/videos`;
       const initFormData = new FormData();
       initFormData.append('upload_phase', 'start');
       initFormData.append('file_size', fileSize.toString());
@@ -1517,7 +1529,7 @@ Google Drive's security policies prevent external applications from downloading 
       const fileSize = stats.size;
       
       // Step 1: Initialize resumable upload session
-      const initEndpoint = `https://graph.facebook.com/v18.0/${pageId}/videos`;
+      const initEndpoint = `https://graph.facebook.com/v20.0/${pageId}/videos`;
       
       const initData = new URLSearchParams();
       initData.append('upload_phase', 'start');
@@ -1590,7 +1602,7 @@ Google Drive's security policies prevent external applications from downloading 
       finalizeData.append('upload_session_id', uploadSessionId);
       finalizeData.append('access_token', pageAccessToken);
       
-      const finalizeResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
+      const finalizeResponse = await fetch(`https://graph.facebook.com/v20.0/${pageId}/videos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -1622,7 +1634,7 @@ Google Drive's security policies prevent external applications from downloading 
       }
       publishData.append('access_token', pageAccessToken);
       
-      const publishResponse = await fetch(`https://graph.facebook.com/v18.0/${videoId}`, {
+      const publishResponse = await fetch(`https://graph.facebook.com/v20.0/${videoId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -1664,7 +1676,7 @@ Google Drive's security policies prevent external applications from downloading 
     });
     uploadData.append('access_token', pageAccessToken);
     
-    const uploadResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
+    const uploadResponse = await fetch(`https://graph.facebook.com/v20.0/${pageId}/videos`, {
       method: 'POST',
       body: uploadData
     });
@@ -1677,7 +1689,7 @@ Google Drive's security policies prevent external applications from downloading 
 
   static async getPagePermissions(pageId: string, pageAccessToken: string): Promise<string[]> {
     try {
-      const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}?fields=perms&access_token=${pageAccessToken}`);
+      const response = await fetch(`https://graph.facebook.com/v20.0/${pageId}?fields=perms&access_token=${pageAccessToken}`);
       const result = await response.json() as any;
       
       if (!response.ok || result.error) {
