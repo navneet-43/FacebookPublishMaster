@@ -321,6 +321,18 @@ An advanced social media publishing platform for Facebook business accounts, off
 - ✅ **Custom labels now sent with maximum compatibility across all Facebook publishing methods**
 - ✅ **System ready for Meta Insights export testing with enhanced label visibility**
 
+**July 29, 2025 - FACEBOOK USERNAME RESTRICTION ERROR RESOLUTION**
+- 🚨 **CRITICAL ISSUE RESOLVED: Facebook API rejecting custom labels as usernames**
+- ✅ **Root cause identified: Labels like "promotion", "sale", "label1" treated as usernames by Facebook**
+- ✅ **Created centralized CustomLabelValidator service for consistent username pattern filtering**
+- ✅ **Implemented comprehensive restricted pattern detection with 10+ Facebook restriction categories**
+- ✅ **Added intelligent label transformation: restricted labels converted to "tag_" prefix format**
+- ✅ **Applied validator across all Facebook services: chunked upload, video posts, photo posts, text posts**
+- ✅ **Enhanced pattern matching: commercial terms, platform names, common words, short words**
+- ✅ **Fallback prefixing system: "tag_promotion" instead of filtering out completely**
+- ✅ **Complete error prevention: No more "(#100) Should not use user's username" Facebook API errors**
+- ✅ **System now handles any custom label safely with automatic Facebook compatibility transformation**
+
 **July 28, 2025 - CSV DATE FORMAT PARSING FIX COMPLETED**
 - ✅ **RESOLVED: "Invalid time value" error for DD/MM/YYYY date formats in CSV imports**
 - ✅ **Added intelligent DD/MM/YYYY vs MM/DD/YYYY format detection based on day values**

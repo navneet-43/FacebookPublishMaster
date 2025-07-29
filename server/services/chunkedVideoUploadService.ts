@@ -203,21 +203,12 @@ export class ChunkedVideoUploadService {
       
       // Add custom labels for Meta Insights tracking with enhanced format
       if (options.customLabels && options.customLabels.length > 0) {
-        const labelArray = options.customLabels
-          .map(label => label.toString().trim())
-          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
-          .slice(0, 10); // Facebook limit: max 10 labels per post
+        const { CustomLabelValidator } = await import('./customLabelValidator');
+        const customLabelsParam = CustomLabelValidator.createFacebookParameter(options.customLabels);
         
-        if (labelArray.length > 0) {
-          // Use multiple format approaches for better Meta Insights compatibility
-          params.append('custom_labels', JSON.stringify(labelArray));
-          
-          // Also add as comma-separated string (alternative format some APIs prefer)
-          params.append('tags', labelArray.join(','));
-          
-          console.log('✅ META INSIGHTS: Adding custom labels to chunked video upload (v20.0):', labelArray);
-          console.log('✅ META INSIGHTS: Labels format - JSON:', JSON.stringify(labelArray));
-          console.log('✅ META INSIGHTS: Labels format - Tags:', labelArray.join(','));
+        if (customLabelsParam) {
+          params.append('custom_labels', customLabelsParam);
+          console.log('✅ META INSIGHTS: Adding validated custom labels to chunked video upload (v20.0)');
         }
       }
       

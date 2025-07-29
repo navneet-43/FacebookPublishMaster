@@ -103,19 +103,12 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array for insights reporting
-        const labelArray = customLabels
-          .map(label => label.toString().trim())
-          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
-          .slice(0, 10); // Facebook limit: max 10 labels per post
+        const { CustomLabelValidator } = await import('./customLabelValidator');
+        const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
         
-        if (labelArray.length > 0) {
-          // Use enhanced format for better Meta Insights compatibility
-          postData.append('custom_labels', JSON.stringify(labelArray));
-          postData.append('tags', labelArray.join(','));
-          
-          console.log('✅ META INSIGHTS: Adding custom labels to Facebook text post:', labelArray);
-          console.log('✅ META INSIGHTS: Enhanced format - JSON + Tags for better compatibility');
+        if (customLabelsParam) {
+          postData.append('custom_labels', customLabelsParam);
+          console.log('✅ META INSIGHTS: Adding validated custom labels to Facebook text post');
         }
       }
       
@@ -203,19 +196,12 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array for insights reporting
-        const labelArray = customLabels
-          .map(label => label.toString().trim())
-          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
-          .slice(0, 10); // Facebook limit: max 10 labels per post
+        const { CustomLabelValidator } = await import('./customLabelValidator');
+        const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
         
-        if (labelArray.length > 0) {
-          // Use enhanced format for better Meta Insights compatibility
-          postData.append('custom_labels', JSON.stringify(labelArray));
-          postData.append('tags', labelArray.join(','));
-          
-          console.log('✅ META INSIGHTS: Adding custom labels to Facebook photo post:', labelArray);
-          console.log('✅ META INSIGHTS: Enhanced format - JSON + Tags for better compatibility');
+        if (customLabelsParam) {
+          postData.append('custom_labels', customLabelsParam);
+          console.log('✅ META INSIGHTS: Adding validated custom labels to Facebook photo post');
         }
       }
       
@@ -661,19 +647,12 @@ export class HootsuiteStyleFacebookService {
       
       // Add custom labels for Meta Insights tracking (not visible in post)
       if (customLabels && customLabels.length > 0) {
-        // Facebook expects custom labels as JSON array for insights reporting
-        const labelArray = customLabels
-          .map(label => label.toString().trim())
-          .filter(label => label.length > 0 && label.length <= 25) // Facebook limit: 25 chars per label
-          .slice(0, 10); // Facebook limit: max 10 labels per post
+        const { CustomLabelValidator } = await import('./customLabelValidator');
+        const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
         
-        if (labelArray.length > 0) {
-          // Use enhanced format for better Meta Insights compatibility
-          postData.append('custom_labels', JSON.stringify(labelArray));
-          postData.append('tags', labelArray.join(','));
-          
-          console.log('✅ META INSIGHTS: Adding custom labels to Facebook video post:', labelArray);
-          console.log('✅ META INSIGHTS: Enhanced format - JSON + Tags for better compatibility');
+        if (customLabelsParam) {
+          postData.append('custom_labels', customLabelsParam);
+          console.log('✅ META INSIGHTS: Adding validated custom labels to Facebook video post');
         }
       }
       
