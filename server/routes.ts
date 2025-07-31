@@ -833,13 +833,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = await authenticateUser(req);
       const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
+      const { SystemMonitoringService } = await import('./services/systemMonitoringService');
       
       const status = ReliableSchedulingService.getStatus();
+      const health = SystemMonitoringService.getHealthStatus();
       const overduePosts = await storage.getOverduePosts();
       const scheduledPosts = await storage.getScheduledPosts();
       
       res.json({
-        system: status,
+        system: {
+          ...status,
+          health
+        },
         overduePosts: overduePosts.length,
         scheduledPosts: scheduledPosts.length,
         lastCheck: new Date().toISOString(),

@@ -116,6 +116,10 @@ app.use((req, res, next) => {
     }
     
     try {
+      // Initialize system monitoring first
+      const { SystemMonitoringService } = await import('./services/systemMonitoringService');
+      await SystemMonitoringService.initialize();
+      
       // Initialize reliable scheduling system (replaces old scheduling)
       const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
       await ReliableSchedulingService.initialize();

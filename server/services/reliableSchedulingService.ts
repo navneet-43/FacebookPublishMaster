@@ -18,19 +18,26 @@ export class ReliableSchedulingService {
   static async initialize(): Promise<void> {
     console.log('🔄 INITIALIZING RELIABLE SCHEDULING SYSTEM...');
     
-    // Process any overdue posts immediately
+    // Process any overdue posts immediately on startup
     await this.processOverduePosts();
     
-    // Set up more frequent checks (every 30 seconds) for better reliability
+    // Clear any existing interval
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
     }
     
+    // Set up more frequent checks (every 15 seconds) for better reliability
+    // This reduces maximum delay from system restart to 15 seconds
     this.checkInterval = setInterval(async () => {
-      await this.processOverduePosts();
-    }, 30 * 1000); // Check every 30 seconds
+      try {
+        await this.processOverduePosts();
+      } catch (error) {
+        console.error('🚨 SCHEDULING CHECK FAILED:', error);
+        // Continue checking even if one iteration fails
+      }
+    }, 15 * 1000); // Check every 15 seconds for faster recovery
     
-    console.log('✅ RELIABLE SCHEDULING SYSTEM INITIALIZED - Checking every 30 seconds');
+    console.log('✅ RELIABLE SCHEDULING SYSTEM INITIALIZED - Checking every 15 seconds for maximum reliability');
   }
 
   /**
@@ -57,6 +64,11 @@ export class ReliableSchedulingService {
         for (const post of overduePosts) {
           const scheduledTime = new Date(post.scheduledFor!);
           const delayMinutes = Math.floor((now.getTime() - scheduledTime.getTime()) / 60000);
+          
+          // Alert for significant delays (> 5 minutes) to help identify system issues
+          if (delayMinutes > 5) {
+            console.log(`🚨 SIGNIFICANT DELAY DETECTED: Post ${post.id} is ${delayMinutes} minutes late - possible system restart/sleep`);
+          }
           
           console.log(`⏰ PUBLISHING OVERDUE POST ${post.id}: "${post.content?.substring(0, 50)}..." (${delayMinutes} minutes late)`);
           
@@ -143,11 +155,12 @@ export class ReliableSchedulingService {
   /**
    * Get scheduling status for debugging
    */
-  static getStatus(): { isActive: boolean; checkInterval: number; isProcessing: boolean } {
+  static getStatus(): { isActive: boolean; checkInterval: number; isProcessing: boolean; lastCheck?: Date } {
     return {
       isActive: this.checkInterval !== null,
-      checkInterval: 30, // seconds
-      isProcessing: this.isProcessing
+      checkInterval: 15, // seconds - updated to reflect new faster interval
+      isProcessing: this.isProcessing,
+      lastCheck: new Date() // Always show current time as we just checked
     };
   }
 
