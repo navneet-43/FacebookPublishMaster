@@ -116,7 +116,11 @@ app.use((req, res, next) => {
     }
     
     try {
-      // Initialize system monitoring first
+      // Initialize keep-alive service first to prevent sleep
+      const { KeepAliveService } = await import('./services/keepAliveService');
+      await KeepAliveService.initialize();
+      
+      // Initialize system monitoring
       const { SystemMonitoringService } = await import('./services/systemMonitoringService');
       await SystemMonitoringService.initialize();
       
