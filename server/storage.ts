@@ -349,7 +349,7 @@ export class DatabaseStorage implements IStorage {
   async createPost(post: InsertPost): Promise<Post> {
     const [newPost] = await db
       .insert(posts)
-      .values([post])
+      .values(post)
       .returning();
     return newPost;
   }
@@ -382,9 +382,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createActivity(activity: InsertActivity): Promise<Activity> {
+    const activityWithDefaults = {
+      ...activity,
+      userId: activity.userId || null
+    };
     const [newActivity] = await db
       .insert(activities)
-      .values(activity)
+      .values(activityWithDefaults)
       .returning();
     return newActivity;
   }

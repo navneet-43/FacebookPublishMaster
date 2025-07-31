@@ -41,7 +41,7 @@ export class ReliableSchedulingService {
   }
 
   /**
-   * Process overdue posts with improved reliability
+   * Process overdue posts with improved reliability and duplicate prevention
    */
   private static async processOverduePosts(): Promise<void> {
     // Prevent concurrent processing
@@ -54,14 +54,25 @@ export class ReliableSchedulingService {
     try {
       const now = new Date();
       
-      // Get posts that should have been published (with 1 minute buffer)
-      const bufferTime = new Date(now.getTime() - 60000); // 1 minute ago
+      // Get posts that should have been published - only 'scheduled' status to prevent duplicates
       const overduePosts = await storage.getOverduePosts();
       
-      if (overduePosts.length > 0) {
-        console.log(`🚨 FOUND ${overduePosts.length} OVERDUE POSTS - Processing immediately`);
+      // Filter out any posts that might be currently processing
+      const validOverduePosts = overduePosts.filter(post => 
+        post.status === 'scheduled' && post.scheduledFor && new Date(post.scheduledFor) <= now
+      );
+      
+      if (validOverduePosts.length > 0) {
+        console.log(`🚨 FOUND ${validOverduePosts.length} OVERDUE POSTS - Processing immediately`);
         
-        for (const post of overduePosts) {
+        for (const post of validOverduePosts) {
+          // Double-check post is still in 'scheduled' status to prevent race conditions
+          const currentPost = await storage.getPost(post.id);
+          if (!currentPost || currentPost.status !== 'scheduled') {
+            console.log(`⏭️ SKIPPING POST ${post.id} - Already processed (status: ${currentPost?.status})`);
+            continue;
+          }
+          
           const scheduledTime = new Date(post.scheduledFor!);
           const delayMinutes = Math.floor((now.getTime() - scheduledTime.getTime()) / 60000);
           
@@ -73,6 +84,11 @@ export class ReliableSchedulingService {
           console.log(`⏰ PUBLISHING OVERDUE POST ${post.id}: "${post.content?.substring(0, 50)}..." (${delayMinutes} minutes late)`);
           
           try {
+            // Mark as 'publishing' immediately to prevent duplicates
+            await storage.updatePost(post.id, {
+              status: 'publishing'
+            });
+            
             // Publish the post
             const result = await publishPostToFacebook(post);
             
