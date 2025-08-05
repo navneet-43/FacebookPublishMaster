@@ -1793,4 +1793,119 @@ Google Drive's security policies prevent external applications from downloading 
       return [];
     }
   }
+
+  /**
+   * Publish Reel post to Facebook page
+   */
+  static async publishReelPost(
+    pageId: string, 
+    pageAccessToken: string, 
+    videoUrl: string, 
+    description?: string, 
+    customLabels?: string[], 
+    language?: string,
+    uploadId?: string
+  ): Promise<{success: boolean, postId?: string, error?: string}> {
+    
+    console.log('🎥 PROCESSING REEL for Facebook upload:', videoUrl);
+    
+    try {
+      // Handle Google Drive URLs with enhanced large file access
+      if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
+        console.log('📁 GOOGLE DRIVE REEL: Using enhanced file access for reel content');
+        
+        if (uploadId) {
+          const { progressTracker } = await import('./progressTracker');
+          progressTracker.updateProgress(uploadId, 'Downloading Reel from Google Drive...', 40, 'Starting enhanced Google Drive download');
+        }
+        
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
+        
+        const downloader = new CorrectGoogleDriveDownloader();
+        const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
+        
+        if (result.success && result.filePath) {
+          const fileSizeMB = (result.fileSize! / 1024 / 1024).toFixed(2);
+          console.log(`✅ Google Drive reel downloaded: ${fileSizeMB}MB`);
+          
+          if (uploadId) {
+            const { progressTracker } = await import('./progressTracker');
+            progressTracker.updateProgress(uploadId, 'Processing Reel for Facebook...', 60, 'Optimizing reel format for Facebook compatibility');
+          }
+          
+          // Apply simple encoding for Facebook compatibility
+          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
+          
+          let finalPath = result.filePath;
+          let encodingCleanup: (() => void) | undefined;
+          
+          if (encodedResult.success && encodedResult.outputPath) {
+            console.log('✅ Facebook encoding applied to Google Drive reel');
+            finalPath = encodedResult.outputPath;
+            encodingCleanup = encodedResult.cleanup;
+          }
+          
+          if (uploadId) {
+            const { progressTracker } = await import('./progressTracker');
+            progressTracker.updateProgress(uploadId, 'Uploading Reel to Facebook...', 80, 'Starting Facebook Reel upload');
+          }
+          
+          // Upload to Facebook using the Reel-specific upload system
+          console.log('🚀 STARTING FACEBOOK REEL UPLOAD');
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
+          
+          const finalDescription = description || 'Google Drive Reel Upload';
+          
+          const uploadResult = await uploadService.uploadProcessedReelFile({
+            videoFilePath: finalPath,
+            pageId: pageId,
+            pageAccessToken: pageAccessToken,
+            description: finalDescription,
+            customLabels: customLabels || [],
+            language: language || 'en'
+          });
+          
+          console.log('📊 REEL UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
+          
+          if (uploadResult.success) {
+            console.log('✅ ENHANCED GOOGLE DRIVE REEL UPLOADED SUCCESSFULLY');
+            
+            // Clean up temporary files after successful upload
+            if (result.cleanup) result.cleanup();
+            if (encodingCleanup) encodingCleanup();
+            
+            return {
+              success: true,
+              postId: uploadResult.postId || uploadResult.videoId
+            };
+          } else {
+            console.log('❌ FACEBOOK REEL UPLOAD FAILED:', uploadResult.error);
+            
+            return {
+              success: false,
+              error: uploadResult.error || 'Facebook Reel upload failed'
+            };
+          }
+        }
+        
+        console.log(`❌ Enhanced Google Drive reel processing failed: ${result.error}`);
+        return {
+          success: false,
+          error: result.error || 'Google Drive reel processing failed'
+        };
+      }
+
+      // For non-Google Drive URLs, use regular video processing but with Reel endpoint
+      return await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+      
+    } catch (error) {
+      console.error('Reel upload error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown reel upload error'
+      };
+    }
+  }
 }
