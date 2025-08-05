@@ -548,13 +548,17 @@ export class HootsuiteStyleFacebookService {
           console.log(`✅ Google Drive file downloaded: ${fileSizeMB}MB`);
           
           // Check if downloaded file is an image by size and extension
-          const isLikelyImage = result.fileSize! < 50 * 1024 * 1024; // Under 50MB likely image
+          const isLikelyImage = result.fileSize! < 1 * 1024 * 1024; // Under 1MB likely image (more restrictive)
           // path imported at top
           const extension = path.extname(result.filePath).toLowerCase();
           const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
           const isImageExtension = imageExtensions.includes(extension);
+          const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+          const isVideoExtension = videoExtensions.includes(extension);
           
-          if (isLikelyImage || isImageExtension) {
+          console.log(`🔍 FILE ANALYSIS: Size=${fileSizeMB}MB, Extension=${extension}, IsImage=${isImageExtension}, IsVideo=${isVideoExtension}`);
+          
+          if ((isLikelyImage && isImageExtension) && !isVideoExtension) {
             console.log('📸 DETECTED IMAGE: Using SimpleFacebookPhotoService instead of video');
             
             // Use the new SimpleFacebookPhotoService for images
