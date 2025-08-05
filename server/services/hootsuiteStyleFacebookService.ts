@@ -555,13 +555,14 @@ export class HootsuiteStyleFacebookService {
           const isImageExtension = imageExtensions.includes(extension);
           
           if (isLikelyImage || isImageExtension) {
-            console.log('📸 DETECTED IMAGE: Using photo upload method instead of video');
+            console.log('📸 DETECTED IMAGE: Using SimpleFacebookPhotoService instead of video');
             
-            // Use photo upload service for images
-            const photoResult = await this.publishPhotoPost(
+            // Use the new SimpleFacebookPhotoService for images
+            const { SimpleFacebookPhotoService } = await import('./simpleFacebookPhotoService');
+            const photoResult = await SimpleFacebookPhotoService.uploadPhoto(
               pageId,
               pageAccessToken,
-              result.filePath, // Use local file path
+              result.filePath, // Use local file path - SimpleFacebookPhotoService handles this correctly
               description || 'Google Drive Image Upload',
               customLabels || [],
               language || 'en'

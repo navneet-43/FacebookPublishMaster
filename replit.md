@@ -14,6 +14,9 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - TECHNICAL: Support videos up to 1GB via Facebook chunked upload API with zero compression
 - Use Alright Tamil page for testing video uploads and demonstrations
 - Prefer robust HTTP download methods over FFmpeg when possible
+- FIXED: Photo uploads from Google Drive now work via CSV (using SimpleFacebookPhotoService)
+- ENHANCED: Automatic content detection (photo/video/reel) from Google Drive links in CSV
+- RESOLVED: JavaScript "require is not defined" errors in upload services
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
