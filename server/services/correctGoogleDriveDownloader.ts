@@ -182,7 +182,16 @@ export class CorrectGoogleDriveDownloader {
         const errorHtml = await downloadResponse.text();
         fs.writeFileSync('/tmp/error.html', errorHtml, 'utf-8');
         
-        throw new Error('Received invalid content type - possibly access restricted file');
+        // Check for specific Google Drive error patterns
+        if (errorHtml.includes('access_denied') || errorHtml.includes('403')) {
+          throw new Error('Google Drive file access denied. Please ensure the file is publicly accessible with "Anyone with the link can view" permission.');
+        } else if (errorHtml.includes('login') || errorHtml.includes('signin')) {
+          throw new Error('Google Drive file requires authentication. Please make the file publicly accessible.');
+        } else if (errorHtml.includes('not found') || errorHtml.includes('404')) {
+          throw new Error('Google Drive file not found. Please check the URL is correct and the file exists.');
+        } else {
+          throw new Error('Google Drive file access restricted. Please ensure sharing is set to "Anyone with the link can view".');
+        }
       }
       
       console.log(`Downloading ${(contentLength / (1024 * 1024)).toFixed(1)}MB video file...`);
