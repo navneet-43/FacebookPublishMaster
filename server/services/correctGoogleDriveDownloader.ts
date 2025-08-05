@@ -103,92 +103,49 @@ export class CorrectGoogleDriveDownloader {
     const fileId = this.extractFileId(options.googleDriveUrl);
     const outputPath = options.outputPath || `/tmp/google_drive_${Date.now()}.mp4`;
     
-    console.log(`Starting correct Google Drive download for file: ${fileId}`);
+    console.log(`Starting Google Drive download for file: ${fileId}`);
     
     try {
       const fetch = (await import('node-fetch')).default;
       
-      // Use session approach like Python requests.Session()
+      // Enhanced headers to better mimic browser requests
       const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       };
       
-      // Step 1: Initial request to get download page (matching Python script)
-      const baseUrl = "https://drive.google.com/uc?export=download";
-      const response = await fetch(`${baseUrl}&id=${fileId}`, { 
-        headers,
-        redirect: 'follow'
-      });
+      // Try multiple download methods in order of preference
+      const downloadMethods = [
+        // Method 1: Direct download with usercontent domain
+        () => this.tryDirectDownload(fetch, fileId, headers, outputPath),
+        // Method 2: Traditional uc export method
+        () => this.tryUcExportDownload(fetch, fileId, headers, outputPath),
+        // Method 3: Alternative sharing URL method
+        () => this.trySharingUrlDownload(fetch, fileId, headers, outputPath)
+      ];
       
-      if (!response.ok) {
-        throw new Error(`Initial request failed: ${response.status}`);
-      }
-      
-      const html = await response.text();
-      
-      // Step 2: Check for virus scan warning and handle bypass
-      const virusBypassUrl = await this.handleVirusScanWarning(html, fileId, headers);
-      let downloadResponse;
-      
-      if (virusBypassUrl) {
-        console.log('🦠 Using virus scan bypass URL');
-        downloadResponse = await fetch(virusBypassUrl, {
-          headers,
-          redirect: 'follow'
-        });
-      } else {
-        // Step 3: Extract confirmation info from form (matching Python BeautifulSoup approach)
-        const { confirm, uuid } = await this.getConfirmationInfoFromForm(html);
-        
-        if (!confirm || !uuid) {
-          // Try alternative virus scan bypass methods
-          console.log('⚠️ No confirmation tokens found, trying virus scan bypass...');
-          const bypassUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-          downloadResponse = await fetch(bypassUrl, {
-            headers,
-            redirect: 'follow'
-          });
-        } else {
-          console.log(`Confirmation token extracted: ${confirm.substring(0, 10)}...`);
-          
-          // Step 4: Download with confirmation token using session headers
-          const confirmUrl = "https://drive.usercontent.google.com/download";
-          const params = new URLSearchParams({
-            id: fileId,
-            export: 'download',
-            confirm: confirm,
-            uuid: uuid
-          });
-          
-          downloadResponse = await fetch(`${confirmUrl}?${params}`, {
-            headers,
-            redirect: 'follow'
-          });
+      let lastError = '';
+      for (let i = 0; i < downloadMethods.length; i++) {
+        console.log(`🔄 Trying download method ${i + 1}/${downloadMethods.length}`);
+        try {
+          const result = await downloadMethods[i]();
+          if (result.success) {
+            console.log(`✅ Download method ${i + 1} succeeded`);
+            return result;
+          }
+          lastError = result.error || 'Unknown error';
+          console.log(`❌ Download method ${i + 1} failed: ${lastError}`);
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : 'Unknown error';
+          console.log(`❌ Download method ${i + 1} failed: ${lastError}`);
         }
       }
       
-      if (!downloadResponse.ok) {
-        throw new Error(`Download request failed: ${downloadResponse.status}`);
-      }
-      
-      // Step 4: Validate content (matching Python script validation)
-      const contentType = downloadResponse.headers.get('content-type') || '';
-      const contentLength = parseInt(downloadResponse.headers.get('content-length') || '0');
-      
-      if (contentType.toLowerCase().includes('html') || contentLength < 1000000) {
-        console.error('❌ Received invalid content type.');
-        
-        // Save error HTML for debugging (matching Python script)
-        const errorHtml = await downloadResponse.text();
-        fs.writeFileSync('/tmp/error.html', errorHtml, 'utf-8');
-        
-        throw new Error('Received invalid content type - possibly access restricted file');
-      }
-      
-      console.log(`Downloading ${(contentLength / (1024 * 1024)).toFixed(1)}MB video file...`);
-      
-      // Step 5: Stream download with robust chunk handling (32KB chunks like Python)
-      return await this.robustStreamDownload(downloadResponse, outputPath, contentLength);
+      throw new Error(`All download methods failed. Last error: ${lastError}`);
       
     } catch (error) {
       console.error('Google Drive download error:', error);
@@ -197,6 +154,143 @@ export class CorrectGoogleDriveDownloader {
         error: (error as Error).message
       };
     }
+  }
+
+  private async tryDirectDownload(fetch: any, fileId: string, headers: any, outputPath: string): Promise<GoogleDriveDownloadResult> {
+    console.log('📁 Trying direct usercontent download...');
+    
+    const directUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+    const response = await fetch(directUrl, { headers, redirect: 'follow' });
+    
+    return this.processDownloadResponse(response, outputPath, 'Direct download');
+  }
+
+  private async tryUcExportDownload(fetch: any, fileId: string, headers: any, outputPath: string): Promise<GoogleDriveDownloadResult> {
+    console.log('📄 Trying traditional UC export download...');
+    
+    // Step 1: Initial request to get download page
+    const baseUrl = "https://drive.google.com/uc?export=download";
+    const response = await fetch(`${baseUrl}&id=${fileId}`, { 
+      headers,
+      redirect: 'follow'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Initial request failed: ${response.status}`);
+    }
+    
+    const html = await response.text();
+      
+    // Check if we got HTML content (sign-in or permission page)
+    if (html.includes('<html') && (html.includes('sign in') || html.includes('Sign in') || html.includes('permission') || html.includes('access'))) {
+      throw new Error('File requires authentication or permission - got HTML sign-in page');
+    }
+    
+    // Step 2: Check for virus scan warning and handle bypass
+    const virusBypassUrl = await this.handleVirusScanWarning(html, fileId, headers);
+    let downloadResponse;
+    
+    if (virusBypassUrl) {
+      console.log('🦠 Using virus scan bypass URL');
+      downloadResponse = await fetch(virusBypassUrl, {
+        headers,
+        redirect: 'follow'
+      });
+    } else {
+      // Step 3: Extract confirmation info from form
+      const { confirm, uuid } = await this.getConfirmationInfoFromForm(html);
+      
+      if (!confirm || !uuid) {
+        throw new Error('No confirmation tokens found in HTML response');
+      }
+      
+      console.log(`Confirmation token extracted: ${confirm.substring(0, 10)}...`);
+      
+      // Step 4: Download with confirmation token
+      const confirmUrl = "https://drive.usercontent.google.com/download";
+      const params = new URLSearchParams({
+        id: fileId,
+        export: 'download',
+        confirm: confirm,
+        uuid: uuid
+      });
+      
+      downloadResponse = await fetch(`${confirmUrl}?${params}`, {
+        headers,
+        redirect: 'follow'
+      });
+    }
+    
+    return this.processDownloadResponse(downloadResponse, outputPath, 'UC export');
+  }
+
+  private async trySharingUrlDownload(fetch: any, fileId: string, headers: any, outputPath: string): Promise<GoogleDriveDownloadResult> {
+    console.log('🔗 Trying sharing URL download...');
+    
+    // Try alternative URL formats that sometimes work for shared files
+    const alternativeUrls = [
+      `https://drive.google.com/uc?id=${fileId}&export=download&confirm=no_antivirus`,
+      `https://docs.google.com/uc?id=${fileId}&export=download`,
+      `https://drive.google.com/file/d/${fileId}/view?usp=sharing&export=download`
+    ];
+    
+    for (const url of alternativeUrls) {
+      try {
+        console.log(`🔄 Trying URL: ${url.substring(0, 60)}...`);
+        const response = await fetch(url, { headers, redirect: 'follow' });
+        const result = await this.processDownloadResponse(response, outputPath, 'Sharing URL');
+        if (result.success) {
+          return result;
+        }
+      } catch (error) {
+        console.log(`❌ URL failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    
+    throw new Error('All sharing URL methods failed');
+  }
+
+  private async processDownloadResponse(response: any, outputPath: string, method: string): Promise<GoogleDriveDownloadResult> {
+    if (!response.ok) {
+      throw new Error(`${method} request failed: ${response.status}`);
+    }
+    
+    // Validate content type and size
+    const contentType = response.headers.get('content-type') || '';
+    const contentLength = parseInt(response.headers.get('content-length') || '0');
+    
+    console.log(`📊 Content-Type: ${contentType}, Content-Length: ${contentLength}`);
+    
+    // Check if we got HTML content instead of binary data
+    if (contentType.toLowerCase().includes('html')) {
+      const htmlContent = await response.text();
+      
+      // Save error HTML for debugging
+      fs.writeFileSync('/tmp/error_debug.html', htmlContent, 'utf-8');
+      
+      // Check for specific error patterns
+      if (htmlContent.includes('sign in') || htmlContent.includes('Sign in')) {
+        throw new Error('File requires Google account sign-in');
+      }
+      if (htmlContent.includes('permission') || htmlContent.includes('access denied')) {
+        throw new Error('File access denied - insufficient permissions');
+      }
+      if (htmlContent.includes('quota') || htmlContent.includes('limit')) {
+        throw new Error('Download quota exceeded');
+      }
+      
+      throw new Error(`Received HTML content instead of file data (${method})`);
+    }
+    
+    // Check minimum file size (videos should be larger than 1MB)
+    if (contentLength > 0 && contentLength < 1000000) {
+      throw new Error(`File too small (${contentLength} bytes) - likely not a video file`);
+    }
+    
+    console.log(`✅ Valid content detected - downloading ${(contentLength / (1024 * 1024)).toFixed(1)}MB file...`);
+    
+    // Stream download
+    return await this.robustStreamDownload(response, outputPath, contentLength);
   }
 
   private async robustStreamDownload(response: any, outputPath: string, expectedSize: number): Promise<GoogleDriveDownloadResult> {
