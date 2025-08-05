@@ -48,3 +48,14 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
 - **Google Drive**: Integrated for video download and processing (with enhanced downloader and virus scan bypass).
 - **Dropbox**: (Limited integration) Formerly used for video hosting.
 - **Vimeo**: (Limited integration) Formerly used for video hosting.
+
+## Recent Updates
+
+**August 5, 2025 - CSV CONTENT TYPE SELECTION FEATURE ADDED**
+- ✅ **FRONTEND ENHANCEMENT**: Added content type selection dropdown in CSV import preview
+- ✅ **CONTENT TYPE OPTIONS**: Text Post, Video Post, Image Post, Link Post selection available
+- ✅ **BACKEND INTEGRATION**: Updated ExcelImportService to handle defaultContentType parameter
+- ✅ **USER EXPERIENCE**: Eliminates need to specify content type in CSV file manually
+- ✅ **SMART DEFAULTS**: Uses selected content type when CSV doesn't specify mediaType
+- ✅ **FALLBACK BEHAVIOR**: CSV content type column still takes precedence if provided
+- 🎯 **RESULT**: Simplified CSV import workflow with better user control
