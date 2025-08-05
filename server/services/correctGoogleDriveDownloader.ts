@@ -175,32 +175,17 @@ export class CorrectGoogleDriveDownloader {
       const contentType = downloadResponse.headers.get('content-type') || '';
       const contentLength = parseInt(downloadResponse.headers.get('content-length') || '0');
       
-      // Allow smaller files for images (photos can be under 1MB)
-      const isLikelyImage = contentType.toLowerCase().includes('image') || 
-                           contentLength < 1000000; // Images can be smaller
-      
-      if (contentType.toLowerCase().includes('html') || (contentLength < 100000 && !isLikelyImage)) {
+      if (contentType.toLowerCase().includes('html') || contentLength < 1000000) {
         console.error('❌ Received invalid content type.');
         
         // Save error HTML for debugging (matching Python script)
         const errorHtml = await downloadResponse.text();
         fs.writeFileSync('/tmp/error.html', errorHtml, 'utf-8');
         
-        // Check for specific Google Drive error patterns
-        if (errorHtml.includes('access_denied') || errorHtml.includes('403')) {
-          throw new Error('Google Drive file access denied. Please ensure the file is publicly accessible with "Anyone with the link can view" permission.');
-        } else if (errorHtml.includes('login') || errorHtml.includes('signin')) {
-          throw new Error('Google Drive file requires authentication. Please make the file publicly accessible.');
-        } else if (errorHtml.includes('not found') || errorHtml.includes('404')) {
-          throw new Error('Google Drive file not found. Please check the URL is correct and the file exists.');
-        } else {
-          throw new Error('Google Drive file access restricted. Please ensure sharing is set to "Anyone with the link can view".');
-        }
+        throw new Error('Received invalid content type - possibly access restricted file');
       }
       
-      const fileSizeMB = (contentLength / (1024 * 1024)).toFixed(1);
-      const fileType = contentLength < 10 * 1024 * 1024 ? 'image/media file' : 'video file';
-      console.log(`Downloading ${fileSizeMB}MB ${fileType}...`);
+      console.log(`Downloading ${(contentLength / (1024 * 1024)).toFixed(1)}MB video file...`);
       
       // Step 5: Stream download with robust chunk handling (32KB chunks like Python)
       return await this.robustStreamDownload(downloadResponse, outputPath, contentLength);

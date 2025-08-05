@@ -1,64 +1,49 @@
-# Google Drive Sharing Guide for CSV Import
+# Google Drive Video Sharing Guide
 
-When importing videos/images from Google Drive via CSV, you need to ensure proper sharing permissions to avoid "access restricted" errors.
+## Issue: Google Drive 404 Errors
+Your Excel import failed because the Google Drive links are not publicly accessible.
 
-## Quick Fix Steps
+## Current Problem URLs:
+- File ID: `1Fl_HSrPtUiIPeNpaGJNrZ_nQc2iWhFz6` - Returns 404
+- File ID: `1SycHTTIyQmwfdWbVdstkshtovIosFv9S` - Returns 404
 
-### 1. Open Your Google Drive File
-- Go to your Google Drive file
-- Right-click on the file
+## How to Fix Google Drive Sharing:
 
-### 2. Change Sharing Settings
-- Click **"Share"** or **"Get link"**
-- Click on **"Restricted"** dropdown
-- Select **"Anyone with the link can view"**
-- Click **"Done"**
+### Step 1: Make Files Publicly Accessible
+1. Open your Google Drive file
+2. Right-click → "Share"
+3. Click "Change to anyone with the link"
+4. Set permission to "Viewer" 
+5. Copy the sharing URL
 
-### 3. Use the Correct Link Format
-Make sure your CSV contains the shareable link, not the edit link:
-
-**✅ Correct format:**
+### Step 2: Supported URL Formats
+The system accepts these Google Drive URL formats:
 ```
-https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing
-```
-
-**❌ Wrong format (edit link):**
-```
-https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
+https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+https://drive.google.com/file/d/FILE_ID/view?usp=drive_link
+https://drive.google.com/open?id=FILE_ID
 ```
 
-## Common Error Messages & Solutions
+### Step 3: Test Your Links
+Before using in Excel, test that your links work:
+- Open the link in an incognito/private browser window
+- You should be able to download the file without logging in
 
-### "Access Restricted File"
-- **Cause**: File sharing is set to "Restricted" 
-- **Solution**: Change to "Anyone with the link can view"
+## Alternative Solutions:
 
-### "File Requires Authentication"
-- **Cause**: File requires Google login to access
-- **Solution**: Enable public sharing as described above
+### Use YouTube Instead
+For reliable video uploads, use YouTube URLs:
+```
+https://www.youtube.com/watch?v=VIDEO_ID
+```
 
-### "File Not Found"
-- **Cause**: Wrong URL or file was deleted
-- **Solution**: Check the URL is correct and file exists
+### Use Direct Video URLs
+If you have videos hosted elsewhere with direct access:
+```
+https://example.com/video.mp4
+```
 
-## Testing Your Link
-
-Before importing via CSV, test your Google Drive link:
-1. Open an incognito/private browser window
-2. Paste your Google Drive link
-3. You should be able to view/download without logging in
-
-If it asks for login, the sharing permissions are not set correctly.
-
-## File Size Limits
-
-- **Images**: Up to 50MB
-- **Videos**: Up to 1.75GB 
-- Larger files may timeout during download
-
-## Supported File Types
-
-- **Images**: JPG, PNG, GIF, WebP
-- **Videos**: MP4, MOV, AVI, MKV, WebM
-
-For best results, use MP4 format for videos and JPG/PNG for images.
+## Current Status:
+- Posts imported successfully but failed to publish due to Google Drive access issues
+- System is ready to process videos once proper URLs are provided
+- Facebook integration is working correctly

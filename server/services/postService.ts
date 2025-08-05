@@ -107,9 +107,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Publishing photo to Facebook...', 30, 'Uploading image content');
           }
-          // Use simple photo service to avoid import issues
-          const { SimpleFacebookPhotoService } = await import('./simpleFacebookPhotoService');
-          result = await SimpleFacebookPhotoService.uploadPhoto(
+          result = await HootsuiteStyleFacebookService.publishPhotoPost(
             account.pageId,
             account.accessToken,
             post.mediaUrl,
@@ -120,25 +118,11 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           break;
           
         case 'video':
+        case 'reel':
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Processing video for Facebook upload...', 25, 'Starting video processing and upload');
           }
           result = await HootsuiteStyleFacebookService.publishVideoPost(
-            account.pageId,
-            account.accessToken,
-            post.mediaUrl,
-            post.content || undefined,
-            resolvedLabels || undefined,
-            post.language || undefined,
-            (post as any).uploadId // Pass uploadId for progress tracking
-          );
-          break;
-          
-        case 'reel':
-          if ((post as any).uploadId) {
-            progressTracker.updateProgress((post as any).uploadId, 'Processing Reel for Facebook upload...', 25, 'Starting Reel processing and upload');
-          }
-          result = await HootsuiteStyleFacebookService.publishReelPost(
             account.pageId,
             account.accessToken,
             post.mediaUrl,

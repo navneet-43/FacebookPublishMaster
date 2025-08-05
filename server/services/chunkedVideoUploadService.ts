@@ -11,7 +11,6 @@ export interface ChunkedUploadOptions {
   description?: string;
   customLabels?: string[];
   language?: string;
-  isReel?: boolean;
 }
 
 export interface ChunkedUploadResult {
@@ -39,12 +38,7 @@ export class ChunkedVideoUploadService {
     
     console.log(`Starting Facebook upload session for ${(fileSize / (1024 * 1024)).toFixed(1)}MB video`);
     
-    // Use appropriate endpoint - for Reels, we use the Page's video_reels endpoint
-    const startUrl = options.isReel 
-      ? `https://graph.facebook.com/v20.0/${options.pageId}/video_reels`
-      : `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
-      
-    console.log(`Using ${options.isReel ? 'REEL' : 'VIDEO'} endpoint: ${startUrl}`);
+    const startUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
     
     const params = new URLSearchParams({
       upload_phase: 'start',
@@ -122,8 +116,7 @@ export class ChunkedVideoUploadService {
       fs.readSync(fileHandle, buffer, 0, chunkSize, options.startOffset);
       fs.closeSync(fileHandle);
       
-      // Transfer phase always uses the same endpoint structure regardless of Reels
-    const transferUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
+      const transferUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
       
       const formData = new FormData();
       formData.append('upload_phase', 'transfer');
@@ -192,8 +185,7 @@ export class ChunkedVideoUploadService {
     console.log('Finishing upload session');
     
     try {
-      // Finish phase uses the same endpoint structure regardless of Reels
-    const finishUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
+      const finishUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
       
       const params = new URLSearchParams({
         upload_phase: 'finish',
@@ -381,32 +373,5 @@ export class ChunkedVideoUploadService {
         console.warn('Cleanup warning:', cleanupError);
       }
     }
-  }
-
-  /**
-   * Upload video to Facebook with Reel support
-   */
-  async uploadVideoToFacebook(options: {
-    videoFilePath: string;
-    pageId: string;
-    pageAccessToken: string;
-    description?: string;
-    customLabels?: string[];
-    language?: string;
-    isReel?: boolean;
-  }): Promise<ChunkedUploadResult> {
-    
-    console.log(`🎬 Starting Facebook ${options.isReel ? 'Reel' : 'video'} upload`);
-    
-    return await this.uploadVideoInChunks({
-      accessToken: options.pageAccessToken,
-      pageId: options.pageId,
-      filePath: options.videoFilePath,
-      title: options.description || (options.isReel ? 'Reel Upload' : 'Video Upload'),
-      description: options.description,
-      customLabels: options.customLabels || [],
-      language: options.language || 'en',
-      isReel: options.isReel || false
-    });
   }
 }
