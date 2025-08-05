@@ -32,7 +32,24 @@ export class SimpleFacebookPhotoService {
         const formData = new FormData();
         
         try {
-          const file = await fileFromPath(photoUrl);
+          // Check if file has proper image extension, add if missing
+          let finalPath = photoUrl;
+          const fs = await import('fs');
+          const path = await import('path');
+          
+          if (!path.extname(photoUrl)) {
+            // No extension - add .jpg as default for images
+            const newPath = photoUrl + '.jpg';
+            try {
+              await fs.promises.rename(photoUrl, newPath);
+              finalPath = newPath;
+              console.log(`✅ Added .jpg extension: ${finalPath}`);
+            } catch (renameError) {
+              console.warn('Could not rename file to add extension:', renameError);
+            }
+          }
+          
+          const file = await fileFromPath(finalPath);
           formData.append('source', file);
           formData.append('access_token', pageAccessToken);
           formData.append('published', 'true');
@@ -107,7 +124,24 @@ export class SimpleFacebookPhotoService {
         const formData = new FormData();
         
         try {
-          const file = await fileFromPath(downloadResult.filePath);
+          // Check if file has proper image extension, add if missing
+          let finalPath = downloadResult.filePath;
+          const fs = await import('fs');
+          const path = await import('path');
+          
+          if (!path.extname(downloadResult.filePath)) {
+            // No extension - add .jpg as default for images
+            const newPath = downloadResult.filePath + '.jpg';
+            try {
+              await fs.promises.rename(downloadResult.filePath, newPath);
+              finalPath = newPath;
+              console.log(`✅ Added .jpg extension to Google Drive image: ${finalPath}`);
+            } catch (renameError) {
+              console.warn('Could not rename file to add extension:', renameError);
+            }
+          }
+          
+          const file = await fileFromPath(finalPath);
           formData.append('source', file);
           formData.append('access_token', pageAccessToken);
           formData.append('published', 'true');
