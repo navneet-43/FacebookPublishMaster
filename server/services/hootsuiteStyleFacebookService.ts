@@ -167,16 +167,86 @@ export class HootsuiteStyleFacebookService {
       
       let finalPhotoUrl = photoUrl;
       
-      // Convert Google Drive links to direct download URLs
+      // Handle Google Drive links by downloading the file first
       if (isGoogleDriveLink(photoUrl)) {
-        const convertedUrl = convertGoogleDriveLink(photoUrl);
-        if (convertedUrl) {
-          finalPhotoUrl = convertedUrl;
-          console.log('Converted Google Drive link for Facebook:', finalPhotoUrl);
+        console.log('📥 DOWNLOADING GOOGLE DRIVE IMAGE...');
+        
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
+        const downloader = new CorrectGoogleDriveDownloader();
+        const downloadResult = await downloader.downloadVideoFile({ googleDriveUrl: photoUrl });
+        
+        if (downloadResult.success && downloadResult.filePath) {
+          console.log('✅ Google Drive image downloaded successfully');
+          
+          // Upload the downloaded file directly to Facebook
+          const formData = new FormData();
+          
+          try {
+            const { fileFromPath } = await import('formdata-node/file-from-path');
+            const file = await fileFromPath(downloadResult.filePath);
+            formData.append('source', file);
+            formData.append('access_token', pageAccessToken);
+            formData.append('published', 'true');
+            
+            if (caption) {
+              formData.append('caption', caption);
+            }
+            
+            // Add custom labels for Meta Insights tracking
+            if (customLabels && customLabels.length > 0) {
+              const { CustomLabelValidator } = await import('./customLabelValidator');
+              const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
+              
+              if (customLabelsParam) {
+                formData.append('custom_labels', customLabelsParam);
+                console.log('✅ META INSIGHTS: Adding validated custom labels to Facebook photo');
+              }
+            }
+            
+            if (language) {
+              formData.append('locale', language);
+            }
+            
+            const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
+            console.log(`Uploading Google Drive image to page ${pageId}`);
+            
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              body: formData
+            });
+            
+            const data = await response.json();
+            
+            // Clean up downloaded file
+            if (downloadResult.cleanup) downloadResult.cleanup();
+            
+            if (!response.ok || data.error) {
+              console.error('Facebook photo upload error:', data.error);
+              return {
+                success: false,
+                error: data.error?.message || `Photo upload failed: ${response.status}`
+              };
+            }
+            
+            console.log('✅ Google Drive photo uploaded successfully:', data.id);
+            return {
+              success: true,
+              postId: data.id
+            };
+            
+          } catch (fileError) {
+            console.error('Error handling downloaded file:', fileError);
+            if (downloadResult.cleanup) downloadResult.cleanup();
+            return {
+              success: false,
+              error: 'Failed to process downloaded image file'
+            };
+          }
         } else {
+          console.error('Failed to download Google Drive image:', downloadResult.error);
           return {
             success: false,
-            error: 'Invalid Google Drive link format'
+            error: downloadResult.error || 'Failed to download Google Drive image'
           };
         }
       }
@@ -451,9 +521,9 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Google Drive URLs with enhanced large file access
+      // Handle Google Drive URLs with enhanced large file access (for both videos and images)
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
+        console.log('📁 GOOGLE DRIVE MEDIA: Using enhanced file access for video/image content');
         
         if (uploadId) {
           progressTracker.updateProgress(uploadId, 'Downloading from Google Drive...', 40, 'Starting enhanced Google Drive download');
@@ -465,7 +535,34 @@ export class HootsuiteStyleFacebookService {
         const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
         
         if (result.success && result.filePath) {
-          console.log(`✅ Google Drive video downloaded: ${(result.fileSize! / 1024 / 1024).toFixed(2)}MB`);
+          const fileSizeMB = (result.fileSize! / 1024 / 1024).toFixed(2);
+          console.log(`✅ Google Drive file downloaded: ${fileSizeMB}MB`);
+          
+          // Check if downloaded file is an image by size and extension
+          const isLikelyImage = result.fileSize! < 50 * 1024 * 1024; // Under 50MB likely image
+          const path = require('path');
+          const extension = path.extname(result.filePath).toLowerCase();
+          const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          const isImageExtension = imageExtensions.includes(extension);
+          
+          if (isLikelyImage || isImageExtension) {
+            console.log('📸 DETECTED IMAGE: Using photo upload method instead of video');
+            
+            // Use photo upload service for images
+            const photoResult = await this.publishPhotoPost(
+              pageId,
+              pageAccessToken,
+              result.filePath, // Use local file path
+              description || 'Google Drive Image Upload',
+              customLabels || [],
+              language || 'en'
+            );
+            
+            // Clean up downloaded file
+            if (result.cleanup) result.cleanup();
+            
+            return photoResult;
+          }
           
           if (uploadId) {
             progressTracker.updateProgress(uploadId, 'Processing video for Facebook...', 60, 'Optimizing video format for Facebook compatibility');

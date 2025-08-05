@@ -175,7 +175,11 @@ export class CorrectGoogleDriveDownloader {
       const contentType = downloadResponse.headers.get('content-type') || '';
       const contentLength = parseInt(downloadResponse.headers.get('content-length') || '0');
       
-      if (contentType.toLowerCase().includes('html') || contentLength < 1000000) {
+      // Allow smaller files for images (photos can be under 1MB)
+      const isLikelyImage = contentType.toLowerCase().includes('image') || 
+                           contentLength < 1000000; // Images can be smaller
+      
+      if (contentType.toLowerCase().includes('html') || (contentLength < 100000 && !isLikelyImage)) {
         console.error('❌ Received invalid content type.');
         
         // Save error HTML for debugging (matching Python script)
@@ -194,7 +198,9 @@ export class CorrectGoogleDriveDownloader {
         }
       }
       
-      console.log(`Downloading ${(contentLength / (1024 * 1024)).toFixed(1)}MB video file...`);
+      const fileSizeMB = (contentLength / (1024 * 1024)).toFixed(1);
+      const fileType = contentLength < 10 * 1024 * 1024 ? 'image/media file' : 'video file';
+      console.log(`Downloading ${fileSizeMB}MB ${fileType}...`);
       
       // Step 5: Stream download with robust chunk handling (32KB chunks like Python)
       return await this.robustStreamDownload(downloadResponse, outputPath, contentLength);
