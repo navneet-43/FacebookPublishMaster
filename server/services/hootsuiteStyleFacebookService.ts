@@ -1,8 +1,18 @@
 import fetch from 'node-fetch';
 import { storage } from '../storage';
 import { createReadStream, statSync, promises as fs, existsSync, unlinkSync, openSync, readSync, closeSync } from 'fs';
+import * as path from 'path';
 import { FormData } from 'formdata-node';
 import { fileFromPath } from 'formdata-node/file-from-path';
+import { convertGoogleDriveLink, isGoogleDriveLink } from '../utils/googleDriveConverter';
+import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
+import { CustomLabelValidator } from './customLabelValidator';
+import { progressTracker } from './progressTrackingService';
+import { SimpleFacebookEncoder } from './simpleFacebookEncoder';
+import { CompleteVideoUploadService } from './completeVideoUploadService';
+import { FacebookDefinitiveEncoder } from './facebookDefinitiveEncoder';
+import { FacebookVideoValidator } from './facebookVideoValidator';
+import { VideoProcessor } from './videoProcessor';
 
 interface FacebookPageInfo {
   id: string;
@@ -163,7 +173,7 @@ export class HootsuiteStyleFacebookService {
    */
   static async publishPhotoPost(pageId: string, pageAccessToken: string, photoUrl: string, caption?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
+      // Google Drive link conversion (now imported at top)
       
       let finalPhotoUrl = photoUrl;
       
@@ -171,7 +181,6 @@ export class HootsuiteStyleFacebookService {
       if (isGoogleDriveLink(photoUrl)) {
         console.log('📥 DOWNLOADING GOOGLE DRIVE IMAGE...');
         
-        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
         const downloader = new CorrectGoogleDriveDownloader();
         const downloadResult = await downloader.downloadVideoFile({ googleDriveUrl: photoUrl });
         
@@ -182,7 +191,7 @@ export class HootsuiteStyleFacebookService {
           const formData = new FormData();
           
           try {
-            const { fileFromPath } = await import('formdata-node/file-from-path');
+            // fileFromPath imported at top
             const file = await fileFromPath(downloadResult.filePath);
             formData.append('source', file);
             formData.append('access_token', pageAccessToken);
@@ -194,7 +203,7 @@ export class HootsuiteStyleFacebookService {
             
             // Add custom labels for Meta Insights tracking
             if (customLabels && customLabels.length > 0) {
-              const { CustomLabelValidator } = await import('./customLabelValidator');
+              // CustomLabelValidator imported at top
               const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
               
               if (customLabelsParam) {
@@ -323,7 +332,7 @@ export class HootsuiteStyleFacebookService {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
       // Import progress tracker for upload progress updates
-      const { progressTracker } = await import('./progressTrackingService');
+      // progressTracker imported at top
       
       if (uploadId) {
         progressTracker.updateProgress(uploadId, 'Analyzing video source...', 30, 'Determining video platform and processing method');
@@ -334,7 +343,7 @@ export class HootsuiteStyleFacebookService {
         console.log('📁 LOCAL VIDEO FILE: Direct upload to Facebook');
         
         try {
-          const { statSync, existsSync } = await import('fs');
+          // fs functions imported at top
           
           if (!existsSync(videoUrl)) {
             throw new Error(`File not found: ${videoUrl}`);
@@ -346,7 +355,7 @@ export class HootsuiteStyleFacebookService {
           console.log(`📊 LOCAL VIDEO FILE: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
           
           // Apply simple Facebook encoding for guaranteed compatibility
-          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          // SimpleFacebookEncoder imported at top
           console.log('🔧 Applying simple Facebook encoding for guaranteed display...');
           
           const optimizedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(videoUrl);
@@ -540,7 +549,7 @@ export class HootsuiteStyleFacebookService {
           
           // Check if downloaded file is an image by size and extension
           const isLikelyImage = result.fileSize! < 50 * 1024 * 1024; // Under 50MB likely image
-          const path = await import('path');
+          // path imported at top
           const extension = path.extname(result.filePath).toLowerCase();
           const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
           const isImageExtension = imageExtensions.includes(extension);
@@ -569,7 +578,7 @@ export class HootsuiteStyleFacebookService {
           }
           
           // Apply simple encoding for Facebook compatibility
-          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          // SimpleFacebookEncoder imported at top
           const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
           
           let finalPath = result.filePath;
@@ -587,7 +596,7 @@ export class HootsuiteStyleFacebookService {
           
           // Upload to Facebook using the working chunked upload system
           console.log('🚀 STARTING FACEBOOK UPLOAD for Google Drive video');
-          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          // CompleteVideoUploadService imported at top
           const uploadService = new CompleteVideoUploadService();
           
           // Use the actual description provided by the user for manual uploads

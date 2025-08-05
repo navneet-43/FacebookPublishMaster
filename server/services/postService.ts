@@ -107,7 +107,9 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Publishing photo to Facebook...', 30, 'Uploading image content');
           }
-          result = await HootsuiteStyleFacebookService.publishPhotoPost(
+          // Use simple photo service to avoid import issues
+          const { SimpleFacebookPhotoService } = await import('./simpleFacebookPhotoService');
+          result = await SimpleFacebookPhotoService.uploadPhoto(
             account.pageId,
             account.accessToken,
             post.mediaUrl,
