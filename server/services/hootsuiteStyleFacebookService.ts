@@ -540,7 +540,7 @@ export class HootsuiteStyleFacebookService {
           
           // Check if downloaded file is an image by size and extension
           const isLikelyImage = result.fileSize! < 50 * 1024 * 1024; // Under 50MB likely image
-          const path = require('path');
+          const path = await import('path');
           const extension = path.extname(result.filePath).toLowerCase();
           const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
           const isImageExtension = imageExtensions.includes(extension);
