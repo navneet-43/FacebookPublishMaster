@@ -2,6 +2,14 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 
+// SharePoint Web API endpoints for file access
+const SHAREPOINT_API_ENDPOINTS = {
+  // Format: https://domain/_api/web/getfilebyserverrelativeurl('/path/to/file')/$value
+  GET_FILE_BY_URL: '/_api/web/getfilebyserverrelativeurl',
+  // Format: https://domain/_api/v2.0/drives/driveId/items/itemId/content
+  GRAPH_API: '/_api/v2.0/drives'
+};
+
 export class SharePointDownloadService {
   /**
    * Download a file from SharePoint using various link formats
@@ -11,118 +19,11 @@ export class SharePointDownloadService {
     try {
       console.log('🔗 Processing SharePoint URL:', sharePointUrl);
       
-      // Convert SharePoint view link to direct download link
-      const downloadUrl = this.convertToDirectDownloadUrl(sharePointUrl);
-      
-      if (!downloadUrl) {
-        return { 
-          success: false, 
-          error: 'Invalid SharePoint URL format. Please provide a valid SharePoint file link.' 
-        };
-      }
+      // Try multiple SharePoint download approaches
+      const downloadResult = await this.attemptSharePointDownload(sharePointUrl, downloadPath);
+      return downloadResult;
 
-      console.log('📥 Downloading from SharePoint:', downloadUrl);
-
-      // Create download request with SharePoint-specific headers
-      const response = await fetch(downloadUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': '*/*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'identity', // Prevent compression issues
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        },
-        timeout: 300000, // 5 minute timeout
-        follow: 10 // Follow redirects
-      });
-
-      if (!response.ok) {
-        console.error('❌ SharePoint download failed:', response.status, response.statusText);
-        
-        if (response.status === 403) {
-          return { 
-            success: false, 
-            error: 'Access denied. The SharePoint file may be private or require authentication. Please ensure the file is publicly accessible or shared with "Anyone with the link".' 
-          };
-        }
-        
-        if (response.status === 404) {
-          return { 
-            success: false, 
-            error: 'SharePoint file not found. Please check the URL and ensure the file exists.' 
-          };
-        }
-
-        return { 
-          success: false, 
-          error: `SharePoint download failed: ${response.status} ${response.statusText}` 
-        };
-      }
-
-      // Get content length for progress tracking
-      const contentLength = parseInt(response.headers.get('content-length') || '0');
-      console.log(`📊 SharePoint file size: ${(contentLength / (1024 * 1024)).toFixed(2)} MB`);
-
-      // Ensure download directory exists
-      const downloadDir = path.dirname(downloadPath);
-      if (!fs.existsSync(downloadDir)) {
-        fs.mkdirSync(downloadDir, { recursive: true });
-      }
-
-      // Stream download to file
-      const fileStream = fs.createWriteStream(downloadPath);
-      let downloadedBytes = 0;
-
-      return new Promise((resolve) => {
-        if (!response.body) {
-          resolve({ success: false, error: 'No response body from SharePoint' });
-          return;
-        }
-
-        response.body.on('data', (chunk: Buffer) => {
-          downloadedBytes += chunk.length;
-          const progress = contentLength > 0 ? (downloadedBytes / contentLength * 100).toFixed(1) : 'unknown';
-          if (downloadedBytes % (5 * 1024 * 1024) === 0) { // Log every 5MB
-            console.log(`📥 SharePoint download progress: ${progress}%`);
-          }
-        });
-
-        response.body.on('error', (error: Error) => {
-          console.error('❌ SharePoint download stream error:', error);
-          fileStream.destroy();
-          if (fs.existsSync(downloadPath)) {
-            fs.unlinkSync(downloadPath);
-          }
-          resolve({ success: false, error: `Download stream error: ${error.message}` });
-        });
-
-        response.body.on('end', () => {
-          fileStream.end();
-        });
-
-        fileStream.on('finish', () => {
-          const stats = fs.statSync(downloadPath);
-          console.log(`✅ SharePoint download completed: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
-          
-          resolve({ 
-            success: true, 
-            filePath: downloadPath, 
-            sizeBytes: stats.size 
-          });
-        });
-
-        fileStream.on('error', (error: Error) => {
-          console.error('❌ SharePoint file write error:', error);
-          if (fs.existsSync(downloadPath)) {
-            fs.unlinkSync(downloadPath);
-          }
-          resolve({ success: false, error: `File write error: ${error.message}` });
-        });
-
-        response.body.pipe(fileStream);
-      });
+      // This method is no longer used - replaced by attemptSharePointDownload
 
     } catch (error) {
       console.error('❌ SharePoint download error:', error);
@@ -144,52 +45,116 @@ export class SharePointDownloadService {
   }
 
   /**
-   * Convert SharePoint view URL to direct download URL
+   * Extract direct download URL from SharePoint redirect chain
    */
-  private static convertToDirectDownloadUrl(sharePointUrl: string): string | null {
+  private static async getDirectDownloadUrl(sharePointUrl: string): Promise<string | null> {
     try {
-      // Handle different SharePoint URL formats
-      if (sharePointUrl.includes('sharepoint.com') || sharePointUrl.includes('1drv.ms')) {
+      console.log('🔗 Extracting direct download URL from SharePoint...');
+      
+      // Step 1: Follow the redirect to get the stream.aspx URL
+      const response = await fetch(sharePointUrl, {
+        method: 'HEAD',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+        redirect: 'manual' // Don't auto-follow redirects
+      });
+
+      if (response.status === 302) {
+        const redirectUrl = response.headers.get('location');
+        console.log('📍 SharePoint redirect URL:', redirectUrl);
         
-        // Format 1: Direct OneForce/SharePoint download link
-        if (sharePointUrl.includes('download=1') || sharePointUrl.includes('&download')) {
-          return sharePointUrl;
-        }
-
-        // Format 2: OneDrive sharing link (1drv.ms)
-        if (sharePointUrl.includes('1drv.ms')) {
-          // These usually redirect to proper download URLs
-          return sharePointUrl + (sharePointUrl.includes('?') ? '&download=1' : '?download=1');
-        }
-
-        // Format 3: SharePoint view link - convert to download
-        if (sharePointUrl.includes('/_layouts/15/') || sharePointUrl.includes('/_layouts/')) {
-          // Try to convert view link to download link
-          return sharePointUrl.replace('/_layouts/15/', '/_layouts/15/download.aspx?SourceUrl=');
-        }
-
-        // Format 4: Modern SharePoint sharing link
-        if (sharePointUrl.includes('/personal/') || sharePointUrl.includes('/sites/')) {
-          // Add download parameter
-          const url = new URL(sharePointUrl);
-          url.searchParams.set('download', '1');
-          return url.toString();
-        }
-
-        // Format 5: General SharePoint URLs - try adding download parameter
-        if (sharePointUrl.includes('sharepoint.com')) {
-          const url = new URL(sharePointUrl);
-          url.searchParams.set('download', '1');
-          return url.toString();
+        if (redirectUrl && redirectUrl.includes('stream.aspx')) {
+          // Extract file ID from the redirect URL
+          const streamUrl = new URL(redirectUrl);
+          const fileId = streamUrl.searchParams.get('id');
+          
+          if (fileId) {
+            console.log('🆔 Extracted file ID:', fileId);
+            console.log('🔍 Decoded file path:', decodeURIComponent(fileId));
+            
+            // Construct the direct download URL using the actual file path
+            const baseUrl = `${streamUrl.protocol}//${streamUrl.hostname}`;
+            
+            // Method 1: Use SharePoint's direct file access with download parameter
+            const directFileUrl = `${baseUrl}${fileId}?download=1`;
+            console.log('🔗 Method 1 - Direct file URL:', directFileUrl);
+            
+            // Method 2: Use SharePoint's download API (backup)
+            const downloadApiUrl = `${baseUrl}/_layouts/15/download.aspx?SourceUrl=${encodeURIComponent(baseUrl + fileId)}`;
+            console.log('🔗 Method 2 - Download API URL:', downloadApiUrl);
+            
+            // Return the direct file URL first, as it's more reliable
+            return directFileUrl;
+          }
         }
       }
 
-      // If we can't convert, return the original URL and let the download attempt handle it
-      return sharePointUrl;
+      // Fallback: Try multiple conversion approaches
+      return this.convertToDirectDownloadUrl(sharePointUrl);
+
+    } catch (error) {
+      console.error('❌ Error extracting SharePoint download URL:', error);
+      return this.convertToDirectDownloadUrl(sharePointUrl);
+    }
+  }
+
+  /**
+   * Convert SharePoint view URL to direct download URL (fallback method)
+   */
+  private static convertToDirectDownloadUrl(sharePointUrl: string): string | null {
+    try {
+      console.log('🔄 Converting SharePoint URL to download format...');
+      
+      // Handle SharePoint :v: format URLs
+      if (sharePointUrl.includes('sharepoint.com') && sharePointUrl.includes(':v:')) {
+        const urlObj = new URL(sharePointUrl);
+        
+        // Method 1: Try to decode the file path from the URL structure
+        const pathname = urlObj.pathname;
+        const pathParts = pathname.split(':v:');
+        
+        if (pathParts.length >= 2) {
+          const basePath = pathParts[0]; // /personal/user_domain_com
+          const filePath = pathParts[1]; // /g/path/to/file.mp4
+          
+          // Construct the actual file path
+          const actualPath = basePath + '/Documents' + filePath;
+          const baseUrl = `${urlObj.protocol}//${urlObj.hostname}`;
+          
+          // Try direct file access with download parameter
+          const directUrl = `${baseUrl}${actualPath}?download=1`;
+          console.log('🔗 Method 1 - Direct file URL:', directUrl);
+          return directUrl;
+        }
+      }
+
+      // Method 2: Use SharePoint's download API
+      if (sharePointUrl.includes('sharepoint.com')) {
+        const urlObj = new URL(sharePointUrl);
+        const baseUrl = `${urlObj.protocol}//${urlObj.hostname}`;
+        
+        // Use SharePoint's download.aspx endpoint
+        const downloadUrl = `${baseUrl}/_layouts/15/download.aspx?SourceUrl=${encodeURIComponent(sharePointUrl)}`;
+        console.log('🔗 Method 2 - Download API URL:', downloadUrl);
+        return downloadUrl;
+      }
+
+      // Method 3: Add download parameter to original URL
+      if (sharePointUrl.includes('sharepoint.com') || sharePointUrl.includes('1drv.ms')) {
+        const url = new URL(sharePointUrl);
+        url.searchParams.set('download', '1');
+        const paramUrl = url.toString();
+        console.log('🔗 Method 3 - Parameter URL:', paramUrl);
+        return paramUrl;
+      }
+
+      console.log('⚠️ Could not convert SharePoint URL');
+      return sharePointUrl; // Return original as fallback
 
     } catch (error) {
       console.error('❌ Error converting SharePoint URL:', error);
-      return sharePointUrl; // Fallback to original URL
+      return sharePointUrl;
     }
   }
 

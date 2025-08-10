@@ -1,5 +1,5 @@
 import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
-import { SharePointDownloadService } from './sharepointDownloadService';
+import { EnhancedSharePointDownloadService } from './enhancedSharePointDownloadService';
 import { FacebookVideoDownloadService } from './facebookVideoDownloadService';
 import path from 'path';
 
@@ -38,7 +38,7 @@ export class UniversalMediaDownloadService {
           break;
           
         case 'sharepoint':
-          result = await SharePointDownloadService.downloadFromSharePoint(url, downloadPath);
+          result = await EnhancedSharePointDownloadService.downloadFromSharePoint(url, downloadPath);
           break;
           
         case 'facebook':
@@ -75,7 +75,7 @@ export class UniversalMediaDownloadService {
       return 'google_drive';
     }
     
-    if (SharePointDownloadService.isSharePointUrl(url)) {
+    if (EnhancedSharePointDownloadService.isSharePointUrl(url)) {
       return 'sharepoint';
     }
     
@@ -97,7 +97,7 @@ export class UniversalMediaDownloadService {
         return `google_drive_${Date.now()}.mp4`;
         
       case 'sharepoint':
-        return SharePointDownloadService.extractFilename(url);
+        return EnhancedSharePointDownloadService.extractFilename(url);
         
       case 'facebook':
         return FacebookVideoDownloadService.extractFilename(url);
@@ -112,7 +112,7 @@ export class UniversalMediaDownloadService {
    */
   static isSupportedUrl(url: string): boolean {
     return (url.includes('drive.google.com') || url.includes('docs.google.com')) ||
-           SharePointDownloadService.isSharePointUrl(url) ||
+           EnhancedSharePointDownloadService.isSharePointUrl(url) ||
            FacebookVideoDownloadService.isFacebookVideoUrl(url);
   }
 

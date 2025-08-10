@@ -26,6 +26,7 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - FIXED (Aug 10, 2025): Resolved Facebook Reels minimum height requirement (960px) - added video validation and automatic upscaling
 - OPTIMIZED (Aug 10, 2025): Eliminated unnecessary FFmpeg conversions by checking video requirements first, only processing when needed
 - MAJOR EXPANSION (Aug 10, 2025): Added SharePoint and Facebook video download support via Universal Media Download Service - CSV imports now handle Google Drive, SharePoint/OneDrive, and Facebook video links automatically
+- ENHANCED SHAREPOINT (Aug 10, 2025): Implemented Enhanced SharePoint Download Service with multi-strategy approach (direct access, REST API, browser session) and robust content validation - properly handles authentication requirements and organizational restrictions
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
