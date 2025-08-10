@@ -7,7 +7,7 @@ channel = "stable-24_05"
 packages = ["aria2", "ffmpeg", "wget"]
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "gce"
 build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
