@@ -17,6 +17,8 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - FIXED: Photo uploads from Google Drive now work via CSV (using SimpleFacebookPhotoService)
 - ENHANCED: Automatic content detection (photo/video/reel) from Google Drive links in CSV
 - RESOLVED: JavaScript "require is not defined" errors in upload services
+- NEW (Aug 10, 2025): Full Reels API integration in CSV import system - users can specify "reel" in mediaType column for Reels uploads
+- ENHANCED (Aug 10, 2025): CSV preview now displays Post Type column showing content type (Post, Image, Video, Reel) with visual indicators
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:

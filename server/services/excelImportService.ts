@@ -821,6 +821,14 @@ export class ExcelImportService {
         language: 'HI',
         mediaUrl: 'https://drive.google.com/file/d/1XYZ789/view?usp=sharing',
         mediaType: 'video'
+      },
+      {
+        content: 'Example Reel content - short vertical video perfect for Reels',
+        scheduledFor: '6:00 PM',
+        customLabels: 'reel, trending',
+        language: 'EN',
+        mediaUrl: 'https://drive.google.com/file/d/1REEL456/view?usp=sharing',
+        mediaType: 'reel'
       }
     ];
     

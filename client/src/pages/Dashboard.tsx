@@ -594,7 +594,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
       
-      const selectedAccount = facebookAccounts?.find((acc: any) => acc.id.toString() === selectedFacebookAccount);
+      const selectedAccount = facebookAccounts?.find((acc: any) => acc.id?.toString() === selectedFacebookAccount);
       
       toast({
         title: "Import Successful!",
@@ -1313,6 +1313,7 @@ export default function Dashboard() {
                         <tr>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Content</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Scheduled</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Post Type</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Labels</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Language</th>
                           <th className="px-3 py-2 text-left font-medium text-gray-700">Media</th>
@@ -1342,6 +1343,22 @@ export default function Dashboard() {
                                   </span>
                                 )}
                               </div>
+                            </td>
+                            <td className="px-3 py-2 border-b text-gray-600">
+                              <span className={`inline-block px-2 py-1 text-xs rounded-full font-medium ${
+                                (row.mediatype || row.mediaType || row.MediaType || 'post').toLowerCase() === 'reel' 
+                                  ? 'bg-purple-100 text-purple-800' 
+                                  : (row.mediatype || row.mediaType || row.MediaType || 'post').toLowerCase() === 'video'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : (row.mediatype || row.mediaType || row.MediaType || 'post').toLowerCase() === 'image'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {(row.mediatype || row.mediaType || row.MediaType || 'post').toLowerCase() === 'reel' ? '🎬 Reel' :
+                                 (row.mediatype || row.mediaType || row.MediaType || 'post').toLowerCase() === 'video' ? '📹 Video' :
+                                 (row.mediatype || row.mediaType || row.MediaType || 'post').toLowerCase() === 'image' ? '🖼️ Image' :
+                                 '📝 Post'}
+                              </span>
                             </td>
                             <td className="px-3 py-2 border-b text-gray-600">
                               <div className="flex flex-wrap gap-1">
