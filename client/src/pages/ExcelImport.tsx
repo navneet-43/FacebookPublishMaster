@@ -230,11 +230,17 @@ export default function ExcelImport() {
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                   </svg>
-                  YouTube Video Support
+                  Multi-Platform Video Support
                 </h4>
-                <p className="text-sm text-green-800">
-                  YouTube URLs in Media URL column will be automatically downloaded and uploaded as actual video files to Facebook during import.
+                <p className="text-sm text-green-800 mb-2">
+                  Support for multiple video platforms with automatic download and upload:
                 </p>
+                <ul className="text-xs text-green-700 ml-2 space-y-1">
+                  <li>• Google Drive (videos & images)</li>
+                  <li>• SharePoint/OneDrive for Business</li>
+                  <li>• Facebook Videos (public videos)</li>
+                  <li>• YouTube videos</li>
+                </ul>
               </div>
               
               <Button 

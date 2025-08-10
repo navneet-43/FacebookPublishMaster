@@ -5,6 +5,7 @@ import { insertPostSchema, insertActivitySchema } from '@shared/schema';
 import { z } from 'zod';
 import { YouTubeHelper } from './youtubeHelper';
 import { VideoProcessor } from './videoProcessor';
+import { UniversalMediaDownloadService } from './universalMediaDownloadService';
 
 export interface ExcelPostData {
   content: string;
@@ -30,6 +31,8 @@ export interface AnalysisResult {
   error?: string;
   details?: string;
   googleDriveVideos?: number;
+  sharepointVideos?: number;
+  facebookVideos?: number;
   regularVideos?: number;
   estimatedSizes?: string[];
 }
@@ -370,8 +373,10 @@ export class ExcelImportService {
           });
       }
       
-      // Analyze posts for Google Drive videos and other statistics
+      // Analyze posts for various media platforms and statistics
       let googleDriveVideos = 0;
+      let sharepointVideos = 0;
+      let facebookVideos = 0;
       let regularVideos = 0;
       const estimatedSizes: string[] = [];
       
@@ -379,9 +384,22 @@ export class ExcelImportService {
         const mediaUrl = post.mediaurl || post.mediaUrl || post['media url'] || post['Media URL'] || '';
         
         if (mediaUrl && typeof mediaUrl === 'string') {
-          if (mediaUrl.includes('drive.google.com')) {
-            googleDriveVideos++;
-            estimatedSizes.push(`Row ${index + 1}: Google Drive video (size unknown)`);
+          if (UniversalMediaDownloadService.isSupportedUrl(mediaUrl)) {
+            const platform = this.detectPlatform(mediaUrl);
+            switch (platform) {
+              case 'google_drive':
+                googleDriveVideos++;
+                estimatedSizes.push(`Row ${index + 1}: Google Drive media (size unknown)`);
+                break;
+              case 'sharepoint':
+                sharepointVideos++;
+                estimatedSizes.push(`Row ${index + 1}: SharePoint media (size unknown)`);
+                break;
+              case 'facebook':
+                facebookVideos++;
+                estimatedSizes.push(`Row ${index + 1}: Facebook video (size unknown)`);
+                break;
+            }
           } else if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || 
                      mediaUrl.includes('vimeo.com') || mediaUrl.includes('dropbox.com')) {
             regularVideos++;
@@ -390,14 +408,16 @@ export class ExcelImportService {
         }
       });
       
-      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive videos, ${regularVideos} other videos`);
+      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive, ${sharepointVideos} SharePoint, ${facebookVideos} Facebook videos, ${regularVideos} other videos`);
       
       return {
         success: true,
         data: posts,
         googleDriveVideos,
         regularVideos,
-        estimatedSizes
+        estimatedSizes,
+        sharepointVideos,
+        facebookVideos
       };
       
     } catch (error) {
@@ -620,16 +640,17 @@ export class ExcelImportService {
             failed++;
             continue;
           }
-        } else if (postData.mediaUrl && (postData.mediaUrl.includes('drive.google.com') || postData.mediaUrl.includes('docs.google.com'))) {
-          console.log(`🔄 Row ${i + 1}: Google Drive media detected for Excel import: ${postData.mediaUrl}`);
+        } else if (postData.mediaUrl && UniversalMediaDownloadService.isSupportedUrl(postData.mediaUrl)) {
+          const platform = this.detectPlatform(postData.mediaUrl);
+          console.log(`🔄 Row ${i + 1}: ${platform} media detected for Excel import: ${postData.mediaUrl}`);
           console.log(`📝 Row ${i + 1}: User specified mediaType: ${postData.mediaType || 'auto-detect'}`);
           
-          // For Google Drive media, preserve the user's specified mediaType
+          // For universal media (Google Drive, SharePoint, Facebook), preserve the user's specified mediaType
           // If no mediaType specified, default to 'video' for backward compatibility
           processedMediaUrl = postData.mediaUrl;
           processedMediaType = postData.mediaType || 'video';
           
-          console.log(`✅ Row ${i + 1}: Google Drive media URL preserved with mediaType: ${processedMediaType}`);
+          console.log(`✅ Row ${i + 1}: ${platform} media URL preserved with mediaType: ${processedMediaType}`);
         }
         
         // Parse date and convert from IST to UTC for storage
@@ -808,6 +829,22 @@ export class ExcelImportService {
     }
   }
 
+  /**
+   * Detect platform from media URL
+   */
+  private static detectPlatform(url: string): string {
+    if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+      return 'google_drive';
+    }
+    if (url.includes('sharepoint.com') || url.includes('1drv.ms') || url.includes('onedrive.live.com')) {
+      return 'sharepoint';
+    }
+    if (url.includes('facebook.com') || url.includes('fb.com')) {
+      return 'facebook';
+    }
+    return 'unknown';
+  }
+
   static generateTemplate(): Buffer {
     const accountName = 'Your Facebook Page Name';
     
@@ -821,11 +858,19 @@ export class ExcelImportService {
         mediaType: 'image'
       },
       {
-        content: 'Another example post with different scheduling',
+        content: 'SharePoint video example - works with OneDrive for Business',
         scheduledFor: '10:30 AM',
         customLabels: 'promotion, sale',
         language: 'HI',
-        mediaUrl: 'https://drive.google.com/file/d/1XYZ789/view?usp=sharing',
+        mediaUrl: 'https://company.sharepoint.com/sites/team/Documents/video.mp4',
+        mediaType: 'video'
+      },
+      {
+        content: 'Facebook video reposting - download and repost public Facebook videos',
+        scheduledFor: '4:15 PM',
+        customLabels: 'viral, content',
+        language: 'EN',
+        mediaUrl: 'https://www.facebook.com/watch/?v=123456789',
         mediaType: 'video'
       },
       {
