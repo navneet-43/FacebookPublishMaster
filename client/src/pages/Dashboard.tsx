@@ -845,7 +845,7 @@ export default function Dashboard() {
                 ) : (
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
-                Preview CSV
+                Import via CSV
               </Button>
               <input
                 ref={csvFileInputRef}
