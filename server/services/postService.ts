@@ -63,6 +63,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     }
     
     console.log(`Publishing post ${post.id} to Facebook page: ${account.name} (${account.pageId})`);
+    console.log(`📝 Post mediaType: "${post.mediaType}" | mediaUrl: ${post.mediaUrl ? 'present' : 'none'}`);
     
     // Update progress
     if ((post as any).uploadId) {
@@ -104,6 +105,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
     if (post.mediaUrl && post.mediaType && post.mediaType !== 'none') {
       switch (post.mediaType) {
         case 'photo':
+        case 'image':
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Publishing photo to Facebook...', 30, 'Uploading image content');
           }

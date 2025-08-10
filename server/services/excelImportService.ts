@@ -53,6 +53,11 @@ export class ExcelImportService {
       content, scheduledFor, accountName, customLabels, language, mediaUrl, mediaType
     });
     
+    // Log mediaType specifically for debugging
+    if (mediaType) {
+      console.log(`📝 Row ${rowIndex + 1}: User specified mediaType: "${mediaType}" (will be preserved)`);
+    }
+    
     // Required fields validation
     if (!content || typeof content !== 'string' || content.trim() === '') {
       errors.push(`Row ${rowIndex + 1}: Content is required`);
@@ -595,7 +600,8 @@ export class ExcelImportService {
             if (videoResult.success && videoResult.processedUrl) {
               console.log(`✅ Row ${i + 1}: YouTube video processed successfully`);
               processedMediaUrl = videoResult.processedUrl;
-              processedMediaType = 'video';
+              // Preserve user's mediaType for YouTube videos (could be 'reel' for YouTube Shorts)
+              processedMediaType = postData.mediaType || 'video';
               
               // Add cleanup function to the post metadata for later cleanup
               if (videoResult.cleanup) {
@@ -615,15 +621,15 @@ export class ExcelImportService {
             continue;
           }
         } else if (postData.mediaUrl && (postData.mediaUrl.includes('drive.google.com') || postData.mediaUrl.includes('docs.google.com'))) {
-          console.log(`🔄 Row ${i + 1}: Google Drive video detected for Excel import: ${postData.mediaUrl}`);
-          console.log(`📝 Row ${i + 1}: Google Drive videos will be processed using enhanced downloader during Facebook upload`);
+          console.log(`🔄 Row ${i + 1}: Google Drive media detected for Excel import: ${postData.mediaUrl}`);
+          console.log(`📝 Row ${i + 1}: User specified mediaType: ${postData.mediaType || 'auto-detect'}`);
           
-          // For Google Drive videos, we keep the original URL and let the Facebook service handle
-          // the enhanced downloading during the actual upload process
+          // For Google Drive media, preserve the user's specified mediaType
+          // If no mediaType specified, default to 'video' for backward compatibility
           processedMediaUrl = postData.mediaUrl;
-          processedMediaType = 'video';
+          processedMediaType = postData.mediaType || 'video';
           
-          console.log(`✅ Row ${i + 1}: Google Drive video URL preserved for enhanced processing`);
+          console.log(`✅ Row ${i + 1}: Google Drive media URL preserved with mediaType: ${processedMediaType}`);
         }
         
         // Parse date and convert from IST to UTC for storage
