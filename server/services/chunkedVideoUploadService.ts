@@ -42,16 +42,20 @@ export class ChunkedVideoUploadService {
     
     // Use appropriate endpoint - for Reels, we use the Page's video_reels endpoint
     const startUrl = options.isReel 
-      ? `https://graph.facebook.com/v20.0/${options.pageId}/video_reels`
+      ? `https://graph.facebook.com/v23.0/${options.pageId}/video_reels`
       : `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
       
     console.log(`Using ${options.isReel ? 'REEL' : 'VIDEO'} endpoint: ${startUrl}`);
     
     const params = new URLSearchParams({
       upload_phase: 'start',
-      access_token: options.accessToken,
-      file_size: fileSize.toString()
+      access_token: options.accessToken
     });
+    
+    // Only add file_size for regular videos, not for Reels (per Facebook docs)
+    if (!options.isReel) {
+      params.append('file_size', fileSize.toString());
+    }
     
     try {
       const response = await fetch(startUrl, {
@@ -229,9 +233,10 @@ export class ChunkedVideoUploadService {
       });
       
       if (options.isReel) {
-        // For Reels, we use the video_id as identifier and don't need upload_phase
+        // For Reels, use video_id and publish parameters as per Facebook docs
         params.append('video_id', options.sessionId); // sessionId contains video_id for Reels
         params.append('upload_phase', 'finish');
+        params.append('video_state', 'PUBLISHED');
       } else {
         // For regular videos
         params.append('upload_phase', 'finish');
@@ -332,22 +337,25 @@ export class ChunkedVideoUploadService {
         };
       }
       
-      // Handle Reels differently - they use direct upload to the provided URL
-      if (options.isReel && startResult.uploadUrl) {
-        console.log('🎬 REEL UPLOAD: Using direct upload to Facebook URL');
+      // Handle Reels differently - they use direct upload to rupload.facebook.com
+      if (options.isReel && startResult.uploadUrl && startResult.videoId) {
+        console.log('🎬 REEL UPLOAD: Using Facebook official upload method');
+        console.log(`Upload URL: ${startResult.uploadUrl}`);
+        console.log(`Video ID: ${startResult.videoId}`);
         
         try {
           const fileBuffer = fs.readFileSync(options.filePath);
-          const formData = new FormData();
-          formData.append('video_file_chunk', fileBuffer, {
-            filename: path.basename(options.filePath),
-            contentType: 'video/mp4'
-          });
           
+          // Upload directly to rupload.facebook.com as per Facebook documentation
           const uploadResponse = await fetch(startResult.uploadUrl, {
             method: 'POST',
-            body: formData,
-            headers: formData.getHeaders()
+            headers: {
+              'Authorization': `OAuth ${options.accessToken}`,
+              'offset': '0',
+              'file_size': fileSize.toString(),
+              'Content-Type': 'application/octet-stream'
+            },
+            body: fileBuffer
           });
           
           if (!uploadResponse.ok) {
@@ -355,13 +363,14 @@ export class ChunkedVideoUploadService {
             throw new Error(`Reel upload failed: ${uploadResponse.status} - ${errorText}`);
           }
           
-          console.log('✅ REEL UPLOADED SUCCESSFULLY to Facebook');
+          const uploadResult = await uploadResponse.json();
+          console.log('✅ REEL UPLOADED SUCCESSFULLY:', uploadResult);
           
           // Phase 3: Finish and publish for Reels
           const finishResult = await this.finishUpload({
             pageId: options.pageId,
             accessToken: options.accessToken,
-            sessionId: startResult.sessionId!,
+            sessionId: startResult.videoId, // Use video_id for Reels
             title: options.title,
             description: options.description,
             customLabels: options.customLabels,
@@ -373,7 +382,7 @@ export class ChunkedVideoUploadService {
             success: finishResult.success,
             videoId: finishResult.videoId || startResult.videoId,
             facebookUrl: finishResult.facebookUrl,
-            uploadSessionId: startResult.sessionId,
+            uploadSessionId: startResult.videoId,
             error: finishResult.error,
             totalSize: fileSize,
             uploadedBytes: fileSize // Full file uploaded for Reels
@@ -384,7 +393,7 @@ export class ChunkedVideoUploadService {
           return {
             success: false,
             error: `Reel upload failed: ${(error as Error).message}`,
-            uploadSessionId: startResult.sessionId,
+            uploadSessionId: startResult.videoId,
             totalSize: fileSize,
             uploadedBytes: 0
           };
