@@ -308,4 +308,75 @@ export class CompleteVideoUploadService {
       };
     }
   }
+
+  /**
+   * Upload processed reel file to Facebook using Reels endpoint
+   */
+  async uploadProcessedReelFile(options: {
+    videoFilePath: string;
+    pageId: string;
+    pageAccessToken: string;
+    description?: string;
+    customLabels?: string[];
+    language?: string;
+  }): Promise<CompleteVideoUploadResult> {
+    
+    console.log('🎬 Starting Facebook Reel upload for processed file');
+    
+    try {
+      const stats = statSync(options.videoFilePath);
+      const fileSizeMB = (stats.size / 1024 / 1024);
+      console.log(`Reel file size: ${fileSizeMB.toFixed(1)}MB`);
+      
+      if (fileSizeMB > 250) { // Facebook Reels size limit
+        throw new Error(`Reel file too large: ${fileSizeMB.toFixed(1)}MB (max 250MB for Reels)`);
+      }
+      
+      // Use chunked upload but target Reels endpoint
+      const reelUploadResult = await this.uploader.uploadVideoToFacebook({
+        videoFilePath: options.videoFilePath,
+        pageId: options.pageId,
+        pageAccessToken: options.pageAccessToken,
+        description: options.description || 'Reel upload',
+        customLabels: options.customLabels || [],
+        language: options.language || 'en',
+        isReel: true // Special flag for Reel upload
+      });
+      
+      if (reelUploadResult.success) {
+        console.log('✅ Reel uploaded successfully to Facebook');
+        
+        // Clean up temp file
+        try {
+          unlinkSync(options.videoFilePath);
+          console.log('🗑️ Temp reel file cleaned up');
+        } catch (cleanupError) {
+          console.warn('⚠️ Could not clean up temporary reel file:', cleanupError);
+        }
+        
+        return {
+          success: true,
+          method: 'processed_video_file_upload',
+          uploadedSizeMB: fileSizeMB,
+          postId: reelUploadResult.videoId,
+          videoId: reelUploadResult.videoId
+        };
+      } else {
+        console.error('❌ Facebook Reel upload failed:', reelUploadResult.error);
+        return {
+          success: false,
+          method: 'processed_video_file_upload',
+          error: reelUploadResult.error || 'Facebook Reel upload failed'
+        };
+      }
+      
+    } catch (error) {
+      console.error('Error in reel upload process:', error);
+      return {
+        success: false,
+        method: 'processed_video_file_upload',
+        error: error instanceof Error ? error.message : 'Unknown reel upload error'
+      };
+    }
+  }
 }

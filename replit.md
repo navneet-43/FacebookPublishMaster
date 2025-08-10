@@ -14,6 +14,9 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - TECHNICAL: Support videos up to 1GB via Facebook chunked upload API with zero compression
 - Use Alright Tamil page for testing video uploads and demonstrations
 - Prefer robust HTTP download methods over FFmpeg when possible
+- FIXED: Photo uploads from Google Drive now work via CSV (using SimpleFacebookPhotoService)
+- ENHANCED: Automatic content detection (photo/video/reel) from Google Drive links in CSV
+- RESOLVED: JavaScript "require is not defined" errors in upload services
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
@@ -48,23 +51,3 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
 - **Google Drive**: Integrated for video download and processing (with enhanced downloader and virus scan bypass).
 - **Dropbox**: (Limited integration) Formerly used for video hosting.
 - **Vimeo**: (Limited integration) Formerly used for video hosting.
-
-## Recent Updates
-
-**August 7, 2025 - ENHANCED GOOGLE DRIVE DOWNLOADER**
-- ✅ **MULTIPLE DOWNLOAD METHODS**: Implemented 3 fallback methods for Google Drive video downloads
-- ✅ **IMPROVED ERROR DETECTION**: Specific error messages for authentication, permissions, file type issues
-- ✅ **CONTENT VALIDATION**: Detects when HTML is returned instead of binary video data
-- ✅ **FILE SIZE VALIDATION**: Identifies files too small to be video content (under 1MB)
-- ✅ **BROWSER MIMICKING**: Enhanced headers and request patterns to avoid blocking
-- ✅ **DEBUG LOGGING**: Saves error HTML for troubleshooting access issues
-- 🎯 **RESULT**: Clear, actionable error messages instead of generic "invalid content type"
-
-**August 5, 2025 - CSV CONTENT TYPE SELECTION FEATURE ADDED**
-- ✅ **FRONTEND ENHANCEMENT**: Added content type selection dropdown in CSV import preview
-- ✅ **CONTENT TYPE OPTIONS**: Text Post, Video Post, Image Post, Link Post selection available
-- ✅ **BACKEND INTEGRATION**: Updated ExcelImportService to handle defaultContentType parameter
-- ✅ **USER EXPERIENCE**: Eliminates need to specify content type in CSV file manually
-- ✅ **SMART DEFAULTS**: Uses selected content type when CSV doesn't specify mediaType
-- ✅ **FALLBACK BEHAVIOR**: CSV content type column still takes precedence if provided
-- 🎯 **RESULT**: Simplified CSV import workflow with better user control

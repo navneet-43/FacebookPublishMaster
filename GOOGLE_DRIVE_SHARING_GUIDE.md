@@ -1,49 +1,64 @@
-# Google Drive Video Sharing Guide
+# Google Drive Sharing Guide for CSV Import
 
-## Issue: Google Drive 404 Errors
-Your Excel import failed because the Google Drive links are not publicly accessible.
+When importing videos/images from Google Drive via CSV, you need to ensure proper sharing permissions to avoid "access restricted" errors.
 
-## Current Problem URLs:
-- File ID: `1Fl_HSrPtUiIPeNpaGJNrZ_nQc2iWhFz6` - Returns 404
-- File ID: `1SycHTTIyQmwfdWbVdstkshtovIosFv9S` - Returns 404
+## Quick Fix Steps
 
-## How to Fix Google Drive Sharing:
+### 1. Open Your Google Drive File
+- Go to your Google Drive file
+- Right-click on the file
 
-### Step 1: Make Files Publicly Accessible
-1. Open your Google Drive file
-2. Right-click → "Share"
-3. Click "Change to anyone with the link"
-4. Set permission to "Viewer" 
-5. Copy the sharing URL
+### 2. Change Sharing Settings
+- Click **"Share"** or **"Get link"**
+- Click on **"Restricted"** dropdown
+- Select **"Anyone with the link can view"**
+- Click **"Done"**
 
-### Step 2: Supported URL Formats
-The system accepts these Google Drive URL formats:
+### 3. Use the Correct Link Format
+Make sure your CSV contains the shareable link, not the edit link:
+
+**✅ Correct format:**
 ```
-https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-https://drive.google.com/file/d/FILE_ID/view?usp=drive_link
-https://drive.google.com/open?id=FILE_ID
+https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing
 ```
 
-### Step 3: Test Your Links
-Before using in Excel, test that your links work:
-- Open the link in an incognito/private browser window
-- You should be able to download the file without logging in
-
-## Alternative Solutions:
-
-### Use YouTube Instead
-For reliable video uploads, use YouTube URLs:
+**❌ Wrong format (edit link):**
 ```
-https://www.youtube.com/watch?v=VIDEO_ID
+https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
 ```
 
-### Use Direct Video URLs
-If you have videos hosted elsewhere with direct access:
-```
-https://example.com/video.mp4
-```
+## Common Error Messages & Solutions
 
-## Current Status:
-- Posts imported successfully but failed to publish due to Google Drive access issues
-- System is ready to process videos once proper URLs are provided
-- Facebook integration is working correctly
+### "Access Restricted File"
+- **Cause**: File sharing is set to "Restricted" 
+- **Solution**: Change to "Anyone with the link can view"
+
+### "File Requires Authentication"
+- **Cause**: File requires Google login to access
+- **Solution**: Enable public sharing as described above
+
+### "File Not Found"
+- **Cause**: Wrong URL or file was deleted
+- **Solution**: Check the URL is correct and file exists
+
+## Testing Your Link
+
+Before importing via CSV, test your Google Drive link:
+1. Open an incognito/private browser window
+2. Paste your Google Drive link
+3. You should be able to view/download without logging in
+
+If it asks for login, the sharing permissions are not set correctly.
+
+## File Size Limits
+
+- **Images**: Up to 50MB
+- **Videos**: Up to 1.75GB 
+- Larger files may timeout during download
+
+## Supported File Types
+
+- **Images**: JPG, PNG, GIF, WebP
+- **Videos**: MP4, MOV, AVI, MKV, WebM
+
+For best results, use MP4 format for videos and JPG/PNG for images.

@@ -599,7 +599,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const file = req.file;
       const accountId = req.body.accountId;
-      const contentType = req.body.contentType || 'text'; // Default to text if not provided
       const userId = 3; // Use default user ID
       
       if (!file) {
@@ -625,9 +624,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let result;
       if (file.mimetype.includes('csv')) {
-        result = await ExcelImportService.parseCSVFile(file.buffer, userId, parseInt(accountId), contentType);
+        result = await ExcelImportService.parseCSVFile(file.buffer, userId, parseInt(accountId));
       } else {
-        result = await ExcelImportService.parseExcelFile(file.buffer, userId, parseInt(accountId), contentType);
+        result = await ExcelImportService.parseExcelFile(file.buffer, userId, parseInt(accountId));
       }
       
       console.log("Import result:", result);

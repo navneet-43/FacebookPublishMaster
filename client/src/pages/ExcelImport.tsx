@@ -19,7 +19,6 @@ interface ImportResult {
 export default function ExcelImport() {
   const [file, setFile] = useState<File | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-  const [selectedContentType, setSelectedContentType] = useState<string>("text");
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,11 +69,10 @@ export default function ExcelImport() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (data: { file: File; accountId: string; contentType: string }) => {
+    mutationFn: async (data: { file: File; accountId: string }) => {
       const formData = new FormData();
       formData.append("file", data.file);
       formData.append("accountId", data.accountId);
-      formData.append("contentType", data.contentType);
 
       const response = await fetch("/api/excel-import", {
         method: "POST",
@@ -181,16 +179,12 @@ export default function ExcelImport() {
   };
 
   const handleImport = () => {
-    if (file && selectedAccountId && selectedContentType) {
-      importMutation.mutate({ 
-        file, 
-        accountId: selectedAccountId, 
-        contentType: selectedContentType 
-      });
+    if (file && selectedAccountId) {
+      importMutation.mutate({ file, accountId: selectedAccountId });
     } else {
       toast({
         title: "Missing information",
-        description: "Please select a file, Facebook page, and content type before importing.",
+        description: "Please select both a file and a Facebook page before importing.",
         variant: "destructive",
       });
     }
@@ -338,28 +332,10 @@ export default function ExcelImport() {
                     </Select>
                   </div>
                   
-                  <div>
-                    <Label htmlFor="content-type">Default Content Type</Label>
-                    <Select value={selectedContentType} onValueChange={setSelectedContentType}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose content type..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">Text Post</SelectItem>
-                        <SelectItem value="video">Video Post</SelectItem>
-                        <SelectItem value="image">Image Post</SelectItem>
-                        <SelectItem value="link">Link Post</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-gray-500 mt-1">
-                      This will be applied to all posts unless content type is specified in the CSV
-                    </p>
-                  </div>
-                  
                   <div className="flex gap-2">
                     <Button 
                       onClick={handleImport}
-                      disabled={importMutation.isPending || !selectedAccountId || !selectedContentType}
+                      disabled={importMutation.isPending || !selectedAccountId}
                       className="flex-1"
                     >
                       {importMutation.isPending ? "Importing..." : "Import Posts"}
@@ -369,7 +345,6 @@ export default function ExcelImport() {
                       onClick={() => {
                         setFile(null);
                         setSelectedAccountId("");
-                        setSelectedContentType("text");
                         if (fileInputRef.current) {
                           fileInputRef.current.value = "";
                         }

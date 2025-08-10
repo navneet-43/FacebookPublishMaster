@@ -1,8 +1,18 @@
 import fetch from 'node-fetch';
 import { storage } from '../storage';
 import { createReadStream, statSync, promises as fs, existsSync, unlinkSync, openSync, readSync, closeSync } from 'fs';
+import * as path from 'path';
 import { FormData } from 'formdata-node';
 import { fileFromPath } from 'formdata-node/file-from-path';
+import { convertGoogleDriveLink, isGoogleDriveLink } from '../utils/googleDriveConverter';
+import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
+import { CustomLabelValidator } from './customLabelValidator';
+import { progressTracker } from './progressTrackingService';
+import { SimpleFacebookEncoder } from './simpleFacebookEncoder';
+import { CompleteVideoUploadService } from './completeVideoUploadService';
+import { FacebookDefinitiveEncoder } from './facebookDefinitiveEncoder';
+import { FacebookVideoValidator } from './facebookVideoValidator';
+import { VideoProcessor } from './videoProcessor';
 
 interface FacebookPageInfo {
   id: string;
@@ -163,20 +173,89 @@ export class HootsuiteStyleFacebookService {
    */
   static async publishPhotoPost(pageId: string, pageAccessToken: string, photoUrl: string, caption?: string, customLabels?: string[], language?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
-      const { convertGoogleDriveLink, isGoogleDriveLink } = await import('../utils/googleDriveConverter');
+      // Google Drive link conversion (now imported at top)
       
       let finalPhotoUrl = photoUrl;
       
-      // Convert Google Drive links to direct download URLs
+      // Handle Google Drive links by downloading the file first
       if (isGoogleDriveLink(photoUrl)) {
-        const convertedUrl = convertGoogleDriveLink(photoUrl);
-        if (convertedUrl) {
-          finalPhotoUrl = convertedUrl;
-          console.log('Converted Google Drive link for Facebook:', finalPhotoUrl);
+        console.log('📥 DOWNLOADING GOOGLE DRIVE IMAGE...');
+        
+        const downloader = new CorrectGoogleDriveDownloader();
+        const downloadResult = await downloader.downloadVideoFile({ googleDriveUrl: photoUrl });
+        
+        if (downloadResult.success && downloadResult.filePath) {
+          console.log('✅ Google Drive image downloaded successfully');
+          
+          // Upload the downloaded file directly to Facebook
+          const formData = new FormData();
+          
+          try {
+            // fileFromPath imported at top
+            const file = await fileFromPath(downloadResult.filePath);
+            formData.append('source', file);
+            formData.append('access_token', pageAccessToken);
+            formData.append('published', 'true');
+            
+            if (caption) {
+              formData.append('caption', caption);
+            }
+            
+            // Add custom labels for Meta Insights tracking
+            if (customLabels && customLabels.length > 0) {
+              // CustomLabelValidator imported at top
+              const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
+              
+              if (customLabelsParam) {
+                formData.append('custom_labels', customLabelsParam);
+                console.log('✅ META INSIGHTS: Adding validated custom labels to Facebook photo');
+              }
+            }
+            
+            if (language) {
+              formData.append('locale', language);
+            }
+            
+            const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
+            console.log(`Uploading Google Drive image to page ${pageId}`);
+            
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              body: formData
+            });
+            
+            const data = await response.json();
+            
+            // Clean up downloaded file
+            if (downloadResult.cleanup) downloadResult.cleanup();
+            
+            if (!response.ok || data.error) {
+              console.error('Facebook photo upload error:', data.error);
+              return {
+                success: false,
+                error: data.error?.message || `Photo upload failed: ${response.status}`
+              };
+            }
+            
+            console.log('✅ Google Drive photo uploaded successfully:', data.id);
+            return {
+              success: true,
+              postId: data.id
+            };
+            
+          } catch (fileError) {
+            console.error('Error handling downloaded file:', fileError);
+            if (downloadResult.cleanup) downloadResult.cleanup();
+            return {
+              success: false,
+              error: 'Failed to process downloaded image file'
+            };
+          }
         } else {
+          console.error('Failed to download Google Drive image:', downloadResult.error);
           return {
             success: false,
-            error: 'Invalid Google Drive link format'
+            error: downloadResult.error || 'Failed to download Google Drive image'
           };
         }
       }
@@ -253,7 +332,7 @@ export class HootsuiteStyleFacebookService {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
       // Import progress tracker for upload progress updates
-      const { progressTracker } = await import('./progressTrackingService');
+      // progressTracker imported at top
       
       if (uploadId) {
         progressTracker.updateProgress(uploadId, 'Analyzing video source...', 30, 'Determining video platform and processing method');
@@ -264,7 +343,7 @@ export class HootsuiteStyleFacebookService {
         console.log('📁 LOCAL VIDEO FILE: Direct upload to Facebook');
         
         try {
-          const { statSync, existsSync } = await import('fs');
+          // fs functions imported at top
           
           if (!existsSync(videoUrl)) {
             throw new Error(`File not found: ${videoUrl}`);
@@ -276,7 +355,7 @@ export class HootsuiteStyleFacebookService {
           console.log(`📊 LOCAL VIDEO FILE: ${fileSizeMB.toFixed(2)}MB - Uploading as actual video file`);
           
           // Apply simple Facebook encoding for guaranteed compatibility
-          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          // SimpleFacebookEncoder imported at top
           console.log('🔧 Applying simple Facebook encoding for guaranteed display...');
           
           const optimizedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(videoUrl);
@@ -451,9 +530,9 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Google Drive URLs with enhanced large file access
+      // Handle Google Drive URLs with enhanced large file access (for both videos and images)
       if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
-        console.log('🎥 GOOGLE DRIVE VIDEO: Using enhanced large file access');
+        console.log('📁 GOOGLE DRIVE MEDIA: Using enhanced file access for video/image content');
         
         if (uploadId) {
           progressTracker.updateProgress(uploadId, 'Downloading from Google Drive...', 40, 'Starting enhanced Google Drive download');
@@ -465,14 +544,46 @@ export class HootsuiteStyleFacebookService {
         const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
         
         if (result.success && result.filePath) {
-          console.log(`✅ Google Drive video downloaded: ${(result.fileSize! / 1024 / 1024).toFixed(2)}MB`);
+          const fileSizeMB = (result.fileSize! / 1024 / 1024).toFixed(2);
+          console.log(`✅ Google Drive file downloaded: ${fileSizeMB}MB`);
+          
+          // Check if downloaded file is an image by size and extension
+          const isLikelyImage = result.fileSize! < 1 * 1024 * 1024; // Under 1MB likely image (more restrictive)
+          // path imported at top
+          const extension = path.extname(result.filePath).toLowerCase();
+          const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          const isImageExtension = imageExtensions.includes(extension);
+          const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+          const isVideoExtension = videoExtensions.includes(extension);
+          
+          console.log(`🔍 FILE ANALYSIS: Size=${fileSizeMB}MB, Extension=${extension}, IsImage=${isImageExtension}, IsVideo=${isVideoExtension}`);
+          
+          if ((isLikelyImage && isImageExtension) && !isVideoExtension) {
+            console.log('📸 DETECTED IMAGE: Using SimpleFacebookPhotoService instead of video');
+            
+            // Use the new SimpleFacebookPhotoService for images
+            const { SimpleFacebookPhotoService } = await import('./simpleFacebookPhotoService');
+            const photoResult = await SimpleFacebookPhotoService.uploadPhoto(
+              pageId,
+              pageAccessToken,
+              result.filePath, // Use local file path - SimpleFacebookPhotoService handles this correctly
+              description || 'Google Drive Image Upload',
+              customLabels || [],
+              language || 'en'
+            );
+            
+            // Clean up downloaded file
+            if (result.cleanup) result.cleanup();
+            
+            return photoResult;
+          }
           
           if (uploadId) {
             progressTracker.updateProgress(uploadId, 'Processing video for Facebook...', 60, 'Optimizing video format for Facebook compatibility');
           }
           
           // Apply simple encoding for Facebook compatibility
-          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          // SimpleFacebookEncoder imported at top
           const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
           
           let finalPath = result.filePath;
@@ -490,7 +601,7 @@ export class HootsuiteStyleFacebookService {
           
           // Upload to Facebook using the working chunked upload system
           console.log('🚀 STARTING FACEBOOK UPLOAD for Google Drive video');
-          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          // CompleteVideoUploadService imported at top
           const uploadService = new CompleteVideoUploadService();
           
           // Use the actual description provided by the user for manual uploads
@@ -1680,6 +1791,121 @@ Google Drive's security policies prevent external applications from downloading 
     } catch (error) {
       console.error('Error getting page permissions:', error);
       return [];
+    }
+  }
+
+  /**
+   * Publish Reel post to Facebook page
+   */
+  static async publishReelPost(
+    pageId: string, 
+    pageAccessToken: string, 
+    videoUrl: string, 
+    description?: string, 
+    customLabels?: string[], 
+    language?: string,
+    uploadId?: string
+  ): Promise<{success: boolean, postId?: string, error?: string}> {
+    
+    console.log('🎥 PROCESSING REEL for Facebook upload:', videoUrl);
+    
+    try {
+      // Handle Google Drive URLs with enhanced large file access
+      if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
+        console.log('📁 GOOGLE DRIVE REEL: Using enhanced file access for reel content');
+        
+        if (uploadId) {
+          const { progressTracker } = await import('./progressTracker');
+          progressTracker.updateProgress(uploadId, 'Downloading Reel from Google Drive...', 40, 'Starting enhanced Google Drive download');
+        }
+        
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
+        
+        const downloader = new CorrectGoogleDriveDownloader();
+        const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
+        
+        if (result.success && result.filePath) {
+          const fileSizeMB = (result.fileSize! / 1024 / 1024).toFixed(2);
+          console.log(`✅ Google Drive reel downloaded: ${fileSizeMB}MB`);
+          
+          if (uploadId) {
+            const { progressTracker } = await import('./progressTracker');
+            progressTracker.updateProgress(uploadId, 'Processing Reel for Facebook...', 60, 'Optimizing reel format for Facebook compatibility');
+          }
+          
+          // Apply simple encoding for Facebook compatibility
+          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+          const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
+          
+          let finalPath = result.filePath;
+          let encodingCleanup: (() => void) | undefined;
+          
+          if (encodedResult.success && encodedResult.outputPath) {
+            console.log('✅ Facebook encoding applied to Google Drive reel');
+            finalPath = encodedResult.outputPath;
+            encodingCleanup = encodedResult.cleanup;
+          }
+          
+          if (uploadId) {
+            const { progressTracker } = await import('./progressTracker');
+            progressTracker.updateProgress(uploadId, 'Uploading Reel to Facebook...', 80, 'Starting Facebook Reel upload');
+          }
+          
+          // Upload to Facebook using the Reel-specific upload system
+          console.log('🚀 STARTING FACEBOOK REEL UPLOAD');
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
+          
+          const finalDescription = description || 'Google Drive Reel Upload';
+          
+          const uploadResult = await uploadService.uploadProcessedReelFile({
+            videoFilePath: finalPath,
+            pageId: pageId,
+            pageAccessToken: pageAccessToken,
+            description: finalDescription,
+            customLabels: customLabels || [],
+            language: language || 'en'
+          });
+          
+          console.log('📊 REEL UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
+          
+          if (uploadResult.success) {
+            console.log('✅ ENHANCED GOOGLE DRIVE REEL UPLOADED SUCCESSFULLY');
+            
+            // Clean up temporary files after successful upload
+            if (result.cleanup) result.cleanup();
+            if (encodingCleanup) encodingCleanup();
+            
+            return {
+              success: true,
+              postId: uploadResult.postId || uploadResult.videoId
+            };
+          } else {
+            console.log('❌ FACEBOOK REEL UPLOAD FAILED:', uploadResult.error);
+            
+            return {
+              success: false,
+              error: uploadResult.error || 'Facebook Reel upload failed'
+            };
+          }
+        }
+        
+        console.log(`❌ Enhanced Google Drive reel processing failed: ${result.error}`);
+        return {
+          success: false,
+          error: result.error || 'Google Drive reel processing failed'
+        };
+      }
+
+      // For non-Google Drive URLs, use regular video processing but with Reel endpoint
+      return await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+      
+    } catch (error) {
+      console.error('Reel upload error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown reel upload error'
+      };
     }
   }
 }

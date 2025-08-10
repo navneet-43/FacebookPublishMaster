@@ -405,7 +405,7 @@ export class ExcelImportService {
     }
   }
   
-  static async parseExcelFile(fileBuffer: Buffer, userId: number, accountId?: number, contentType: string = 'text'): Promise<ImportResult> {
+  static async parseExcelFile(fileBuffer: Buffer, userId: number, accountId?: number): Promise<ImportResult> {
     try {
       const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
@@ -461,7 +461,7 @@ export class ExcelImportService {
           return obj;
         });
       
-      return await this.processPostsData(posts, userId, accountId, contentType);
+      return await this.processPostsData(posts, userId, accountId);
     } catch (error) {
       console.error('Excel parsing error:', error);
       return {
@@ -473,7 +473,7 @@ export class ExcelImportService {
     }
   }
   
-  static async parseCSVFile(fileBuffer: Buffer, userId: number, accountId?: number, contentType: string = 'text'): Promise<ImportResult> {
+  static async parseCSVFile(fileBuffer: Buffer, userId: number, accountId?: number): Promise<ImportResult> {
     return new Promise((resolve) => {
       const csvText = fileBuffer.toString('utf-8');
       
@@ -492,7 +492,7 @@ export class ExcelImportService {
             return;
           }
           
-          const result = await this.processPostsData(results.data, userId, accountId, contentType);
+          const result = await this.processPostsData(results.data, userId, accountId);
           resolve(result);
         },
         error: (error: any) => {
@@ -507,7 +507,7 @@ export class ExcelImportService {
     });
   }
   
-  private static async processPostsData(posts: any[], userId: number, accountId?: number, defaultContentType: string = 'text'): Promise<ImportResult> {
+  private static async processPostsData(posts: any[], userId: number, accountId?: number): Promise<ImportResult> {
     const errors: string[] = [];
     let imported = 0;
     let failed = 0;
@@ -583,7 +583,7 @@ export class ExcelImportService {
         
         // Process YouTube videos during import - download and prepare for Facebook upload
         let processedMediaUrl = postData.mediaUrl;
-        let processedMediaType = postData.mediaType || defaultContentType;
+        let processedMediaType = postData.mediaType;
         
         if (postData.mediaUrl && YouTubeHelper.isYouTubeUrl(postData.mediaUrl)) {
           console.log(`🎥 Row ${i + 1}: Processing YouTube video for Excel import: ${postData.mediaUrl}`);
@@ -668,7 +668,7 @@ export class ExcelImportService {
               status: 'scheduled',
               language: postData.language || 'EN',
               mediaUrl: processedMediaUrl,
-              mediaType: processedMediaType || defaultContentType,
+              mediaType: processedMediaType,
               labels: labelNames  // Store custom labels for Meta Insights
             });
             break; // Success, exit retry loop
