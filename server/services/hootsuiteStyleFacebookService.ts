@@ -1883,6 +1883,47 @@ Google Drive's security policies prevent external applications from downloading 
           } else {
             console.log('❌ FACEBOOK REEL UPLOAD FAILED:', uploadResult.error);
             
+            // Handle Reels authorization errors by falling back to regular video upload
+            if (uploadResult.error?.includes('not authorized') || uploadResult.error?.includes('NotAuthorizedError')) {
+              console.log('❌ REELS NOT AUTHORIZED: Falling back to regular video upload');
+              console.log('💡 TIP: Enable Reels permissions in Facebook Business Settings for this page');
+              
+              if (uploadId) {
+                const { progressTracker } = await import('./progressTracker');
+                progressTracker.updateProgress(uploadId, 'Reels not authorized, uploading as video...', 70, 'Switching to video upload method');
+              }
+              
+              // Fallback to regular video upload
+              const videoResult = await uploadService.uploadProcessedVideoFile({
+                videoFilePath: finalPath,
+                pageId: pageId,
+                pageAccessToken: pageAccessToken,
+                description: finalDescription,
+                customLabels: customLabels || [],
+                language: language || 'en'
+              });
+              
+              if (videoResult.success) {
+                console.log('✅ FALLBACK SUCCESS: Uploaded as regular video instead of Reel');
+                
+                // Clean up temporary files after successful fallback upload
+                if (result.cleanup) result.cleanup();
+                if (encodingCleanup) encodingCleanup();
+                
+                return {
+                  success: true,
+                  postId: videoResult.postId || videoResult.videoId,
+                  fallbackUsed: 'video' // Indicate fallback was used
+                };
+              } else {
+                console.log('❌ FALLBACK ALSO FAILED:', videoResult.error);
+                return {
+                  success: false,
+                  error: `Reel upload failed (not authorized), video fallback also failed: ${videoResult.error}`
+                };
+              }
+            }
+            
             return {
               success: false,
               error: uploadResult.error || 'Facebook Reel upload failed'
@@ -1897,8 +1938,37 @@ Google Drive's security policies prevent external applications from downloading 
         };
       }
 
-      // For non-Google Drive URLs, use regular video processing but with Reel endpoint
-      return await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+      // For non-Google Drive URLs, try Reel upload with fallback to video
+      console.log('🎬 NON-GOOGLE DRIVE REEL: Attempting direct reel upload');
+      
+      try {
+        // First try as a Reel using the chunked upload service
+        const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
+        const chunkedService = new ChunkedVideoUploadService();
+        
+        // For direct URLs, we need to download first or use a different approach
+        // For now, fallback to regular video upload for non-Google Drive Reels
+        console.log('📝 NON-GOOGLE DRIVE REEL: Using video upload method (Reel-specific upload requires file download)');
+        
+        const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+        
+        if (videoResult.success) {
+          return {
+            success: true,
+            postId: videoResult.postId,
+            fallbackUsed: 'video' // Indicate fallback was used
+          };
+        } else {
+          return videoResult;
+        }
+        
+      } catch (error) {
+        console.error('Non-Google Drive Reel upload error:', error);
+        return {
+          success: false,
+          error: (error as Error).message
+        };
+      }
       
     } catch (error) {
       console.error('Reel upload error:', error);
