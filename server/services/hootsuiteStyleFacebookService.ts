@@ -1833,17 +1833,45 @@ Google Drive's security policies prevent external applications from downloading 
             progressTracker.updateProgress(uploadId, 'Processing Reel for Facebook...', 60, 'Optimizing reel format for Facebook compatibility');
           }
           
-          // Apply simple encoding for Facebook compatibility
-          const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
-          const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
+          // Check if video needs processing for Reels
+          const { ReelsValidator } = await import('./reelsValidator');
+          const shouldProcessCheck = await ReelsValidator.shouldSkipProcessing(result.filePath);
           
           let finalPath = result.filePath;
           let encodingCleanup: (() => void) | undefined;
           
-          if (encodedResult.success && encodedResult.outputPath) {
-            console.log('✅ Facebook encoding applied to Google Drive reel');
-            finalPath = encodedResult.outputPath;
-            encodingCleanup = encodedResult.cleanup;
+          if (shouldProcessCheck.shouldSkip) {
+            console.log(`✅ SKIPPING PROCESSING: ${shouldProcessCheck.reason}`);
+            finalPath = result.filePath;
+          } else {
+            console.log(`🔧 PROCESSING REQUIRED: ${shouldProcessCheck.reason}`);
+            
+            // Validate for Reels requirements
+            const validation = await ReelsValidator.validateForReels(result.filePath);
+            
+            if (validation.needsUpscaling) {
+              console.log('📈 Video needs upscaling for Reels minimum requirements');
+              
+              const upscaleResult = await ReelsValidator.upscaleForReels(result.filePath);
+              if (upscaleResult.success && upscaleResult.outputPath) {
+                console.log('✅ Video upscaled for Reels requirements');
+                finalPath = upscaleResult.outputPath;
+                encodingCleanup = upscaleResult.cleanup;
+              } else {
+                console.log('❌ Upscaling failed, falling back to regular video upload');
+                // Continue with original file for fallback
+              }
+            } else {
+              // Apply simple encoding for basic compatibility
+              const { SimpleFacebookEncoder } = await import('./simpleFacebookEncoder');
+              const encodedResult = await SimpleFacebookEncoder.createSimpleCompatibleVideo(result.filePath);
+              
+              if (encodedResult.success && encodedResult.outputPath) {
+                console.log('✅ Facebook encoding applied to Google Drive reel');
+                finalPath = encodedResult.outputPath;
+                encodingCleanup = encodedResult.cleanup;
+              }
+            }
           }
           
           if (uploadId) {

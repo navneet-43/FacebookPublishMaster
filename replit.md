@@ -23,6 +23,8 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - IMPROVED (Aug 10, 2025): Enhanced error handling for Facebook API authorization errors with user-friendly messaging
 - UPDATED (Aug 10, 2025): Implemented proper Facebook Reels API following official documentation - using rupload.facebook.com with OAuth headers and correct upload flow
 - ENHANCED (Aug 10, 2025): Added comprehensive Reels permissions setup guide and API v23.0 compatibility
+- FIXED (Aug 10, 2025): Resolved Facebook Reels minimum height requirement (960px) - added video validation and automatic upscaling
+- OPTIMIZED (Aug 10, 2025): Eliminated unnecessary FFmpeg conversions by checking video requirements first, only processing when needed
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
