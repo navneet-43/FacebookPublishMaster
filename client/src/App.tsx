@@ -13,6 +13,7 @@ import GoogleSheetsIntegration from "@/pages/GoogleSheetsIntegration";
 import ExcelImport from "@/pages/ExcelImport";
 import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
+import ReportsPage from "@/pages/ReportsPage";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileMenu from "@/components/layout/MobileMenu";
 import TeamLogin from "@/pages/TeamLogin";
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/google-sheets" component={GoogleSheetsIntegration} />
       <Route path="/excel-import" component={ExcelImport} />
       <Route path="/custom-labels" component={CustomLabels} />
+      <Route path="/reports" component={ReportsPage} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

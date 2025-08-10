@@ -45,6 +45,10 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             <i className="fa-solid fa-clock-rotate-left w-5"></i>
             <span className="ml-3">Publishing History</span>
           </Link>
+          <Link href="/reports" onClick={onClose} className={`flex items-center px-4 py-3 ${isActive('/reports') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
+            <i className="fa-solid fa-chart-bar w-5"></i>
+            <span className="ml-3">Reports</span>
+          </Link>
           
           <div className="px-4 mt-6 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Configuration

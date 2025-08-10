@@ -21,6 +21,7 @@ import { GoogleSheetsService } from "./services/googleSheetsService";
 import { setupGoogleOAuthRoutes } from "./routes/googleOAuth";
 import { ExcelImportService } from "./services/excelImportService";
 import { progressTracker } from "./services/progressTrackingService";
+import { reportsRouter } from "./routes/reports";
 
 const authenticateUser = async (req: Request) => {
   // Use default Facebook OAuth user (ID 3) without authentication
@@ -884,6 +885,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Reports routes
+  app.use('/api/reports', reportsRouter);
 
   // Health endpoint for keep-alive service
   app.get('/api/health', (req: Request, res: Response) => {
