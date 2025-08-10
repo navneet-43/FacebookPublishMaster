@@ -261,6 +261,87 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
+      // Handle Universal Media Download Service URLs (Facebook images, SharePoint, etc.)
+      const { UniversalMediaDownloadService } = await import('./universalMediaDownloadService');
+      if (UniversalMediaDownloadService.isSupportedUrl(photoUrl)) {
+        console.log('📁 UNIVERSAL MEDIA: Using enhanced file access for photo/image content');
+        
+        const downloadResult = await UniversalMediaDownloadService.downloadMedia(photoUrl);
+        
+        if (downloadResult.success && downloadResult.filePath) {
+          console.log('✅ Universal media image downloaded successfully');
+          
+          // Upload the downloaded file directly to Facebook
+          const formData = new FormData();
+          
+          try {
+            const file = await fileFromPath(downloadResult.filePath);
+            formData.append('source', file);
+            formData.append('access_token', pageAccessToken);
+            formData.append('published', 'true');
+            
+            if (caption) {
+              formData.append('caption', caption);
+            }
+            
+            // Add custom labels for Meta Insights tracking
+            if (customLabels && customLabels.length > 0) {
+              const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
+              
+              if (customLabelsParam) {
+                formData.append('custom_labels', customLabelsParam);
+                console.log('✅ META INSIGHTS: Adding validated custom labels to universal media photo');
+              }
+            }
+            
+            if (language) {
+              formData.append('locale', language);
+            }
+            
+            const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
+            console.log(`Uploading universal media image to page ${pageId}`);
+            
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              body: formData
+            });
+            
+            const data = await response.json();
+            
+            // Clean up downloaded file
+            if (downloadResult.cleanup) downloadResult.cleanup();
+            
+            if (!response.ok || data.error) {
+              console.error('Facebook universal media photo upload error:', data.error);
+              return {
+                success: false,
+                error: data.error?.message || `Photo upload failed: ${response.status}`
+              };
+            }
+            
+            console.log('✅ Universal media photo uploaded successfully:', data.id);
+            return {
+              success: true,
+              postId: data.id
+            };
+            
+          } catch (fileError) {
+            console.error('Error handling downloaded universal media file:', fileError);
+            if (downloadResult.cleanup) downloadResult.cleanup();
+            return {
+              success: false,
+              error: 'Failed to process downloaded image file'
+            };
+          }
+        } else {
+          console.error('Failed to download universal media image:', downloadResult.error);
+          return {
+            success: false,
+            error: downloadResult.error || 'Failed to download image from provided URL'
+          };
+        }
+      }
+      
       const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
       
       const postData = new URLSearchParams();

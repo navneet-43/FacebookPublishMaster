@@ -1,6 +1,7 @@
 import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
 import { EnhancedSharePointDownloadService } from './enhancedSharePointDownloadService';
 import { FacebookVideoDownloadService } from './facebookVideoDownloadService';
+import { FacebookImageDownloadService } from './facebookImageDownloadService';
 import path from 'path';
 
 export interface DownloadResult {
@@ -41,8 +42,12 @@ export class UniversalMediaDownloadService {
           result = await EnhancedSharePointDownloadService.downloadFromSharePoint(url, downloadPath);
           break;
           
-        case 'facebook':
+        case 'facebook_video':
           result = await FacebookVideoDownloadService.downloadFromFacebook(url, downloadPath);
+          break;
+          
+        case 'facebook_image':
+          result = await FacebookImageDownloadService.downloadFromFacebook(url, downloadPath);
           break;
           
         default:
@@ -70,7 +75,7 @@ export class UniversalMediaDownloadService {
   /**
    * Detect the source platform from URL
    */
-  private static detectSourcePlatform(url: string): 'google_drive' | 'sharepoint' | 'facebook' | 'unknown' {
+  private static detectSourcePlatform(url: string): 'google_drive' | 'sharepoint' | 'facebook_video' | 'facebook_image' | 'unknown' {
     if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
       return 'google_drive';
     }
@@ -80,7 +85,11 @@ export class UniversalMediaDownloadService {
     }
     
     if (FacebookVideoDownloadService.isFacebookVideoUrl(url)) {
-      return 'facebook';
+      return 'facebook_video';
+    }
+    
+    if (FacebookImageDownloadService.isFacebookImageUrl(url)) {
+      return 'facebook_image';
     }
     
     return 'unknown';
@@ -99,8 +108,11 @@ export class UniversalMediaDownloadService {
       case 'sharepoint':
         return EnhancedSharePointDownloadService.extractFilename(url);
         
-      case 'facebook':
+      case 'facebook_video':
         return FacebookVideoDownloadService.extractFilename(url);
+        
+      case 'facebook_image':
+        return FacebookImageDownloadService.extractFilename(url);
         
       default:
         return `universal_media_${timestamp}.mp4`;
@@ -113,7 +125,8 @@ export class UniversalMediaDownloadService {
   static isSupportedUrl(url: string): boolean {
     return (url.includes('drive.google.com') || url.includes('docs.google.com')) ||
            EnhancedSharePointDownloadService.isSharePointUrl(url) ||
-           FacebookVideoDownloadService.isFacebookVideoUrl(url);
+           FacebookVideoDownloadService.isFacebookVideoUrl(url) ||
+           FacebookImageDownloadService.isFacebookImageUrl(url);
   }
 
   /**
@@ -135,6 +148,11 @@ export class UniversalMediaDownloadService {
         name: 'Facebook Videos',
         description: 'Public Facebook video posts',
         example: 'https://www.facebook.com/watch/?v=123456789'
+      },
+      {
+        name: 'Facebook Images',
+        description: 'Public Facebook photo posts',
+        example: 'https://www.facebook.com/photo?fbid=123456789&set=a.123456789'
       }
     ];
   }
