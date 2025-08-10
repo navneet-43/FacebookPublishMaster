@@ -32,6 +32,7 @@ export class ChunkedVideoUploadService {
     videoId?: string;
     startOffset?: number;
     endOffset?: number;
+    uploadUrl?: string;
     error?: string;
   }> {
     
@@ -72,21 +73,44 @@ export class ChunkedVideoUploadService {
         throw new Error(`Start phase error: ${result.error.message || result.error}`);
       }
       
-      if (!result.upload_session_id) {
-        throw new Error(`No session ID returned: ${JSON.stringify(result)}`);
+      // Handle different response formats for Reels vs regular videos
+      if (options.isReel) {
+        // For Reels API, Facebook returns video_id and upload_url instead of upload_session_id
+        if (!result.video_id || !result.upload_url) {
+          throw new Error(`Incomplete Reel response: ${JSON.stringify(result)}`);
+        }
+        
+        console.log(`Reel upload session started`);
+        console.log(`Video ID: ${result.video_id}`);
+        console.log(`Upload URL: ${result.upload_url}`);
+        
+        // For Reels, we use the video_id as session identifier
+        return {
+          success: true,
+          sessionId: result.video_id, // Use video_id as session identifier for Reels
+          videoId: result.video_id,
+          uploadUrl: result.upload_url, // Store the upload URL for Reels
+          startOffset: 0, // Reels typically start from 0
+          endOffset: fileSize // Upload entire file for Reels
+        };
+      } else {
+        // Regular video upload
+        if (!result.upload_session_id) {
+          throw new Error(`No session ID returned: ${JSON.stringify(result)}`);
+        }
+        
+        console.log(`Upload session started: ${result.upload_session_id}`);
+        console.log(`Video ID: ${result.video_id}`);
+        console.log(`First chunk: ${result.start_offset} to ${result.end_offset}`);
+        
+        return {
+          success: true,
+          sessionId: result.upload_session_id,
+          videoId: result.video_id,
+          startOffset: parseInt(result.start_offset),
+          endOffset: parseInt(result.end_offset)
+        };
       }
-      
-      console.log(`Upload session started: ${result.upload_session_id}`);
-      console.log(`Video ID: ${result.video_id}`);
-      console.log(`First chunk: ${result.start_offset} to ${result.end_offset}`);
-      
-      return {
-        success: true,
-        sessionId: result.upload_session_id,
-        videoId: result.video_id,
-        startOffset: parseInt(result.start_offset),
-        endOffset: parseInt(result.end_offset)
-      };
       
     } catch (error) {
       console.error('Start upload session error:', error);
@@ -182,6 +206,7 @@ export class ChunkedVideoUploadService {
     description?: string;
     customLabels?: string[];
     language?: string;
+    isReel?: boolean;
   }): Promise<{
     success: boolean;
     videoId?: string;
@@ -192,14 +217,26 @@ export class ChunkedVideoUploadService {
     console.log('Finishing upload session');
     
     try {
-      // Finish phase uses the same endpoint structure regardless of Reels
-    const finishUrl = `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
+      // Use appropriate endpoint for Reels vs regular videos
+      const finishUrl = options.isReel 
+        ? `https://graph.facebook.com/v20.0/${options.pageId}/video_reels`
+        : `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
+        
+      console.log(`Using finish endpoint: ${finishUrl}`);
       
       const params = new URLSearchParams({
-        upload_phase: 'finish',
-        upload_session_id: options.sessionId,
         access_token: options.accessToken
       });
+      
+      if (options.isReel) {
+        // For Reels, we use the video_id as identifier and don't need upload_phase
+        params.append('video_id', options.sessionId); // sessionId contains video_id for Reels
+        params.append('upload_phase', 'finish');
+      } else {
+        // For regular videos
+        params.append('upload_phase', 'finish');
+        params.append('upload_session_id', options.sessionId);
+      }
       
       if (options.title) {
         params.append('title', options.title);
@@ -295,11 +332,70 @@ export class ChunkedVideoUploadService {
         };
       }
       
+      // Handle Reels differently - they use direct upload to the provided URL
+      if (options.isReel && startResult.uploadUrl) {
+        console.log('🎬 REEL UPLOAD: Using direct upload to Facebook URL');
+        
+        try {
+          const fileBuffer = fs.readFileSync(options.filePath);
+          const formData = new FormData();
+          formData.append('video_file_chunk', fileBuffer, {
+            filename: path.basename(options.filePath),
+            contentType: 'video/mp4'
+          });
+          
+          const uploadResponse = await fetch(startResult.uploadUrl, {
+            method: 'POST',
+            body: formData,
+            headers: formData.getHeaders()
+          });
+          
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            throw new Error(`Reel upload failed: ${uploadResponse.status} - ${errorText}`);
+          }
+          
+          console.log('✅ REEL UPLOADED SUCCESSFULLY to Facebook');
+          
+          // Phase 3: Finish and publish for Reels
+          const finishResult = await this.finishUpload({
+            pageId: options.pageId,
+            accessToken: options.accessToken,
+            sessionId: startResult.sessionId!,
+            title: options.title,
+            description: options.description,
+            customLabels: options.customLabels,
+            language: options.language,
+            isReel: options.isReel
+          });
+          
+          return {
+            success: finishResult.success,
+            videoId: finishResult.videoId || startResult.videoId,
+            facebookUrl: finishResult.facebookUrl,
+            uploadSessionId: startResult.sessionId,
+            error: finishResult.error,
+            totalSize: fileSize,
+            uploadedBytes: fileSize // Full file uploaded for Reels
+          };
+          
+        } catch (error) {
+          console.error('❌ REEL UPLOAD ERROR:', error);
+          return {
+            success: false,
+            error: `Reel upload failed: ${(error as Error).message}`,
+            uploadSessionId: startResult.sessionId,
+            totalSize: fileSize,
+            uploadedBytes: 0
+          };
+        }
+      }
+      
       let currentStartOffset = startResult.startOffset!;
       let currentEndOffset = startResult.endOffset!;
       let uploadedBytes = 0;
       
-      // Phase 2: Transfer chunks
+      // Phase 2: Transfer chunks (for regular videos only)
       while (true) {
         const transferResult = await this.transferChunk({
           pageId: options.pageId,
