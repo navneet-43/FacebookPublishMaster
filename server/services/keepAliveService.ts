@@ -24,7 +24,7 @@ export class KeepAliveService {
     
     const baseUrl = replitDomain ? `https://${replitDomain}` : 'http://localhost:5000';
     
-    // AGGRESSIVE KEEP-ALIVE: Self-ping every 30 seconds to prevent sleep
+    // EXTREME KEEP-ALIVE: Self-ping every 15 seconds to prevent sleep
     this.pingInterval = setInterval(async () => {
       try {
         const response = await fetch(`${baseUrl}/api/health`, {
@@ -39,9 +39,9 @@ export class KeepAliveService {
       } catch (error) {
         console.log('⚠️ Keep-alive ping error:', error instanceof Error ? error.message : 'Unknown error');
       }
-    }, 30 * 1000); // Every 30 seconds - MUCH MORE AGGRESSIVE
+    }, 15 * 1000); // Every 15 seconds - EXTREMELY AGGRESSIVE
     
-    // Additional health check every 45 seconds with scheduling status
+    // Additional health check every 20 seconds with scheduling status
     this.healthInterval = setInterval(async () => {
       try {
         const response = await fetch(`${baseUrl}/api/scheduling-status`, {
@@ -54,19 +54,21 @@ export class KeepAliveService {
       } catch (error) {
         console.log('⚠️ Health check failed:', error instanceof Error ? error.message : 'Unknown error');
       }
-    }, 45 * 1000); // Every 45 seconds
+    }, 20 * 1000); // Every 20 seconds
     
     // EXTREME MEASURE: Create constant activity to prevent any sleep
     this.activityInterval = setInterval(() => {
       // Small CPU activity to keep system awake
       const start = Date.now();
-      while (Date.now() - start < 1) {
+      while (Date.now() - start < 2) {
         // Tiny calculation to maintain activity
-        Math.random();
+        Math.random() * Math.PI;
       }
-    }, 15 * 1000); // Every 15 seconds
+      // Also log to keep I/O active
+      console.log('🤖 Background activity pulse');
+    }, 10 * 1000); // Every 10 seconds - MAXIMUM AGGRESSION
     
-    console.log('✅ KEEP-ALIVE SERVICE INITIALIZED - AGGRESSIVE MODE: Pinging every 30 seconds + constant activity to prevent sleep');
+    console.log('✅ KEEP-ALIVE SERVICE INITIALIZED - MAXIMUM AGGRESSION MODE: 15s pings + 20s health checks + 10s activity pulses');
   }
 
   /**

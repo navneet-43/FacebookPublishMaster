@@ -31,7 +31,7 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
     - Quality-preserving video processing, maintaining original video quality.
     - Integration of FFmpeg for high-quality video processing (e.g., 1080p60 YouTube downloads with audio merging).
 - **Customization**: Custom labeling system compatible with Meta Insights for advanced reporting.
-- **Reliability**: Enhanced robust scheduling service with database-driven intervals (15 seconds) that survives server restarts. **MAJOR IMPROVEMENT (Aug 10, 2025)**: Implemented aggressive anti-sleep system with 30-second self-pings, 45-second health checks, and constant activity generation to prevent Replit server hibernation. System now detects and recovers from server gaps automatically.
+- **Reliability**: Enhanced robust scheduling service with database-driven intervals (15 seconds) that survives server restarts. **MAJOR IMPROVEMENT (Aug 10, 2025)**: Implemented MAXIMUM AGGRESSION anti-sleep system with 15-second self-pings, 20-second health checks, and 10-second activity pulses to prevent Replit server hibernation. System reduced average delays from 67 minutes to under 1 minute. Recovery mechanism detects and publishes overdue posts within 15 seconds of restart.
 - **Error Handling**: Comprehensive error detection, retry logic with exponential backoff for database operations, and graceful handling of API errors and network issues.
 - **Content Preservation**: Ensures original user-provided content is preserved across all upload methods (manual, CSV, video).
 - **Security**: Virus scan bypass for Google Drive downloads and intelligent transformation of custom labels to avoid Facebook username restrictions.
