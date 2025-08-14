@@ -9,7 +9,7 @@ export interface DownloadResult {
   filePath?: string;
   error?: string;
   sizeBytes?: number;
-  source: 'google_drive' | 'sharepoint' | 'facebook' | 'unknown';
+  source: 'google_drive' | 'sharepoint' | 'facebook_video' | 'facebook_image' | 'unknown';
 }
 
 export class UniversalMediaDownloadService {
@@ -35,7 +35,8 @@ export class UniversalMediaDownloadService {
       // Route to appropriate download service
       switch (source) {
         case 'google_drive':
-          result = await CorrectGoogleDriveDownloader.downloadFromGoogleDrive(url, downloadPath);
+          const downloader = new CorrectGoogleDriveDownloader();
+          result = await downloader.downloadVideoFile({ googleDriveUrl: url });
           break;
           
         case 'sharepoint':
