@@ -65,6 +65,9 @@ export interface IStorage {
   // Activity operations
   getActivities(userId: number, limit?: number): Promise<Activity[]>;
   createActivity(activity: InsertActivity): Promise<Activity>;
+  
+  // Raw query operations for complex queries
+  query(query: string, params?: any[]): Promise<any>;
 }
 
 // Database storage implementation
@@ -391,6 +394,12 @@ export class DatabaseStorage implements IStorage {
       .values(activityWithDefaults)
       .returning();
     return newActivity;
+  }
+  
+  // Raw query operations for complex queries like blacklist checks
+  async query(query: string, params: any[] = []): Promise<any> {
+    const result = await db.execute(sql.raw(query, params));
+    return result;
   }
 }
 
@@ -770,6 +779,12 @@ export class MemStorage implements IStorage {
     const newActivity: Activity = { ...activity, id, createdAt: now };
     this.activities.set(id, newActivity);
     return newActivity;
+  }
+  
+  // Raw query operations - For MemStorage, this is a placeholder that returns empty results
+  async query(query: string, params: any[] = []): Promise<any> {
+    console.warn('Raw SQL queries not supported in MemStorage');
+    return { rows: [] };
   }
 }
 

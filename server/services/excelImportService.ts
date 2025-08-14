@@ -537,6 +537,11 @@ export class ExcelImportService {
     let imported = 0;
     let failed = 0;
     
+    // Get blacklist to prevent importing cancelled posts
+    const blacklistedPosts = await storage.query('SELECT content_title FROM post_blacklist WHERE account_id = $1', [accountId]);
+    const blacklistSet = new Set(blacklistedPosts.rows.map((row: any) => row.content_title.toLowerCase()));
+    console.log(`🚫 Post blacklist loaded: ${blacklistSet.size} banned titles for account ${accountId}`);
+    
     // Get user's Facebook accounts
     const userAccounts = await storage.getFacebookAccounts(userId);
     console.log('User accounts:', userAccounts);
@@ -557,6 +562,14 @@ export class ExcelImportService {
       }
       
       const postData = validation.data!;
+      
+      // Check blacklist to prevent importing cancelled posts
+      if (blacklistSet.has(postData.content.toLowerCase().trim())) {
+        console.log(`🚫 Row ${i + 1}: Post "${postData.content}" is blacklisted - skipping import`);
+        errors.push(`Row ${i + 1}: Post "${postData.content}" was previously cancelled and cannot be imported`);
+        failed++;
+        continue;
+      }
       
       try {
         // Use the selected account ID from frontend, or find account by name if accountId not provided
