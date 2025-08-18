@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ export default function AllPosts() {
     queryKey: ["/api/posts"],
   });
 
-  const { data: accounts = [] } = useQuery({
+  const { data: accounts = [] } = useQuery<any[]>({
     queryKey: ["/api/facebook-accounts"],
   });
 
@@ -182,7 +182,7 @@ export default function AllPosts() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Pages</SelectItem>
-              {accounts.map((account) => (
+              {accounts.map((account: any) => (
                 <SelectItem key={account.id} value={account.id.toString()}>
                   {account.name}
                 </SelectItem>
@@ -415,8 +415,8 @@ export default function AllPosts() {
                           <i className="fab fa-facebook-f text-blue-600 text-sm"></i>
                         </div>
                         <div>
-                          <div className="text-sm text-gray-900">{accounts.find(acc => acc.id === post.accountId)?.name || 'Unknown Account'}</div>
-                          <div className="text-xs text-gray-500">Page ID: {accounts.find(acc => acc.id === post.accountId)?.pageId || 'N/A'}</div>
+                          <div className="text-sm text-gray-900">{accounts.find((acc: any) => acc.id === post.accountId)?.name || 'Unknown Account'}</div>
+                          <div className="text-xs text-gray-500">Page ID: {accounts.find((acc: any) => acc.id === post.accountId)?.pageId || 'N/A'}</div>
                         </div>
                       </div>
                     </td>
