@@ -227,99 +227,144 @@ export default function AllPosts() {
                 e.preventDefault();
               }}
             >
-              <div className="p-3 border-b">
-                <div className="space-y-2">
-                  <Button
-                    variant={dateRange === 'all' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setDateRange('all');
-                      setDatePickerOpen(false);
-                    }}
-                  >
-                    All Time
-                  </Button>
-                  <Button
-                    variant={dateRange === 'today' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setDateRange('today');
-                      setDatePickerOpen(false);
-                    }}
-                  >
-                    Today
-                  </Button>
-                  <Button
-                    variant={dateRange === 'week' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setDateRange('week');
-                      setDatePickerOpen(false);
-                    }}
-                  >
-                    This Week
-                  </Button>
-                  <Button
-                    variant={dateRange === 'month' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setDateRange('month');
-                      setDatePickerOpen(false);
-                    }}
-                  >
-                    This Month
-                  </Button>
-                  <Button
-                    variant={dateRange === 'custom' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setDateRange('custom');
-                      setCustomStartDate(subDays(new Date(), 7));
-                      setCustomEndDate(new Date());
-                    }}
-                  >
-                    Custom Range
-                  </Button>
-                </div>
-              </div>
-              {dateRange === 'custom' && (
-                <div className="p-3">
-                  <div className="grid gap-3">
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">Start Date</label>
-                      <CalendarComponent
-                        mode="single"
-                        selected={customStartDate}
-                        onSelect={setCustomStartDate}
-                        className="rounded-md border"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-1 block">End Date</label>
-                      <CalendarComponent
-                        mode="single"
-                        selected={customEndDate}
-                        onSelect={setCustomEndDate}
-                        disabled={(date) => customStartDate ? date < customStartDate : false}
-                        className="rounded-md border"
-                      />
-                    </div>
-                    <Button
+              <div className="flex">
+                {/* Left sidebar with presets */}
+                <div className="w-48 p-4 border-r border-gray-200 space-y-2">
+                  <div className="space-y-1">
+                    <div
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md cursor-pointer text-sm ${
+                        dateRange === 'today' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                      }`}
                       onClick={() => {
+                        setDateRange('today');
                         setDatePickerOpen(false);
                       }}
-                      className="w-full"
                     >
-                      Apply
-                    </Button>
+                      <div className={`w-4 h-4 rounded-full border-2 ${
+                        dateRange === 'today' ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                      } flex items-center justify-center`}>
+                        {dateRange === 'today' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span>Today</span>
+                    </div>
+                    
+                    <div
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md cursor-pointer text-sm ${
+                        dateRange === 'week' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        setDateRange('week');
+                        setDatePickerOpen(false);
+                      }}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 ${
+                        dateRange === 'week' ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                      } flex items-center justify-center`}>
+                        {dateRange === 'week' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span>Last 7 days</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md cursor-pointer text-sm ${
+                        dateRange === 'month' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        setDateRange('month');
+                        setDatePickerOpen(false);
+                      }}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 ${
+                        dateRange === 'month' ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                      } flex items-center justify-center`}>
+                        {dateRange === 'month' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span>Last 30 days</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md cursor-pointer text-sm ${
+                        dateRange === 'custom' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        setDateRange('custom');
+                        setCustomStartDate(subDays(new Date(), 7));
+                        setCustomEndDate(new Date());
+                      }}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 ${
+                        dateRange === 'custom' ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                      } flex items-center justify-center`}>
+                        {dateRange === 'custom' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span>Custom</span>
+                    </div>
+
+                    <div
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md cursor-pointer text-sm ${
+                        dateRange === 'all' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        setDateRange('all');
+                        setDatePickerOpen(false);
+                      }}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 ${
+                        dateRange === 'all' ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                      } flex items-center justify-center`}>
+                        {dateRange === 'all' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                      </div>
+                      <span>All Time</span>
+                    </div>
                   </div>
                 </div>
-              )}
+
+                {/* Right side with dual calendar for custom dates */}
+                {dateRange === 'custom' && (
+                  <div className="p-4">
+                    <CalendarComponent
+                      mode="range"
+                      selected={{
+                        from: customStartDate,
+                        to: customEndDate
+                      }}
+                      onSelect={(range) => {
+                        if (range?.from) setCustomStartDate(range.from);
+                        if (range?.to) setCustomEndDate(range.to);
+                      }}
+                      numberOfMonths={2}
+                      className="rounded-md"
+                    />
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <div className="text-xs text-gray-500">
+                        {customStartDate && customEndDate ? (
+                          `${format(customStartDate, 'dd MMM yyyy')} - ${format(customEndDate, 'dd MMM yyyy')}`
+                        ) : customStartDate ? (
+                          `${format(customStartDate, 'dd MMM yyyy')} - Select end date`
+                        ) : (
+                          'Select date range'
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDatePickerOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setDatePickerOpen(false)}
+                          disabled={!customStartDate || !customEndDate}
+                        >
+                          Update
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </PopoverContent>
           </Popover>
         </div>
