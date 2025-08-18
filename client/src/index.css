@@ -74,6 +74,25 @@
     @apply h-full min-h-screen overflow-auto;
   }
 
+  /* Fix popover scroll blocking */
+  [data-radix-popper-content-wrapper] {
+    pointer-events: none !important;
+  }
+  
+  [data-radix-popper-content-wrapper] > * {
+    pointer-events: auto !important;
+  }
+  
+  /* Ensure body can scroll when popover is open */
+  body {
+    overflow: auto !important;
+  }
+  
+  /* Prevent popover from blocking scroll */
+  [data-radix-popover-content] {
+    pointer-events: auto;
+  }
+
   body {
     @apply font-sans antialiased bg-[#F0F2F5] text-foreground;
   }

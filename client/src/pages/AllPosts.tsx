@@ -175,7 +175,7 @@ export default function AllPosts() {
             </SelectContent>
           </Select>
 
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen} modal={false}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -201,7 +201,7 @@ export default function AllPosts() {
                 })()}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4} onOpenAutoFocus={(e) => e.preventDefault()}>
               <div className="p-3 border-b">
                 <div className="space-y-2">
                   <Button

@@ -307,7 +307,7 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="text-sm font-medium">Date Range</label>
-              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen} modal={false}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -317,7 +317,7 @@ export default function ReportsPage() {
                     {getDateRangeText()}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4} onOpenAutoFocus={(e) => e.preventDefault()}>
                   <div className="p-4 space-y-3">
                     <div className="space-y-2">
                       <h4 className="font-medium leading-none">Quick Presets</h4>
