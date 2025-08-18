@@ -35,10 +35,34 @@ export class FacebookVideoDownloader {
       // Ensure download directory exists
       await this.ensureDownloadDirectory();
 
-      // Extract video using multiple methods
-      const videoInfo = await this.extractVideoInfo(facebookUrl);
+      // Try network-based extraction first (more reliable in server environments)
+      console.log('🔄 Trying network-based extraction first...');
+      let videoInfo: { success: boolean; videoUrl?: string; title?: string; error?: string } = await this.extractVideoUrlFromNetwork(facebookUrl);
+      
       if (!videoInfo.success || !videoInfo.videoUrl) {
-        return { success: false, error: videoInfo.error || 'Failed to extract video URL' };
+        console.log('🔄 Network extraction failed, trying mobile version...');
+        const mobileUrl = facebookUrl.replace('www.facebook.com', 'm.facebook.com');
+        videoInfo = await this.extractVideoUrlFromNetwork(mobileUrl);
+      }
+      
+      if (!videoInfo.success || !videoInfo.videoUrl) {
+        console.log('🔄 Network methods failed, trying browser extraction...');
+        try {
+          const browserResult = await this.extractVideoInfo(facebookUrl);
+          if (browserResult.success && browserResult.videoUrl) {
+            videoInfo = browserResult;
+          }
+        } catch (error) {
+          console.log('❌ Browser extraction also failed:', error);
+          videoInfo = { 
+            success: false, 
+            error: 'Browser extraction failed: ' + (error instanceof Error ? error.message : 'Unknown error') 
+          };
+        }
+      }
+      
+      if (!videoInfo.success || !videoInfo.videoUrl) {
+        return { success: false, error: videoInfo.error || 'Failed to extract video URL from all methods' };
       }
 
       // Download the video file
@@ -83,9 +107,10 @@ export class FacebookVideoDownloader {
     try {
       console.log('🔍 Extracting video info from Facebook page...');
 
-      // Launch browser with stealth settings
+      // Launch browser with stealth settings and additional Linux flags
       browser = await puppeteer.launch({
         headless: true,
+        executablePath: '/usr/bin/chromium',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -93,7 +118,15 @@ export class FacebookVideoDownloader {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--single-process',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding'
         ]
       });
 
@@ -193,8 +226,8 @@ export class FacebookVideoDownloader {
       await browser.close();
 
       if (!videoInfo.videoUrl) {
-        // Try alternative method using network requests
-        return await this.extractVideoUrlFromNetwork(facebookUrl);
+        // This code path should not be reached now since network extraction is done first
+        return { success: false, error: 'Could not extract video URL from browser method' };
       }
 
       console.log('✅ Video info extracted:', { title: videoInfo.title, hasUrl: !!videoInfo.videoUrl });
@@ -243,14 +276,18 @@ export class FacebookVideoDownloader {
 
       // Extract video URL using regex patterns
       const videoUrlPatterns = [
-        /"videoUrl":"([^"]+)"/,
-        /"sd_src":"([^"]+)"/,
         /"hd_src":"([^"]+)"/,
-        /sd_src:"([^"]+)"/,
-        /hd_src:"([^"]+)"/,
-        /"playable_url":"([^"]+)"/,
+        /"sd_src":"([^"]+)"/,
         /"browser_native_hd_url":"([^"]+)"/,
-        /"browser_native_sd_url":"([^"]+)"/
+        /"browser_native_sd_url":"([^"]+)"/,
+        /"playable_url":"([^"]+)"/,
+        /"videoUrl":"([^"]+)"/,
+        /hd_src:"([^"]+)"/,
+        /sd_src:"([^"]+)"/,
+        /"playable_url_quality_hd":"([^"]+)"/,
+        /"playable_url_quality_sd":"([^"]+)"/,
+        /\\"hd_src\\":\\"([^"]+)\\"/,
+        /\\"sd_src\\":\\"([^"]+)\\"/
       ];
 
       let videoUrl = '';
