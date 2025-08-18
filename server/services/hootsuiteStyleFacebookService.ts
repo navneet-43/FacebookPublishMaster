@@ -6,7 +6,6 @@ import { FormData } from 'formdata-node';
 import { fileFromPath } from 'formdata-node/file-from-path';
 import { convertGoogleDriveLink, isGoogleDriveLink } from '../utils/googleDriveConverter';
 import { CorrectGoogleDriveDownloader } from './correctGoogleDriveDownloader';
-import { UniversalMediaDownloadService } from './universalMediaDownloadService';
 import { CustomLabelValidator } from './customLabelValidator';
 import { progressTracker } from './progressTrackingService';
 import { SimpleFacebookEncoder } from './simpleFacebookEncoder';
@@ -257,87 +256,6 @@ export class HootsuiteStyleFacebookService {
           return {
             success: false,
             error: downloadResult.error || 'Failed to download Google Drive image'
-          };
-        }
-      }
-      
-      // Handle Universal Media Download Service URLs (Facebook images, SharePoint, etc.)
-      const { UniversalMediaDownloadService } = await import('./universalMediaDownloadService');
-      if (UniversalMediaDownloadService.isSupportedUrl(photoUrl)) {
-        console.log('📁 UNIVERSAL MEDIA: Using enhanced file access for photo/image content');
-        
-        const downloadResult = await UniversalMediaDownloadService.downloadMedia(photoUrl);
-        
-        if (downloadResult.success && downloadResult.filePath) {
-          console.log('✅ Universal media image downloaded successfully');
-          
-          // Upload the downloaded file directly to Facebook
-          const formData = new FormData();
-          
-          try {
-            const file = await fileFromPath(downloadResult.filePath);
-            formData.append('source', file);
-            formData.append('access_token', pageAccessToken);
-            formData.append('published', 'true');
-            
-            if (caption) {
-              formData.append('caption', caption);
-            }
-            
-            // Add custom labels for Meta Insights tracking
-            if (customLabels && customLabels.length > 0) {
-              const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
-              
-              if (customLabelsParam) {
-                formData.append('custom_labels', customLabelsParam);
-                console.log('✅ META INSIGHTS: Adding validated custom labels to universal media photo');
-              }
-            }
-            
-            if (language) {
-              formData.append('locale', language);
-            }
-            
-            const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
-            console.log(`Uploading universal media image to page ${pageId}`);
-            
-            const response = await fetch(endpoint, {
-              method: 'POST',
-              body: formData
-            });
-            
-            const data = await response.json();
-            
-            // Clean up downloaded file
-            if (downloadResult.cleanup) downloadResult.cleanup();
-            
-            if (!response.ok || data.error) {
-              console.error('Facebook universal media photo upload error:', data.error);
-              return {
-                success: false,
-                error: data.error?.message || `Photo upload failed: ${response.status}`
-              };
-            }
-            
-            console.log('✅ Universal media photo uploaded successfully:', data.id);
-            return {
-              success: true,
-              postId: data.id
-            };
-            
-          } catch (fileError) {
-            console.error('Error handling downloaded universal media file:', fileError);
-            if (downloadResult.cleanup) downloadResult.cleanup();
-            return {
-              success: false,
-              error: 'Failed to process downloaded image file'
-            };
-          }
-        } else {
-          console.error('Failed to download universal media image:', downloadResult.error);
-          return {
-            success: false,
-            error: downloadResult.error || 'Failed to download image from provided URL'
           };
         }
       }
@@ -612,23 +530,25 @@ export class HootsuiteStyleFacebookService {
         }
       }
 
-      // Handle Universal Media URLs (Google Drive, SharePoint, Facebook Videos) with enhanced file access
-      if (UniversalMediaDownloadService.isSupportedUrl(videoUrl)) {
-        const platform = this.detectMediaPlatform(videoUrl);
-        console.log(`📁 ${platform.toUpperCase()} MEDIA: Using enhanced file access for video/image content`);
+      // Handle Google Drive URLs with enhanced large file access (for both videos and images)
+      if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
+        console.log('📁 GOOGLE DRIVE MEDIA: Using enhanced file access for video/image content');
         
         if (uploadId) {
-          progressTracker.updateProgress(uploadId, `Downloading from ${platform}...`, 40, `Starting enhanced ${platform} download`);
+          progressTracker.updateProgress(uploadId, 'Downloading from Google Drive...', 40, 'Starting enhanced Google Drive download');
         }
         
-        const result = await UniversalMediaDownloadService.downloadMedia(videoUrl);
+        const { CorrectGoogleDriveDownloader } = await import('./correctGoogleDriveDownloader');
+        
+        const downloader = new CorrectGoogleDriveDownloader();
+        const result = await downloader.downloadVideoFile({ googleDriveUrl: videoUrl });
         
         if (result.success && result.filePath) {
-          const fileSizeMB = (result.sizeBytes! / 1024 / 1024).toFixed(2);
-          console.log(`✅ ${platform} file downloaded: ${fileSizeMB}MB`);
+          const fileSizeMB = (result.fileSize! / 1024 / 1024).toFixed(2);
+          console.log(`✅ Google Drive file downloaded: ${fileSizeMB}MB`);
           
           // Check if downloaded file is an image by size and extension
-          const isLikelyImage = result.sizeBytes! < 1 * 1024 * 1024; // Under 1MB likely image (more restrictive)
+          const isLikelyImage = result.fileSize! < 1 * 1024 * 1024; // Under 1MB likely image (more restrictive)
           // path imported at top
           const extension = path.extname(result.filePath).toLowerCase();
           const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -647,20 +567,13 @@ export class HootsuiteStyleFacebookService {
               pageId,
               pageAccessToken,
               result.filePath, // Use local file path - SimpleFacebookPhotoService handles this correctly
-              description || `${platform} Image Upload`,
+              description || 'Google Drive Image Upload',
               customLabels || [],
               language || 'en'
             );
             
             // Clean up downloaded file
-            if (result.filePath && result.filePath.startsWith('/tmp/')) {
-              try {
-                const fs = await import('fs');
-                fs.unlinkSync(result.filePath);
-              } catch (cleanupError) {
-                console.log('⚠️ Cleanup error:', cleanupError);
-              }
-            }
+            if (result.cleanup) result.cleanup();
             
             return photoResult;
           }
@@ -677,7 +590,7 @@ export class HootsuiteStyleFacebookService {
           let encodingCleanup: (() => void) | undefined;
           
           if (encodedResult.success && encodedResult.outputPath) {
-            console.log(`✅ Facebook encoding applied to ${platform} video`);
+            console.log('✅ Facebook encoding applied to Google Drive video');
             finalPath = encodedResult.outputPath;
             encodingCleanup = encodedResult.cleanup;
           }
@@ -687,12 +600,12 @@ export class HootsuiteStyleFacebookService {
           }
           
           // Upload to Facebook using the working chunked upload system
-          console.log(`🚀 STARTING FACEBOOK UPLOAD for ${platform} video`);
+          console.log('🚀 STARTING FACEBOOK UPLOAD for Google Drive video');
           // CompleteVideoUploadService imported at top
           const uploadService = new CompleteVideoUploadService();
           
           // Use the actual description provided by the user for manual uploads
-          const finalDescription = description || `${platform} Video Upload`;
+          const finalDescription = description || 'Google Drive Video Upload';
           
           const uploadResult = await uploadService.uploadProcessedVideoFile({
             videoFilePath: finalPath,
@@ -706,17 +619,10 @@ export class HootsuiteStyleFacebookService {
           console.log('📊 UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
           
           if (uploadResult.success) {
-            console.log(`✅ ENHANCED ${platform.toUpperCase()} VIDEO UPLOADED SUCCESSFULLY`);
+            console.log('✅ ENHANCED GOOGLE DRIVE VIDEO UPLOADED SUCCESSFULLY');
             
             // Clean up temporary files after successful upload
-            if (result.filePath && result.filePath.startsWith('/tmp/')) {
-              try {
-                const fs = await import('fs');
-                fs.unlinkSync(result.filePath);
-              } catch (cleanupError) {
-                console.log('⚠️ Cleanup error:', cleanupError);
-              }
-            }
+            if (result.cleanup) result.cleanup();
             if (encodingCleanup) encodingCleanup();
             
             return {
@@ -736,71 +642,11 @@ export class HootsuiteStyleFacebookService {
           }
         }
         
-        console.log(`❌ Enhanced ${platform} processing failed: ${result.error}`);
-        
-        // Provide specific error messaging based on platform
-        let errorGuidance = '';
-        if (platform === 'google_drive') {
-          errorGuidance = `
-
-Google Drive Video Download Failed
-
-This is likely due to Google Drive's security restrictions.
-
-RECOMMENDED SOLUTION - Switch to Dropbox or SharePoint:
-
-1. **Upload to Dropbox**:
-   • Upload your video to Dropbox
-   • Right-click → Share → "Anyone with the link"
-   • Copy the sharing link
-
-2. **Use SharePoint/OneDrive**:
-   • Upload to SharePoint or OneDrive for Business
-   • Share with "Anyone with the link"
-   • Copy the sharing URL
-
-3. **Alternative Options**:
-   • Download and upload directly through this system
-   • Use YouTube (unlisted) and share the link
-
-**Technical Error**: ${result.error}
-`;
-        } else if (platform === 'sharepoint') {
-          errorGuidance = `
-
-SharePoint Download Failed
-
-This may be due to access restrictions or authentication requirements.
-
-SOLUTIONS:
-1. Ensure the file is shared with "Anyone with the link"
-2. Try using OneDrive direct download links
-3. Check if your organization allows external access
-
-**Technical Error**: ${result.error}
-`;
-        } else if (platform === 'facebook') {
-          errorGuidance = `
-
-Facebook Video Download Failed
-
-Facebook videos may be private or have restricted access.
-
-SOLUTIONS:
-1. Ensure the video is public
-2. Use YouTube as an alternative hosting platform
-3. Download the video manually and upload directly
-
-**Technical Error**: ${result.error}
-`;
-        }
-        
-        // Create fallback text post with the video link and error guidance
-        const textContent = description ? 
-          `${description}\n\nWatch video: ${videoUrl}${errorGuidance}` : 
-          `${videoUrl}${errorGuidance}`;
-        
-        return await this.publishTextPost(pageId, pageAccessToken, textContent, videoUrl, customLabels, language);
+        console.log(`❌ Enhanced Google Drive processing failed: ${result.error}`);
+        return {
+          success: false,
+          error: result.error || 'Google Drive video processing failed'
+        };
       }
 
       // Skip validation for local file paths - they'll be handled by direct file upload
@@ -1195,22 +1041,6 @@ TROUBLESHOOTING:
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
-  }
-
-  /**
-   * Detect media platform from URL
-   */
-  private static detectMediaPlatform(url: string): string {
-    if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
-      return 'google_drive';
-    }
-    if (url.includes('sharepoint.com') || url.includes('1drv.ms') || url.includes('onedrive.live.com')) {
-      return 'sharepoint';
-    }
-    if (url.includes('facebook.com') || url.includes('fb.com')) {
-      return 'facebook';
-    }
-    return 'unknown';
   }
 
   /**

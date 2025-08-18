@@ -103,28 +103,6 @@ export class SimpleFacebookPhotoService {
           };
         }
       }
-      
-      // Handle Universal Media Download Service URLs (Facebook images, SharePoint, etc.)
-      const { UniversalMediaDownloadService } = await import('./universalMediaDownloadService');
-      if (UniversalMediaDownloadService.isSupportedUrl(photoUrl)) {
-        console.log('📁 UNIVERSAL MEDIA: Using enhanced download service for photo');
-        
-        const downloadResult = await UniversalMediaDownloadService.downloadMedia(photoUrl);
-        
-        if (downloadResult.success && downloadResult.filePath) {
-          console.log('✅ Universal media photo downloaded successfully');
-          
-          // Use the local file upload logic by recursively calling this method
-          return await this.uploadPhoto(pageId, pageAccessToken, downloadResult.filePath, caption, customLabels, language);
-        } else {
-          console.error('Failed to download universal media photo:', downloadResult.error);
-          return {
-            success: false,
-            error: downloadResult.error || 'Failed to download photo from provided URL'
-          };
-        }
-      }
-      
       // Handle Google Drive links by downloading first
       else if (isGoogleDriveLink(photoUrl)) {
         console.log('📥 Downloading from Google Drive...');

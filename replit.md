@@ -25,11 +25,6 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - ENHANCED (Aug 10, 2025): Added comprehensive Reels permissions setup guide and API v23.0 compatibility
 - FIXED (Aug 10, 2025): Resolved Facebook Reels minimum height requirement (960px) - added video validation and automatic upscaling
 - OPTIMIZED (Aug 10, 2025): Eliminated unnecessary FFmpeg conversions by checking video requirements first, only processing when needed
-- MAJOR EXPANSION (Aug 10, 2025): Added SharePoint and Facebook video download support via Universal Media Download Service - CSV imports now handle Google Drive, SharePoint/OneDrive, and Facebook video links automatically
-- ENHANCED SHAREPOINT (Aug 10, 2025): Implemented Enhanced SharePoint Download Service with multi-strategy approach (direct access, REST API, browser session) and robust content validation - properly handles authentication requirements and organizational restrictions
-- FACEBOOK IMAGE INTEGRATION (Aug 10, 2025): Successfully integrated Facebook image downloading into SimpleFacebookPhotoService with Universal Media Download Service - system now properly detects and attempts to download Facebook images for reposting to other pages
-- UNIVERSAL MEDIA COMPLETE (Aug 10, 2025): Universal Media Download Service fully integrated across all photo upload services - supports Google Drive, SharePoint, OneDrive, and Facebook image URLs with intelligent fallback strategies
-- BLACKLIST PROTECTION (Aug 14, 2025): Implemented comprehensive post blacklist system to prevent importing cancelled posts - CSV imports now check against blacklisted content titles and automatically skip banned posts with detailed user feedback
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
@@ -43,7 +38,6 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
     - Intelligent upload method selection, prioritizing actual video file uploads over link posts.
     - Quality-preserving video processing, maintaining original video quality.
     - Integration of FFmpeg for high-quality video processing (e.g., 1080p60 YouTube downloads with audio merging).
-    - Universal Media Download Service supporting Google Drive, SharePoint/OneDrive for Business, and Facebook video links.
 - **Customization**: Custom labeling system compatible with Meta Insights for advanced reporting.
 - **Reliability**: Enhanced robust scheduling service with database-driven intervals (15 seconds) that survives server restarts. **MAJOR IMPROVEMENT (Aug 10, 2025)**: Implemented MAXIMUM AGGRESSION anti-sleep system with 15-second self-pings, 20-second health checks, and 10-second activity pulses to prevent Replit server hibernation. System reduced average delays from 67 minutes to under 1 minute. Recovery mechanism detects and publishes overdue posts within 15 seconds of restart.
 - **Error Handling**: Comprehensive error detection, retry logic with exponential backoff for database operations, and graceful handling of API errors and network issues.
@@ -63,7 +57,5 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
 - **@distube/ytdl-core**: Library for YouTube video downloading.
 - **FFmpeg**: External tool for video processing, merging, and encoding.
 - **Google Drive**: Integrated for video download and processing (with enhanced downloader and virus scan bypass).
-- **SharePoint/OneDrive**: Full integration for business file downloads with proper authentication handling.
-- **Facebook Videos**: Support for downloading and reposting public Facebook videos.
 - **Dropbox**: (Limited integration) Formerly used for video hosting.
 - **Vimeo**: (Limited integration) Formerly used for video hosting.
