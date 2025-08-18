@@ -12,6 +12,7 @@ router.get('/posts', async (req, res) => {
       status, 
       account, 
       contentBucket, 
+      postType,
       search,
       startDate,
       endDate
@@ -23,6 +24,7 @@ router.get('/posts', async (req, res) => {
       status,
       account,
       contentBucket,
+      postType,
       search,
       startDate,
       endDate
@@ -128,6 +130,24 @@ router.get('/posts', async (req, res) => {
       reportPosts = reportPosts.filter(post => 
         post.labels.includes(contentBucket as string)
       );
+    }
+
+    // Helper function to determine post type
+    const getPostType = (mediaType: string | null) => {
+      if (!mediaType) return 'text';
+      
+      const type = mediaType.toLowerCase();
+      if (type.includes('reel')) return 'reel';
+      if (type.includes('video')) return 'video';
+      if (type.includes('image') || type.includes('photo')) return 'photo';
+      return 'text';
+    };
+
+    if (postType && postType !== 'all') {
+      reportPosts = reportPosts.filter(post => {
+        const actualPostType = getPostType(post.mediaType);
+        return actualPostType === postType;
+      });
     }
 
     if (search) {

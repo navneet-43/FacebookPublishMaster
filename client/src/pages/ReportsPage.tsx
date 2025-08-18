@@ -31,6 +31,7 @@ interface ReportFilters {
   status: 'all' | 'published' | 'failed' | 'scheduled';
   account: string;
   contentBucket: string;
+  postType: string;
   customStartDate?: Date;
   customEndDate?: Date;
 }
@@ -40,7 +41,8 @@ export default function ReportsPage() {
     dateRange: 'all',
     status: 'all',
     account: 'all',
-    contentBucket: 'all'
+    contentBucket: 'all',
+    postType: 'all'
   });
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -153,6 +155,32 @@ export default function ReportsPage() {
     );
   };
 
+  const getPostType = (mediaType: string | null, content: string) => {
+    if (!mediaType) return 'Text';
+    
+    const type = mediaType.toLowerCase();
+    if (type.includes('reel')) return 'Reel';
+    if (type.includes('video')) return 'Video';
+    if (type.includes('image') || type.includes('photo')) return 'Photo';
+    return 'Text';
+  };
+
+  const getPostTypeBadge = (postType: string) => {
+    const typeMap = {
+      'Text': { color: 'bg-gray-100 text-gray-800', icon: '📝' },
+      'Photo': { color: 'bg-blue-100 text-blue-800', icon: '📷' },
+      'Video': { color: 'bg-purple-100 text-purple-800', icon: '🎥' },
+      'Reel': { color: 'bg-green-100 text-green-800', icon: '🎬' }
+    };
+    
+    const config = typeMap[postType as keyof typeof typeMap] || typeMap['Text'];
+    return (
+      <Badge variant="secondary" className={`${config.color} text-xs`}>
+        {config.icon} {postType}
+      </Badge>
+    );
+  };
+
   const handleDateRangeChange = (preset: string) => {
     const now = new Date();
     
@@ -207,7 +235,7 @@ export default function ReportsPage() {
   };
 
   const exportToCsv = () => {
-    const headers = ['Date Uploaded', 'Date Published', 'Published Page', 'Content Bucket', 'Published Link', 'Content', 'Status'];
+    const headers = ['Date Uploaded', 'Date Published', 'Published Page', 'Content Bucket', 'Post Type', 'Published Link', 'Content', 'Status'];
     const csvData = [
       headers,
       ...filteredPosts.map((post: ReportPost) => [
@@ -215,6 +243,7 @@ export default function ReportsPage() {
         formatDate(post.publishedAt),
         post.accountName,
         (post.labels || []).join(', '),
+        getPostType(post.mediaType, post.content),
         post.facebookPostId ? `https://facebook.com/${post.facebookPostId}` : '',
         `"${post.content.replace(/"/g, '""')}"`,
         post.status
@@ -319,7 +348,7 @@ export default function ReportsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <label className="text-sm font-medium">Date Range</label>
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen} modal={false}>
@@ -532,6 +561,22 @@ export default function ReportsPage() {
             </div>
 
             <div>
+              <label className="text-sm font-medium">Post Type</label>
+              <Select value={filters.postType} onValueChange={(value: any) => setFilters(prev => ({ ...prev, postType: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="text">📝 Text</SelectItem>
+                  <SelectItem value="photo">📷 Photo</SelectItem>
+                  <SelectItem value="video">🎥 Video</SelectItem>
+                  <SelectItem value="reel">🎬 Reel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <label className="text-sm font-medium">Search Content</label>
               <Input
                 placeholder="Search posts..."
@@ -565,6 +610,7 @@ export default function ReportsPage() {
                     <TableHead>Date Published</TableHead>
                     <TableHead>Published Page</TableHead>
                     <TableHead>Content Bucket</TableHead>
+                    <TableHead>Post Type</TableHead>
                     <TableHead>Published Link</TableHead>
                     <TableHead>Content</TableHead>
                     <TableHead>Status</TableHead>
@@ -573,7 +619,7 @@ export default function ReportsPage() {
                 <TableBody>
                   {filteredPosts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                         No posts found matching your criteria
                       </TableCell>
                     </TableRow>
@@ -604,6 +650,9 @@ export default function ReportsPage() {
                               <span className="text-gray-400">-</span>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {getPostTypeBadge(getPostType(post.mediaType, post.content))}
                         </TableCell>
                         <TableCell>
                           {getPublishedLink(post.facebookPostId, post.pageId)}
