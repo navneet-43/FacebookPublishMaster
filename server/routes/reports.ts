@@ -25,7 +25,7 @@ router.get('/posts', async (req, res) => {
     });
 
     // Get all posts for the user
-    const posts = await storage.getAllPosts(userId);
+    const posts = await storage.getAllPosts();
     
     // Get Facebook accounts to map account IDs to names
     const accounts = await storage.getFacebookAccounts(userId);
@@ -35,26 +35,31 @@ router.get('/posts', async (req, res) => {
     const activities = await storage.getActivities(userId);
     const publishedActivities = activities.filter(activity => 
       activity.type === 'post_published' && 
-      activity.metadata?.postId &&
-      activity.metadata?.facebookPostId
+      activity.metadata && 
+      typeof activity.metadata === 'object' &&
+      'postId' in activity.metadata &&
+      'facebookPostId' in activity.metadata
     );
 
     // Create a map of post ID to published activity
     const publishedMap = new Map();
     publishedActivities.forEach(activity => {
-      const postId = activity.metadata?.postId;
-      if (postId && !publishedMap.has(postId)) {
-        publishedMap.set(postId, activity);
+      if (activity.metadata && typeof activity.metadata === 'object' && 'postId' in activity.metadata) {
+        const postId = (activity.metadata as any).postId;
+        if (postId && !publishedMap.has(postId)) {
+          publishedMap.set(postId, activity);
+        }
       }
     });
 
     // Transform posts to include report data
     let reportPosts = posts.map(post => {
-      const account = accountMap.get(post.accountId);
+      const account = post.accountId ? accountMap.get(post.accountId) : null;
       const publishedActivity = publishedMap.get(post.id);
       
       return {
         id: post.id,
+        accountId: post.accountId,
         content: post.content || '',
         createdAt: post.createdAt,
         publishedAt: publishedActivity?.createdAt || post.publishedAt,
@@ -65,7 +70,7 @@ router.get('/posts', async (req, res) => {
         mediaType: post.mediaType,
         accountName: account?.name || 'Unknown Account',
         pageId: account?.pageId || '',
-        facebookPostId: publishedActivity?.metadata?.facebookPostId || null
+        facebookPostId: publishedActivity && publishedActivity.metadata && typeof publishedActivity.metadata === 'object' && 'facebookPostId' in publishedActivity.metadata ? (publishedActivity.metadata as any).facebookPostId : null
       };
     });
 
@@ -89,7 +94,7 @@ router.get('/posts', async (req, res) => {
       }
       
       reportPosts = reportPosts.filter(post => 
-        new Date(post.createdAt) >= startDate
+        post.createdAt && new Date(post.createdAt) >= startDate
       );
     }
 
@@ -99,9 +104,9 @@ router.get('/posts', async (req, res) => {
 
     if (account && account !== 'all') {
       const accountId = parseInt(account as string);
-      reportPosts = reportPosts.filter(post => 
-        accountMap.get(post.id)?.id === accountId
-      );
+      reportPosts = reportPosts.filter(post => {
+        return post.accountId === accountId;
+      });
     }
 
     if (contentBucket && contentBucket !== 'all') {
@@ -118,9 +123,11 @@ router.get('/posts', async (req, res) => {
     }
 
     // Sort by creation date (newest first)
-    reportPosts.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    reportPosts.sort((a, b) => {
+      const aDate = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const bDate = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return bDate.getTime() - aDate.getTime();
+    });
 
     console.log(`📊 Returning ${reportPosts.length} posts for reports`);
     res.json(reportPosts);
@@ -140,7 +147,7 @@ router.get('/stats', async (req, res) => {
     const userId = (req.session as any)?.userId || 3;
     
     // Get posts and activities
-    const posts = await storage.getAllPosts(userId);
+    const posts = await storage.getAllPosts();
     const activities = await storage.getActivities(userId);
     
     const now = new Date();
@@ -154,12 +161,12 @@ router.get('/stats', async (req, res) => {
       published: posts.filter(p => p.status === 'published').length,
       failed: posts.filter(p => p.status === 'failed').length,
       scheduled: posts.filter(p => p.status === 'scheduled').length,
-      today: posts.filter(p => new Date(p.createdAt) >= today).length,
-      thisWeek: posts.filter(p => new Date(p.createdAt) >= thisWeek).length,
-      thisMonth: posts.filter(p => new Date(p.createdAt) >= thisMonth).length,
+      today: posts.filter(p => p.createdAt && new Date(p.createdAt) >= today).length,
+      thisWeek: posts.filter(p => p.createdAt && new Date(p.createdAt) >= thisWeek).length,
+      thisMonth: posts.filter(p => p.createdAt && new Date(p.createdAt) >= thisMonth).length,
       publishedToday: activities.filter(a => 
         a.type === 'post_published' && 
-        new Date(a.createdAt) >= today
+        a.createdAt && new Date(a.createdAt) >= today
       ).length
     };
 

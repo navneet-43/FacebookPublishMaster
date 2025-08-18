@@ -43,7 +43,7 @@ export default function ReportsPage() {
 
   // Fetch posts data for reports
   const { data: posts = [], isLoading, refetch } = useQuery({
-    queryKey: ['/api/reports/posts', filters],
+    queryKey: ['/api/reports/posts', filters, searchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
@@ -82,12 +82,8 @@ export default function ReportsPage() {
     posts.flatMap((post: ReportPost) => post.labels || [])
   )).filter(Boolean);
 
-  const filteredPosts = posts.filter((post: ReportPost) => {
-    if (searchTerm && !post.content.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+  // Since filtering is done on backend, just use posts directly
+  const filteredPosts = posts;
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
@@ -296,9 +292,9 @@ export default function ReportsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Buckets</SelectItem>
-                  {contentBuckets.map((bucket: string) => (
-                    <SelectItem key={bucket} value={bucket}>
-                      {bucket}
+                  {contentBuckets.map((bucket) => (
+                    <SelectItem key={bucket as string} value={bucket as string}>
+                      {bucket as string}
                     </SelectItem>
                   ))}
                 </SelectContent>
