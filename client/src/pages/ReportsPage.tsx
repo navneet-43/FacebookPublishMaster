@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Download, Filter, ExternalLink, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { format, parseISO, isValid } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Calendar, Download, Filter, ExternalLink, CheckCircle, XCircle, Clock, CalendarIcon } from 'lucide-react';
+import { format, parseISO, isValid, subDays, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
 
 interface ReportPost {
   id: number;
@@ -25,10 +27,12 @@ interface ReportPost {
 }
 
 interface ReportFilters {
-  dateRange: 'all' | 'today' | 'week' | 'month';
+  dateRange: 'all' | 'today' | 'week' | 'month' | 'custom';
   status: 'all' | 'published' | 'failed' | 'scheduled';
   account: string;
   contentBucket: string;
+  customStartDate?: Date;
+  customEndDate?: Date;
 }
 
 export default function ReportsPage() {
@@ -39,6 +43,8 @@ export default function ReportsPage() {
     contentBucket: 'all'
   });
 
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch posts data for reports
@@ -47,8 +53,17 @@ export default function ReportsPage() {
     queryFn: async () => {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
-        if (value !== 'all') params.append(key, value);
+        if (value !== 'all' && key !== 'customStartDate' && key !== 'customEndDate') {
+          params.append(key, value as string);
+        }
       });
+      
+      // Handle custom date range
+      if (filters.dateRange === 'custom' && filters.customStartDate && filters.customEndDate) {
+        params.append('startDate', filters.customStartDate.toISOString());
+        params.append('endDate', filters.customEndDate.toISOString());
+      }
+      
       if (searchTerm) params.append('search', searchTerm);
       
       const response = await fetch(`/api/reports/posts?${params}`);
@@ -121,6 +136,59 @@ export default function ReportsPage() {
         View Post <ExternalLink className="w-3 h-3" />
       </a>
     );
+  };
+
+  const handleDateRangeChange = (preset: string) => {
+    const now = new Date();
+    
+    switch (preset) {
+      case 'today':
+        setFilters(prev => ({ ...prev, dateRange: 'today' }));
+        break;
+      case 'week':
+        setFilters(prev => ({ ...prev, dateRange: 'week' }));
+        break;
+      case 'month':
+        setFilters(prev => ({ ...prev, dateRange: 'month' }));
+        break;
+      case 'custom':
+        setFilters(prev => ({ 
+          ...prev, 
+          dateRange: 'custom',
+          customStartDate: subDays(now, 7),
+          customEndDate: now
+        }));
+        setDatePickerOpen(true);
+        break;
+      default:
+        setFilters(prev => ({ ...prev, dateRange: 'all' }));
+    }
+  };
+
+  const handleCustomDateChange = (startDate: Date | undefined, endDate: Date | undefined) => {
+    setFilters(prev => ({
+      ...prev,
+      customStartDate: startDate,
+      customEndDate: endDate
+    }));
+  };
+
+  const getDateRangeText = () => {
+    switch (filters.dateRange) {
+      case 'today':
+        return 'Today';
+      case 'week':
+        return 'This Week';
+      case 'month':
+        return 'This Month';
+      case 'custom':
+        if (filters.customStartDate && filters.customEndDate) {
+          return `${format(filters.customStartDate, 'MMM dd')} - ${format(filters.customEndDate, 'MMM dd, yyyy')}`;
+        }
+        return 'Custom Range';
+      default:
+        return 'All Time';
+    }
   };
 
   const exportToCsv = () => {
@@ -239,17 +307,109 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="text-sm font-medium">Date Range</label>
-              <Select value={filters.dateRange} onValueChange={(value: any) => setFilters(prev => ({ ...prev, dateRange: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {getDateRangeText()}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-4 space-y-3">
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Quick Presets</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant={filters.dateRange === 'all' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            handleDateRangeChange('all');
+                            setDatePickerOpen(false);
+                          }}
+                        >
+                          All Time
+                        </Button>
+                        <Button
+                          variant={filters.dateRange === 'today' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            handleDateRangeChange('today');
+                            setDatePickerOpen(false);
+                          }}
+                        >
+                          Today
+                        </Button>
+                        <Button
+                          variant={filters.dateRange === 'week' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            handleDateRangeChange('week');
+                            setDatePickerOpen(false);
+                          }}
+                        >
+                          This Week
+                        </Button>
+                        <Button
+                          variant={filters.dateRange === 'month' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            handleDateRangeChange('month');
+                            setDatePickerOpen(false);
+                          }}
+                        >
+                          This Month
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Custom Range</h4>
+                      <Button
+                        variant={filters.dateRange === 'custom' ? 'default' : 'outline'}
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleDateRangeChange('custom')}
+                      >
+                        Select Custom Dates
+                      </Button>
+                    </div>
+
+                    {filters.dateRange === 'custom' && (
+                      <div className="space-y-3 pt-3 border-t">
+                        <div>
+                          <label className="text-sm font-medium">Start Date</label>
+                          <CalendarComponent
+                            mode="single"
+                            selected={filters.customStartDate}
+                            onSelect={(date) => handleCustomDateChange(date, filters.customEndDate)}
+                            className="rounded-md border"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">End Date</label>
+                          <CalendarComponent
+                            mode="single"
+                            selected={filters.customEndDate}
+                            onSelect={(date) => handleCustomDateChange(filters.customStartDate, date)}
+                            className="rounded-md border"
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setDatePickerOpen(false)}
+                          disabled={!filters.customStartDate || !filters.customEndDate}
+                        >
+                          Apply Custom Range
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>

@@ -12,7 +12,9 @@ router.get('/posts', async (req, res) => {
       status, 
       account, 
       contentBucket, 
-      search 
+      search,
+      startDate,
+      endDate
     } = req.query;
 
     console.log('📊 Fetching posts for reports with filters:', {
@@ -21,7 +23,9 @@ router.get('/posts', async (req, res) => {
       status,
       account,
       contentBucket,
-      search
+      search,
+      startDate,
+      endDate
     });
 
     // Get all posts for the user
@@ -74,27 +78,38 @@ router.get('/posts', async (req, res) => {
       };
     });
 
-    // Apply filters
-    if (dateRange && dateRange !== 'all') {
+    // Apply date filters
+    if (dateRange === 'custom' && startDate && endDate) {
+      // Handle custom date range
+      const filterStartDate = new Date(startDate as string);
+      const filterEndDate = new Date(endDate as string);
+      
+      reportPosts = reportPosts.filter(post => {
+        if (!post.createdAt) return false;
+        const postDate = new Date(post.createdAt);
+        return postDate >= filterStartDate && postDate <= filterEndDate;
+      });
+    } else if (dateRange && dateRange !== 'all') {
+      // Handle preset date ranges
       const now = new Date();
-      let startDate: Date;
+      let filterStartDate: Date;
       
       switch (dateRange) {
         case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          filterStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           break;
         case 'week':
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          filterStartDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           break;
         case 'month':
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          filterStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
           break;
         default:
-          startDate = new Date(0);
+          filterStartDate = new Date(0);
       }
       
       reportPosts = reportPosts.filter(post => 
-        post.createdAt && new Date(post.createdAt) >= startDate
+        post.createdAt && new Date(post.createdAt) >= filterStartDate
       );
     }
 
