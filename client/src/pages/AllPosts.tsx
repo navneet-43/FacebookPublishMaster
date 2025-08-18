@@ -17,6 +17,10 @@ export default function AllPosts() {
     queryKey: ["/api/posts"],
   });
 
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["/api/facebook-accounts"],
+  });
+
   const deletePostMutation = useMutation({
     mutationFn: async (postId: number) => {
       await apiRequest(`/api/posts/${postId}`, {
@@ -163,7 +167,10 @@ export default function AllPosts() {
                         <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                           <i className="fab fa-facebook-f text-blue-600 text-sm"></i>
                         </div>
-                        <div className="text-sm text-gray-900">Facebook Page</div>
+                        <div>
+                          <div className="text-sm text-gray-900">{accounts.find(acc => acc.id === post.accountId)?.name || 'Unknown Account'}</div>
+                          <div className="text-xs text-gray-500">Page ID: {accounts.find(acc => acc.id === post.accountId)?.pageId || 'N/A'}</div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
