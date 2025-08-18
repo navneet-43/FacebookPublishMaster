@@ -30,6 +30,7 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - IMPROVED (Aug 18, 2025): Enhanced upcoming posts view with Facebook page names display and delete functionality for scheduled posts with detailed confirmation dialogs
 - ENHANCED (Aug 18, 2025): Added comprehensive filtering to AllPosts page including date range filters (Today, This Week, This Month, Custom Range) and page filters similar to Reports section
 - NEW (Aug 18, 2025): Complete Facebook video download and upload system implementation with network-based extraction, bypassing Puppeteer dependencies for reliable server operation. Successfully tested with Alright Naari video upload to Alright Tamil page (Post ID: 795338606252960)
+- ENHANCED (Aug 18, 2025): Automatic media link detection system for CSV imports - system now automatically detects and processes Google Drive and Facebook video links without manual mediaType specification. Facebook videos are automatically downloaded during CSV import and converted to local files for reliable Facebook re-upload
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:

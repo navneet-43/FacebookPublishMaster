@@ -415,16 +415,22 @@ export class ExcelImportService {
             estimatedSizes.push(`Row ${index + 1}: Google Drive ${detectedMediaInfo.isVideo ? 'video' : 'file'} (auto-detected)`);
           } else if (detectedMediaInfo.type === 'facebook') {
             facebookVideos++;
-            estimatedSizes.push(`Row ${index + 1}: Facebook video (auto-detected)`);
+            estimatedSizes.push(`Row ${index + 1}: Facebook video (auto-detected - will be downloaded)`);
           } else if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || 
                      mediaUrl.includes('vimeo.com') || mediaUrl.includes('dropbox.com')) {
             regularVideos++;
             estimatedSizes.push(`Row ${index + 1}: External video`);
           }
+        } else {
+          // Check for Facebook videos manually if detection didn't catch it
+          if (mediaUrl.includes('facebook.com') && mediaUrl.includes('/videos/')) {
+            facebookVideos++;
+            estimatedSizes.push(`Row ${index + 1}: Facebook video (manual detection - will be downloaded)`);
+          }
         }
       });
       
-      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive, ${facebookVideos} Facebook, ${regularVideos} other videos`);
+      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive, ${facebookVideos} Facebook videos, ${regularVideos} other videos`);
       
       return {
         success: true,
@@ -654,6 +660,32 @@ export class ExcelImportService {
             failed++;
             continue;
           }
+        } else if (postData.mediaUrl && postData.mediaUrl.includes('facebook.com') && postData.mediaUrl.includes('/videos/')) {
+          console.log(`📱 Row ${i + 1}: Facebook video detected for Excel import: ${postData.mediaUrl}`);
+          
+          try {
+            // Download Facebook video first before creating the post
+            const { FacebookVideoDownloader } = await import('./facebookVideoDownloader');
+            const downloadResult = await FacebookVideoDownloader.downloadVideo(postData.mediaUrl);
+            
+            if (downloadResult.success && downloadResult.filePath) {
+              console.log(`✅ Row ${i + 1}: Facebook video downloaded successfully: ${downloadResult.filename}`);
+              processedMediaUrl = downloadResult.filePath;
+              processedMediaType = postData.mediaType || 'facebook-video';
+              
+              console.log(`🎬 Row ${i + 1}: Facebook video ready for upload - File: ${downloadResult.filename}`);
+            } else {
+              console.log(`❌ Row ${i + 1}: Facebook video download failed: ${downloadResult.error}`);
+              errors.push(`Row ${i + 1}: Facebook video download failed: ${downloadResult.error || 'Unknown download error'}`);
+              failed++;
+              continue;
+            }
+          } catch (fbError) {
+            console.error(`Row ${i + 1}: Facebook video processing error:`, fbError);
+            errors.push(`Row ${i + 1}: Failed to process Facebook video: ${fbError instanceof Error ? fbError.message : 'Unknown error'}`);
+            failed++;
+            continue;
+          }
         } else if (postData.mediaUrl && (postData.mediaUrl.includes('drive.google.com') || postData.mediaUrl.includes('docs.google.com'))) {
           console.log(`🔄 Row ${i + 1}: Google Drive media detected for Excel import: ${postData.mediaUrl}`);
           console.log(`📝 Row ${i + 1}: User specified mediaType: ${postData.mediaType || 'auto-detect'}`);
@@ -727,10 +759,16 @@ export class ExcelImportService {
         
         // Log import activity with retry logic
         const isYouTubeVideo = postData.mediaUrl && YouTubeHelper.isYouTubeUrl(postData.mediaUrl);
-        const activityDescription = isYouTubeVideo 
-          ? `Post imported from Excel/CSV with YouTube video: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`
-          : `Post imported from Excel/CSV: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`;
+        const isFacebookVideo = postData.mediaUrl && postData.mediaUrl.includes('facebook.com') && postData.mediaUrl.includes('/videos/');
         
+        let activityDescription;
+        if (isYouTubeVideo) {
+          activityDescription = `Post imported from Excel/CSV with YouTube video: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`;
+        } else if (isFacebookVideo) {
+          activityDescription = `Post imported from Excel/CSV with Facebook video: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`;
+        } else {
+          activityDescription = `Post imported from Excel/CSV: "${postData.content.substring(0, 50)}${postData.content.length > 50 ? '...' : ''}"`;
+        }
         retryCount = 0;
         while (retryCount < maxRetries) {
           try {
@@ -869,6 +907,14 @@ export class ExcelImportService {
         language: 'EN',
         mediaUrl: 'https://drive.google.com/file/d/1REEL456/view?usp=sharing',
         mediaType: 'reel'
+      },
+      {
+        content: 'Example with Facebook video - will be automatically downloaded and re-uploaded',
+        scheduledFor: '8:00 PM',
+        customLabels: 'facebook, video',
+        language: 'EN',
+        mediaUrl: 'https://www.facebook.com/PageName/videos/123456789/',
+        mediaType: 'video'
       }
     ];
     
