@@ -1,10 +1,27 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-import { Post } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+
+interface Post {
+  id: number;
+  content: string;
+  scheduledFor?: string;
+  status: string;
+  accountId: number;
+  labels?: string[];
+  language?: string;
+  mediaUrl?: string;
+  link?: string;
+}
+
+interface FacebookAccount {
+  id: number;
+  name: string;
+  pageId: string;
+}
 
 export default function UpcomingPostsCard() {
   const { toast } = useToast();
@@ -12,9 +29,15 @@ export default function UpcomingPostsCard() {
     queryKey: ['/api/posts/upcoming'],
   });
 
+  const { data: accounts = [] } = useQuery<FacebookAccount[]>({
+    queryKey: ['/api/facebook-accounts'],
+  });
+
   const deletePostMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest('DELETE', `/api/posts/${id}`);
+      return apiRequest(`/api/posts/${id}`, {
+        method: 'DELETE'
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
@@ -71,7 +94,12 @@ export default function UpcomingPostsCard() {
   };
 
   const handleDelete = (postId: number) => {
-    if (confirm("Are you sure you want to delete this post?")) {
+    const post = posts?.find(p => p.id === postId);
+    const confirmMessage = post 
+      ? `Are you sure you want to delete this scheduled post?\n\nContent: "${post.content.substring(0, 50)}${post.content.length > 50 ? '...' : ''}"\nScheduled for: ${post.scheduledFor ? formatDate(post.scheduledFor) : 'Not scheduled'}\n\nThis action cannot be undone.`
+      : "Are you sure you want to delete this post?";
+    
+    if (confirm(confirmMessage)) {
       deletePostMutation.mutate(postId);
     }
   };
@@ -206,7 +234,10 @@ export default function UpcomingPostsCard() {
                         <div className="flex-shrink-0 h-8 w-8 rounded-full bg-fb-blue flex items-center justify-center text-white">
                           <i className="fa-brands fa-facebook-f"></i>
                         </div>
-                        <div className="ml-2 text-sm text-gray-900">Facebook Page</div>
+                        <div className="ml-2">
+                          <div className="text-sm text-gray-900">{accounts.find(acc => acc.id === post.accountId)?.name || 'Unknown Account'}</div>
+                          <div className="text-xs text-gray-500">Page ID: {accounts.find(acc => acc.id === post.accountId)?.pageId || 'N/A'}</div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
@@ -235,20 +266,25 @@ export default function UpcomingPostsCard() {
                       )}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2">
                         <button 
-                          className="text-gray-500 hover:text-gray-700" 
+                          className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" 
                           onClick={() => handleEdit(post.id)}
-                          title="Edit"
+                          title="Edit Post"
                         >
-                          <i className="fa-solid fa-pencil"></i>
+                          <i className="fa-solid fa-pencil text-sm"></i>
                         </button>
                         <button 
-                          className="text-gray-500 hover:text-fb-error" 
+                          className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-600" 
                           onClick={() => handleDelete(post.id)}
-                          title="Delete"
+                          title="Delete Post"
+                          disabled={deletePostMutation.isPending}
                         >
-                          <i className="fa-solid fa-trash"></i>
+                          {deletePostMutation.isPending ? (
+                            <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                          ) : (
+                            <i className="fa-solid fa-trash text-sm"></i>
+                          )}
                         </button>
                       </div>
                     </td>
