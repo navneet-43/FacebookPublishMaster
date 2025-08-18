@@ -650,9 +650,12 @@ export class HootsuiteStyleFacebookService {
       }
 
       // Skip validation for local file paths - they'll be handled by direct file upload
-      if (!videoUrl.startsWith('/tmp/') && !videoUrl.startsWith('file://')) {
+      let fbValidation: any = null;
+      let forcedUploadMethod = 'direct_upload';
+      
+      if (!videoUrl.startsWith('/tmp/') && !videoUrl.startsWith('file://') && !videoUrl.startsWith('/home/') && !videoUrl.includes('temp/fb_videos/')) {
         const { FacebookVideoValidator } = await import('./facebookVideoValidator');
-        const fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
+        fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
         
         if (!fbValidation.isValid) {
           console.error('❌ FACEBOOK VALIDATION FAILED:', fbValidation.violations);
@@ -663,12 +666,10 @@ export class HootsuiteStyleFacebookService {
           };
         }
         console.log('✅ FACEBOOK VALIDATION PASSED:', fbValidation.uploadMethod, fbValidation.detectedFormat);
+        forcedUploadMethod = fbValidation.uploadMethod;
       } else {
         console.log('📁 LOCAL FILE DETECTED - Skipping URL validation, proceeding with direct upload');
       }
-      
-      // Force upload method based on Facebook validation
-      const forcedUploadMethod = fbValidation.uploadMethod;
       
       const { VideoProcessor } = await import('./videoProcessor');
 
