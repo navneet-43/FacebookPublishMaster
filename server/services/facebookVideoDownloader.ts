@@ -78,8 +78,8 @@ export class FacebookVideoDownloader {
         filename: downloadResult.filename,
         videoInfo: {
           title: videoInfo.title,
-          duration: videoInfo.duration,
-          quality: videoInfo.quality
+          duration: 'Unknown',
+          quality: 'Original'
         }
       };
 
@@ -154,7 +154,7 @@ export class FacebookVideoDownloader {
       });
 
       // Wait for video element to load
-      await page.waitForTimeout(3000);
+      await page.waitForSelector('video', { timeout: 10000 }).catch(() => null);
 
       // Extract video information using multiple selectors
       const videoInfo = await page.evaluate(() => {

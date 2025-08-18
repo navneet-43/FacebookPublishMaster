@@ -685,6 +685,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint for Facebook video download
+  app.post("/api/test-facebook-download", async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      console.log('🧪 Testing Facebook video download for:', url);
+      
+      const { FacebookVideoDownloader } = await import('./services/facebookVideoDownloader');
+      const downloadResult = await FacebookVideoDownloader.downloadVideo(url);
+      
+      res.json({
+        success: downloadResult.success,
+        url,
+        filePath: downloadResult.filePath,
+        filename: downloadResult.filename,
+        error: downloadResult.error,
+        videoInfo: downloadResult.videoInfo,
+        message: downloadResult.success ? 
+          `Downloaded successfully: ${downloadResult.filename}` : 
+          `Download failed: ${downloadResult.error}`
+      });
+      
+    } catch (error) {
+      console.error("Error testing Facebook download:", error);
+      res.status(500).json({ error: "Failed to test Facebook download: " + (error instanceof Error ? error.message : 'Unknown error') });
+    }
+  });
+
   // DELETE individual post by ID
   app.delete("/api/posts/:id", async (req: Request, res: Response) => {
     try {
