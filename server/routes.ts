@@ -656,6 +656,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DELETE individual post by ID
+  app.delete("/api/posts/:id", async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const user = await authenticateUser(req);
+      
+      if (!user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+      
+      if (isNaN(postId)) {
+        return res.status(400).json({ error: 'Invalid post ID' });
+      }
+      
+      // Check if post exists and belongs to the user
+      const existingPost = await storage.getPost(postId);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+      
+      if (existingPost.userId !== user.id) {
+        return res.status(403).json({ error: 'Not authorized to delete this post' });
+      }
+      
+      // Cancel scheduling if post is scheduled
+      if (existingPost.status === 'scheduled') {
+        const { cancelScheduledPost } = await import('./services/postService');
+        await cancelScheduledPost(postId);
+      }
+      
+      // Delete the post
+      const success = await storage.deletePost(postId);
+      if (!success) {
+        return res.status(500).json({ error: 'Failed to delete post' });
+      }
+      
+      // Log activity
+      await storage.createActivity({
+        userId: user.id,
+        type: 'post_deleted',
+        description: `Deleted ${existingPost.status} post`,
+        metadata: { postContent: existingPost.content.substring(0, 50) }
+      });
+      
+      console.log(`✅ DELETED: Post ${postId} deleted by user ${user.id}`);
+      res.json({ success: true, message: 'Post deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      res.status(500).json({ error: 'Failed to delete post' });
+    }
+  });
+
   app.delete("/api/posts/scheduled/all", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
