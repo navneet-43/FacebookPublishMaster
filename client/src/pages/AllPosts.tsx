@@ -3,13 +3,22 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { CalendarIcon, Filter } from "lucide-react";
+import { format, subDays } from "date-fns";
 import type { Post } from "@shared/schema";
 
 export default function AllPosts() {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [pageFilter, setPageFilter] = useState("all");
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -49,7 +58,36 @@ export default function AllPosts() {
     const matchesFilter = filter === "all" || post.status === filter;
     const matchesSearch = search === "" || 
       post.content.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
+    const matchesPage = pageFilter === "all" || post.accountId === parseInt(pageFilter);
+    
+    // Date range filtering
+    let matchesDate = true;
+    if (dateRange !== 'all' && post.createdAt) {
+      const postDate = new Date(post.createdAt);
+      const now = new Date();
+      
+      switch (dateRange) {
+        case 'today':
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          matchesDate = postDate >= today;
+          break;
+        case 'week':
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          matchesDate = postDate >= weekAgo;
+          break;
+        case 'month':
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          matchesDate = postDate >= monthStart;
+          break;
+        case 'custom':
+          if (customStartDate && customEndDate) {
+            matchesDate = postDate >= customStartDate && postDate <= customEndDate;
+          }
+          break;
+      }
+    }
+    
+    return matchesFilter && matchesSearch && matchesPage && matchesDate;
   });
 
   const formatDateTime = (date: string | Date) => {
@@ -78,6 +116,8 @@ export default function AllPosts() {
       </span>
     );
   };
+
+
 
   if (isLoading) {
     return (
@@ -120,6 +160,143 @@ export default function AllPosts() {
               <SelectItem value="draft">Draft</SelectItem>
             </SelectContent>
           </Select>
+          
+          <Select value={pageFilter} onValueChange={setPageFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by page" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Pages</SelectItem>
+              {accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id.toString()}>
+                  {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full sm:w-64 justify-start text-left font-normal"
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {(() => {
+                  switch (dateRange) {
+                    case 'today':
+                      return 'Today';
+                    case 'week':
+                      return 'This Week';
+                    case 'month':
+                      return 'This Month';
+                    case 'custom':
+                      if (customStartDate && customEndDate) {
+                        return `${format(customStartDate, 'MMM dd')} - ${format(customEndDate, 'MMM dd, yyyy')}`;
+                      }
+                      return 'Custom Range';
+                    default:
+                      return 'All Time';
+                  }
+                })()}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <div className="p-3 border-b">
+                <div className="space-y-2">
+                  <Button
+                    variant={dateRange === 'all' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setDateRange('all');
+                      setDatePickerOpen(false);
+                    }}
+                  >
+                    All Time
+                  </Button>
+                  <Button
+                    variant={dateRange === 'today' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setDateRange('today');
+                      setDatePickerOpen(false);
+                    }}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant={dateRange === 'week' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setDateRange('week');
+                      setDatePickerOpen(false);
+                    }}
+                  >
+                    This Week
+                  </Button>
+                  <Button
+                    variant={dateRange === 'month' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setDateRange('month');
+                      setDatePickerOpen(false);
+                    }}
+                  >
+                    This Month
+                  </Button>
+                  <Button
+                    variant={dateRange === 'custom' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setDateRange('custom');
+                      setCustomStartDate(subDays(new Date(), 7));
+                      setCustomEndDate(new Date());
+                    }}
+                  >
+                    Custom Range
+                  </Button>
+                </div>
+              </div>
+              {dateRange === 'custom' && (
+                <div className="p-3">
+                  <div className="grid gap-3">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Start Date</label>
+                      <CalendarComponent
+                        mode="single"
+                        selected={customStartDate}
+                        onSelect={setCustomStartDate}
+                        className="rounded-md border"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">End Date</label>
+                      <CalendarComponent
+                        mode="single"
+                        selected={customEndDate}
+                        onSelect={setCustomEndDate}
+                        disabled={(date) => customStartDate ? date < customStartDate : false}
+                        className="rounded-md border"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setDatePickerOpen(false);
+                      }}
+                      className="w-full"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
