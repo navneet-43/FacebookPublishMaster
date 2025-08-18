@@ -74,7 +74,7 @@
     @apply h-full min-h-screen overflow-auto;
   }
 
-  /* Fix popover scroll blocking */
+  /* Fix popover scroll blocking - target specific popover layers */
   [data-radix-popper-content-wrapper] {
     pointer-events: none !important;
   }
@@ -86,11 +86,41 @@
   /* Ensure body can scroll when popover is open */
   body {
     overflow: auto !important;
+    overscroll-behavior: auto !important;
   }
   
-  /* Prevent popover from blocking scroll */
+  /* Prevent popover portal from blocking scroll */
   [data-radix-popover-content] {
     pointer-events: auto;
+  }
+
+  /* Allow scroll events to pass through the overlay */
+  [data-radix-popover-content]:not(:focus-within) {
+    pointer-events: none;
+  }
+
+  [data-radix-popover-content]:not(:focus-within) > * {
+    pointer-events: auto;
+  }
+
+  /* Specific fix for calendar components in popovers */
+  [data-radix-popover-content] .react-day-picker {
+    pointer-events: auto;
+  }
+
+  /* Critical fix: Allow scroll events on body even when popover is open */
+  html, body {
+    touch-action: manipulation !important;
+  }
+  
+  /* Prevent scroll lock on mobile and desktop */
+  body[data-scroll-locked] {
+    overflow: auto !important;
+  }
+
+  /* Override Radix scroll locking */
+  [data-radix-scroll-area-viewport] {
+    overscroll-behavior: auto !important;
   }
 
   body {

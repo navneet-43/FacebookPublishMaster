@@ -19,6 +19,21 @@ export default function AllPosts() {
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  // Ensure scroll isn't blocked when popover is open
+  useEffect(() => {
+    const enableScroll = () => {
+      document.body.style.overflow = 'auto';
+      document.documentElement.style.overflow = 'auto';
+    };
+
+    if (datePickerOpen) {
+      enableScroll();
+      // Also ensure scroll after a slight delay
+      const timer = setTimeout(enableScroll, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [datePickerOpen]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -201,7 +216,17 @@ export default function AllPosts() {
                 })()}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4} onOpenAutoFocus={(e) => e.preventDefault()}>
+            <PopoverContent 
+              className="w-auto p-0" 
+              align="start" 
+              side="bottom" 
+              sideOffset={4} 
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onInteractOutside={(e) => {
+                // Allow interaction with page elements outside the popover
+                e.preventDefault();
+              }}
+            >
               <div className="p-3 border-b">
                 <div className="space-y-2">
                   <Button

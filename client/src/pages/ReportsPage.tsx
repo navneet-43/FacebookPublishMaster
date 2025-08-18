@@ -45,6 +45,21 @@ export default function ReportsPage() {
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
+  // Ensure scroll isn't blocked when popover is open
+  useEffect(() => {
+    const enableScroll = () => {
+      document.body.style.overflow = 'auto';
+      document.documentElement.style.overflow = 'auto';
+    };
+
+    if (datePickerOpen) {
+      enableScroll();
+      // Also ensure scroll after a slight delay
+      const timer = setTimeout(enableScroll, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [datePickerOpen]);
+
   const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch posts data for reports
@@ -317,7 +332,17 @@ export default function ReportsPage() {
                     {getDateRangeText()}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4} onOpenAutoFocus={(e) => e.preventDefault()}>
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start" 
+                  side="bottom" 
+                  sideOffset={4} 
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onInteractOutside={(e) => {
+                    // Allow interaction with page elements outside the popover
+                    e.preventDefault();
+                  }}
+                >
                   <div className="p-4 space-y-3">
                     <div className="space-y-2">
                       <h4 className="font-medium leading-none">Quick Presets</h4>
