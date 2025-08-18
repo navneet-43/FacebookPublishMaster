@@ -380,22 +380,29 @@ export default function ReportsPage() {
                     {filters.dateRange === 'custom' && (
                       <div className="space-y-3 pt-3 border-t">
                         <div>
-                          <label className="text-sm font-medium">Start Date</label>
+                          <label className="text-sm font-medium mb-2 block">Select Date Range</label>
                           <CalendarComponent
-                            mode="single"
-                            selected={filters.customStartDate}
-                            onSelect={(date) => handleCustomDateChange(date, filters.customEndDate)}
+                            mode="range"
+                            selected={{
+                              from: filters.customStartDate,
+                              to: filters.customEndDate
+                            }}
+                            onSelect={(range) => {
+                              if (range) {
+                                handleCustomDateChange(range.from, range.to);
+                              }
+                            }}
                             className="rounded-md border"
                           />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">End Date</label>
-                          <CalendarComponent
-                            mode="single"
-                            selected={filters.customEndDate}
-                            onSelect={(date) => handleCustomDateChange(filters.customStartDate, date)}
-                            className="rounded-md border"
-                          />
+                          <div className="text-xs text-gray-500 mt-2">
+                            {filters.customStartDate && filters.customEndDate ? (
+                              `Selected: ${format(filters.customStartDate, 'MMM dd, yyyy')} - ${format(filters.customEndDate, 'MMM dd, yyyy')}`
+                            ) : filters.customStartDate ? (
+                              `Start: ${format(filters.customStartDate, 'MMM dd, yyyy')} (select end date)`
+                            ) : (
+                              'Click dates to select range'
+                            )}
+                          </div>
                         </div>
                         <Button
                           size="sm"

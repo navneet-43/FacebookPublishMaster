@@ -26,7 +26,7 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - FIXED (Aug 10, 2025): Resolved Facebook Reels minimum height requirement (960px) - added video validation and automatic upscaling
 - OPTIMIZED (Aug 10, 2025): Eliminated unnecessary FFmpeg conversions by checking video requirements first, only processing when needed
 - NEW (Aug 18, 2025): Complete Reports feature implementation with publishing bucket analytics showing "Date uploaded – date published (if failed then blank) – Published page – content bucket (from custom label) – published link"
-- ENHANCED (Aug 18, 2025): Advanced calendar-based date filtering in Reports with presets (Today, This Week, This Month) and custom date range selection
+- ENHANCED (Aug 18, 2025): Advanced calendar-based date filtering in Reports with presets (Today, This Week, This Month) and unified custom date range selection in single calendar layout
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
