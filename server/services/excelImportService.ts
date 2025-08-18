@@ -5,6 +5,7 @@ import { insertPostSchema, insertActivitySchema } from '@shared/schema';
 import { z } from 'zod';
 import { YouTubeHelper } from './youtubeHelper';
 import { VideoProcessor } from './videoProcessor';
+import { MediaLinkDetector } from './mediaLinkDetector';
 
 export interface ExcelPostData {
   content: string;
@@ -35,6 +36,8 @@ export interface AnalysisResult {
 }
 
 export class ExcelImportService {
+  private static mediaDetector = new MediaLinkDetector();
+
   private static validatePostData(row: any, rowIndex: number): { isValid: boolean; errors: string[]; data?: ExcelPostData } {
     const errors: string[] = [];
     
@@ -53,9 +56,18 @@ export class ExcelImportService {
       content, scheduledFor, accountName, customLabels, language, mediaUrl, mediaType
     });
     
+    // Auto-detect media type if mediaUrl is provided but mediaType is not specified
+    let detectedMediaInfo = null;
+    if (mediaUrl && !mediaType) {
+      detectedMediaInfo = this.mediaDetector.detectMediaLink(mediaUrl);
+      console.log(`🔍 Row ${rowIndex + 1}: Auto-detected media type: ${detectedMediaInfo.type} for URL: ${mediaUrl}`);
+    }
+    
     // Log mediaType specifically for debugging
     if (mediaType) {
       console.log(`📝 Row ${rowIndex + 1}: User specified mediaType: "${mediaType}" (will be preserved)`);
+    } else if (detectedMediaInfo && detectedMediaInfo.type !== 'unknown') {
+      console.log(`🤖 Row ${rowIndex + 1}: Auto-detected mediaType: "${detectedMediaInfo.type}-${detectedMediaInfo.isVideo ? 'video' : 'file'}"`);
     }
     
     // Required fields validation
@@ -257,6 +269,13 @@ export class ExcelImportService {
     // Keep original input format for IST processing later
     console.log(`Row ${rowIndex + 1} - Scheduling for: ${scheduledFor}`);
 
+    // Use detected media type if not provided by user
+    let finalMediaType = mediaType ? mediaType.toString().trim() : undefined;
+    if (!finalMediaType && detectedMediaInfo && detectedMediaInfo.type !== 'unknown') {
+      finalMediaType = `${detectedMediaInfo.type}-${detectedMediaInfo.isVideo ? 'video' : 'file'}`;
+      console.log(`🤖 Row ${rowIndex + 1}: Setting auto-detected mediaType: "${finalMediaType}"`);
+    }
+
     const data: ExcelPostData = {
       content: content.trim(),
       scheduledFor: scheduledFor.toString(),
@@ -264,7 +283,7 @@ export class ExcelImportService {
       customLabels: customLabels.toString().trim(),
       language: language.toString().trim() || 'EN',
       mediaUrl: processedMediaUrl,
-      mediaType: mediaType.toString().trim() || undefined
+      mediaType: finalMediaType
     };
     
     return { isValid: true, errors: [], data };
@@ -370,18 +389,33 @@ export class ExcelImportService {
           });
       }
       
-      // Analyze posts for Google Drive videos and other statistics
+      // Analyze posts for media types and other statistics
       let googleDriveVideos = 0;
+      let facebookVideos = 0;
       let regularVideos = 0;
       const estimatedSizes: string[] = [];
       
+      // Enhanced analysis with automatic media detection
       posts.forEach((post: any, index: number) => {
         const mediaUrl = post.mediaurl || post.mediaUrl || post['media url'] || post['Media URL'] || '';
+        const mediaType = post.mediatype || post.mediaType || post['media type'] || post['Media Type'] || '';
         
         if (mediaUrl && typeof mediaUrl === 'string') {
-          if (mediaUrl.includes('drive.google.com')) {
+          // Auto-detect media type using MediaLinkDetector
+          const detectedMediaInfo = this.mediaDetector.detectMediaLink(mediaUrl);
+          
+          // Add detected media type to the post for preview
+          if (!mediaType && detectedMediaInfo.type !== 'unknown') {
+            post.detectedMediaType = `${detectedMediaInfo.type}-${detectedMediaInfo.isVideo ? 'video' : 'file'}`;
+          }
+          
+          // Count by detected type
+          if (detectedMediaInfo.type === 'google-drive') {
             googleDriveVideos++;
-            estimatedSizes.push(`Row ${index + 1}: Google Drive video (size unknown)`);
+            estimatedSizes.push(`Row ${index + 1}: Google Drive ${detectedMediaInfo.isVideo ? 'video' : 'file'} (auto-detected)`);
+          } else if (detectedMediaInfo.type === 'facebook') {
+            facebookVideos++;
+            estimatedSizes.push(`Row ${index + 1}: Facebook video (auto-detected)`);
           } else if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || 
                      mediaUrl.includes('vimeo.com') || mediaUrl.includes('dropbox.com')) {
             regularVideos++;
@@ -390,13 +424,13 @@ export class ExcelImportService {
         }
       });
       
-      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive videos, ${regularVideos} other videos`);
+      console.log(`✅ Analysis complete: ${posts.length} posts, ${googleDriveVideos} Google Drive, ${facebookVideos} Facebook, ${regularVideos} other videos`);
       
       return {
         success: true,
         data: posts,
         googleDriveVideos,
-        regularVideos,
+        regularVideos: regularVideos + facebookVideos, // Include Facebook videos in regular count for compatibility
         estimatedSizes
       };
       

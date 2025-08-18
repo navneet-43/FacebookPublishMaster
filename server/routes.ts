@@ -656,6 +656,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint for media link detection
+  app.post("/api/test-media-detection", async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      const { MediaLinkDetector } = await import('./services/mediaLinkDetector');
+      const detector = new MediaLinkDetector();
+      
+      const detectedInfo = detector.detectMediaLink(url);
+      
+      res.json({
+        success: true,
+        url,
+        detectedType: detectedInfo.type,
+        isVideo: detectedInfo.isVideo,
+        supported: detector.isSupported(url),
+        message: `Detected: ${detectedInfo.type} - ${detectedInfo.isVideo ? 'Video' : 'File'}`
+      });
+      
+    } catch (error) {
+      console.error("Error testing media detection:", error);
+      res.status(500).json({ error: "Failed to test media detection" });
+    }
+  });
+
   // DELETE individual post by ID
   app.delete("/api/posts/:id", async (req: Request, res: Response) => {
     try {

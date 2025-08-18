@@ -1,0 +1,140 @@
+import { FacebookVideoDownloader } from './facebookVideoDownloader';
+import { WorkingGoogleDriveService } from './workingGoogleDriveService';
+
+export interface MediaLinkInfo {
+  type: 'facebook' | 'google-drive' | 'unknown';
+  url: string;
+  isVideo: boolean;
+}
+
+export class MediaLinkDetector {
+  private googleDriveService: WorkingGoogleDriveService;
+
+  constructor() {
+    this.googleDriveService = new WorkingGoogleDriveService();
+  }
+
+  /**
+   * Automatically detect the type of media link and return platform info
+   */
+  detectMediaLink(url: string): MediaLinkInfo {
+    if (!url) {
+      return { type: 'unknown', url, isVideo: false };
+    }
+
+    // Facebook video detection
+    if (this.isFacebookVideoUrl(url)) {
+      return { type: 'facebook', url, isVideo: true };
+    }
+
+    // Google Drive detection
+    if (this.isGoogleDriveUrl(url)) {
+      return { type: 'google-drive', url, isVideo: this.isLikelyVideo(url) };
+    }
+
+    return { type: 'unknown', url, isVideo: false };
+  }
+
+  /**
+   * Download media automatically based on detected type
+   */
+  async downloadMedia(url: string): Promise<{
+    success: boolean;
+    filePath?: string;
+    filename?: string;
+    error?: string;
+    mediaType?: string;
+  }> {
+    const linkInfo = this.detectMediaLink(url);
+    
+    console.log(`🔍 Detected media type: ${linkInfo.type} for URL: ${url}`);
+
+    try {
+      switch (linkInfo.type) {
+        case 'facebook':
+          console.log('📱 Downloading Facebook video...');
+          const fbResult = await FacebookVideoDownloader.downloadVideo(url);
+          return {
+            ...fbResult,
+            mediaType: 'facebook-video'
+          };
+
+        case 'google-drive':
+          console.log('📁 Downloading Google Drive file...');
+          // Note: We'll implement a simple download method here
+          // For now, return the URL for processing via existing CSV system
+          return {
+            success: true,
+            filePath: url, // Pass the URL for now, CSV system handles Google Drive
+            mediaType: linkInfo.isVideo ? 'google-drive-video' : 'google-drive-file'
+          };
+
+        default:
+          return {
+            success: false,
+            error: `Unsupported media URL type: ${linkInfo.type}`,
+          };
+      }
+    } catch (error) {
+      console.error('❌ Media download failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown download error',
+      };
+    }
+  }
+
+  /**
+   * Check if URL is a Facebook video
+   */
+  private isFacebookVideoUrl(url: string): boolean {
+    const facebookVideoPatterns = [
+      /facebook\.com\/.*\/videos\//,
+      /fb\.watch\//,
+      /facebook\.com\/watch/,
+      /m\.facebook\.com\/.*\/videos\//,
+    ];
+
+    return facebookVideoPatterns.some(pattern => pattern.test(url));
+  }
+
+  /**
+   * Check if URL is a Google Drive link
+   */
+  private isGoogleDriveUrl(url: string): boolean {
+    const googleDrivePatterns = [
+      /drive\.google\.com\/file\/d\//,
+      /drive\.google\.com\/open\?id=/,
+      /docs\.google\.com\/file\/d\//,
+    ];
+
+    return googleDrivePatterns.some(pattern => pattern.test(url));
+  }
+
+  /**
+   * Check if the URL is likely a video based on file extension or context
+   */
+  private isLikelyVideo(url: string): boolean {
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp'];
+    const urlLower = url.toLowerCase();
+    
+    return videoExtensions.some(ext => urlLower.includes(ext)) || 
+           urlLower.includes('video') ||
+           urlLower.includes('movie');
+  }
+
+  /**
+   * Get supported platforms
+   */
+  getSupportedPlatforms(): string[] {
+    return ['facebook', 'google-drive'];
+  }
+
+  /**
+   * Check if a URL is supported for automatic download
+   */
+  isSupported(url: string): boolean {
+    const linkInfo = this.detectMediaLink(url);
+    return linkInfo.type !== 'unknown';
+  }
+}
