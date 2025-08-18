@@ -941,6 +941,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reports routes
   app.use('/api/reports', reportsRouter);
 
+  // Facebook Video Download and Upload Routes
+  app.post('/api/facebook-video/download', async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Facebook video URL is required" 
+        });
+      }
+
+      console.log('🎥 Starting Facebook video download for URL:', url);
+
+      const { FacebookVideoDownloader } = await import('./services/facebookVideoDownloader');
+      const result = await FacebookVideoDownloader.downloadVideo(url);
+
+      if (result.success) {
+        await storage.createActivity({
+          userId: user.id,
+          type: "facebook_video_downloaded",
+          description: `Downloaded Facebook video: ${result.filename}`,
+          metadata: { 
+            url,
+            filename: result.filename,
+            videoInfo: result.videoInfo
+          }
+        });
+
+        console.log('✅ Facebook video download completed:', result.filename);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error downloading Facebook video:", error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to download video"
+      });
+    }
+  });
+
+  app.post('/api/facebook-video/upload', async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { filePath, accountId, content, videoInfo } = req.body;
+      
+      if (!filePath || !accountId) {
+        return res.status(400).json({ 
+          success: false,
+          error: "File path and account ID are required" 
+        });
+      }
+
+      console.log('📤 Starting Facebook video upload for account:', accountId);
+
+      const { FacebookVideoUploader } = await import('./services/facebookVideoUploader');
+      const result = await FacebookVideoUploader.uploadVideo(
+        filePath,
+        parseInt(accountId),
+        content || '',
+        videoInfo
+      );
+
+      if (result.success) {
+        await storage.createActivity({
+          userId: user.id,
+          type: "facebook_video_uploaded",
+          description: `Uploaded video to Facebook: ${result.facebookPostId}`,
+          metadata: { 
+            accountId,
+            facebookPostId: result.facebookPostId,
+            content: content?.substring(0, 50) + '...'
+          }
+        });
+
+        console.log('✅ Facebook video upload completed:', result.facebookPostId);
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error uploading Facebook video:", error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to upload video"
+      });
+    }
+  });
+
   // Health endpoint for keep-alive service
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ 
