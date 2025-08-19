@@ -108,83 +108,14 @@ export class SimpleFacebookPhotoService {
         console.log('📥 FACEBOOK IMAGE: Downloading for re-upload...');
         
         try {
-          // Use Facebook video downloader for Facebook image URLs
-          const { FacebookVideoDownloader } = await import('./facebookVideoDownloader');
-          const downloadResult = await FacebookVideoDownloader.downloadVideo(photoUrl);
-          
-          if (downloadResult.success && downloadResult.filePath) {
-            console.log('✅ Facebook image downloaded successfully');
-            
-            // Upload the downloaded file directly to Facebook
-            const formData = new FormData();
-            
-            try {
-              const file = await fileFromPath(downloadResult.filePath);
-              formData.append('source', file);
-              formData.append('access_token', pageAccessToken);
-              formData.append('published', 'true');
-              
-              if (caption) {
-                formData.append('caption', caption);
-              }
-              
-              // Add custom labels for Meta Insights tracking
-              if (customLabels && customLabels.length > 0) {
-                const customLabelsParam = CustomLabelValidator.createFacebookParameter(customLabels);
-                
-                if (customLabelsParam) {
-                  formData.append('custom_labels', customLabelsParam);
-                  console.log('✅ META INSIGHTS: Adding validated custom labels to Facebook photo');
-                }
-              }
-              
-              if (language) {
-                formData.append('locale', language);
-              }
-              
-              const endpoint = `https://graph.facebook.com/v20.0/${pageId}/photos`;
-              console.log(`Uploading Facebook image to page ${pageId}`);
-              
-              const response = await fetch(endpoint, {
-                method: 'POST',
-                body: formData
-              });
-              
-              const data = await response.json();
-              
-              // Clean up downloaded file
-              if (downloadResult.cleanup) downloadResult.cleanup();
-              
-              if (!response.ok || data.error) {
-                console.error('Facebook photo upload error:', data.error);
-                return {
-                  success: false,
-                  error: data.error?.message || `Photo upload failed: ${response.status}`
-                };
-              }
-              
-              console.log('✅ Facebook photo uploaded successfully:', data.id);
-              return {
-                success: true,
-                postId: data.id
-              };
-              
-            } catch (fileError) {
-              console.error('Error handling downloaded Facebook image:', fileError);
-              if (downloadResult.cleanup) downloadResult.cleanup();
-              return {
-                success: false,
-                error: 'Failed to process downloaded Facebook image file'
-              };
-            }
-          } else {
-            console.error('Failed to download Facebook image:', downloadResult.error);
-            // Fallback to URL method for non-Facebook images
-          }
-        } catch (downloadError) {
-          console.error('Facebook image download error:', downloadError);
-          // Fallback to URL method
-        }
+          // Facebook photo URLs require special handling - they're not directly downloadable
+          // For now, return an error with clear guidance
+          console.log('❌ Facebook photo URLs cannot be directly downloaded due to authentication restrictions');
+          return {
+            success: false,
+            error: 'Facebook photo URLs are not supported. Please download the image manually and re-upload it as a local file, or use a direct image URL from another source.'
+          };
+
       }
       // Handle Google Drive links by downloading first
       else if (isGoogleDriveLink(photoUrl)) {

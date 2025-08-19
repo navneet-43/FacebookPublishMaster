@@ -183,7 +183,7 @@ export class FacebookVideoDownloader {
         // Try to find source elements
         if (!videoSrc) {
           const sources = document.querySelectorAll('video source[src]');
-          for (const source of sources) {
+          for (const source of Array.from(sources)) {
             const src = (source as HTMLSourceElement).src;
             if (src && src.includes('video')) {
               videoSrc = src;
