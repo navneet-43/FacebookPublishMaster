@@ -531,7 +531,9 @@ export class HootsuiteStyleFacebookService {
       }
 
       // Handle Google Drive URLs with enhanced large file access (for both videos and images)
-      if (videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) {
+      // BUT skip Google Drive processing for local Facebook video files
+      if ((videoUrl.includes('drive.google.com') || videoUrl.includes('docs.google.com')) && 
+          !videoUrl.startsWith('/home/runner/workspace/temp/fb_videos/')) {
         console.log('📁 GOOGLE DRIVE MEDIA: Using enhanced file access for video/image content');
         
         if (uploadId) {
@@ -669,6 +671,36 @@ export class HootsuiteStyleFacebookService {
         forcedUploadMethod = fbValidation.uploadMethod;
       } else {
         console.log('📁 LOCAL FILE DETECTED - Skipping URL validation, proceeding with direct upload');
+        
+        // For local Facebook video files, upload directly without any processing
+        if (videoUrl.startsWith('/home/runner/workspace/temp/fb_videos/')) {
+          console.log('🎬 FACEBOOK VIDEO FILE: Direct upload without processing');
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
+          
+          const uploadResult = await uploadService.uploadProcessedVideoFile({
+            videoFilePath: videoUrl,
+            pageId: pageId,
+            pageAccessToken: pageAccessToken,
+            description: description || 'Facebook video upload',
+            customLabels: customLabels || [],
+            language: language || 'en'
+          });
+          
+          if (uploadResult.success) {
+            console.log('✅ FACEBOOK VIDEO UPLOADED SUCCESSFULLY');
+            return {
+              success: true,
+              postId: uploadResult.postId || uploadResult.videoId
+            };
+          } else {
+            console.log('❌ FACEBOOK VIDEO UPLOAD FAILED:', uploadResult.error);
+            return {
+              success: false,
+              error: uploadResult.error || 'Facebook video upload failed'
+            };
+          }
+        }
       }
       
       const { VideoProcessor } = await import('./videoProcessor');
