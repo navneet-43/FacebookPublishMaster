@@ -237,6 +237,7 @@ export class CompleteVideoUploadService {
     description: string;
     customLabels: string[];
     language: string;
+    isReel?: boolean;
   }): Promise<CompleteVideoUploadResult> {
     try {
       console.log('Starting upload of processed video file');
@@ -250,7 +251,7 @@ export class CompleteVideoUploadService {
       
       // Use chunked upload for larger files (>50MB)
       if (fileSizeMB > 50) {
-        console.log('Using chunked upload for large video file');
+        console.log(`Using chunked upload for large ${options.isReel ? 'reel' : 'video'} file`);
         uploadResult = await this.uploader.uploadVideoInChunks({
           accessToken: options.pageAccessToken,
           pageId: options.pageId,
@@ -258,10 +259,11 @@ export class CompleteVideoUploadService {
           title: options.description || 'Video Upload',
           description: options.description,
           customLabels: options.customLabels || [],
-          language: options.language || 'en'
+          language: options.language || 'en',
+          isReel: options.isReel || false
         });
       } else {
-        console.log('Using standard upload for video file');
+        console.log(`Using standard upload for ${options.isReel ? 'reel' : 'video'} file`);
         // For smaller files, still use chunked upload as it's more reliable
         uploadResult = await this.uploader.uploadVideoInChunks({
           accessToken: options.pageAccessToken,
@@ -270,7 +272,8 @@ export class CompleteVideoUploadService {
           title: options.description || 'Video Upload',
           description: options.description,
           customLabels: options.customLabels || [],
-          language: options.language || 'en'
+          language: options.language || 'en',
+          isReel: options.isReel || false
         });
       }
       

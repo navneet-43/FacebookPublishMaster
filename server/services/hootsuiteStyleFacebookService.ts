@@ -684,7 +684,8 @@ export class HootsuiteStyleFacebookService {
             pageAccessToken: pageAccessToken,
             description: description || 'Facebook video upload',
             customLabels: customLabels || [],
-            language: language || 'en'
+            language: language || 'en',
+            isReel: false // Facebook video files are regular videos
           });
           
           if (uploadResult.success) {
@@ -1961,7 +1962,8 @@ Google Drive's security policies prevent external applications from downloading 
                 pageAccessToken: pageAccessToken,
                 description: finalDescription,
                 customLabels: customLabels || [],
-                language: language || 'en'
+                language: language || 'en',
+                isReel: false // Explicitly set as regular video for fallback
               });
               
               if (videoResult.success) {
@@ -1997,6 +1999,37 @@ Google Drive's security policies prevent external applications from downloading 
           success: false,
           error: result.error || 'Google Drive reel processing failed'
         };
+      }
+
+      // Handle local Facebook video files that should be uploaded as Reels
+      if (videoUrl.startsWith('/home/runner/workspace/temp/fb_videos/')) {
+        console.log('🎬 LOCAL FACEBOOK VIDEO FILE: Uploading as Reel');
+        const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+        const uploadService = new CompleteVideoUploadService();
+        
+        const uploadResult = await uploadService.uploadProcessedVideoFile({
+          videoFilePath: videoUrl,
+          pageId: pageId,
+          pageAccessToken: pageAccessToken,
+          description: description || 'Facebook reel upload',
+          customLabels: customLabels || [],
+          language: language || 'en',
+          isReel: true // This is the key fix - ensure it's uploaded as a Reel
+        });
+        
+        if (uploadResult.success) {
+          console.log('✅ FACEBOOK VIDEO UPLOADED AS REEL SUCCESSFULLY');
+          return {
+            success: true,
+            postId: uploadResult.postId || uploadResult.videoId
+          };
+        } else {
+          console.log('❌ FACEBOOK VIDEO REEL UPLOAD FAILED:', uploadResult.error);
+          return {
+            success: false,
+            error: uploadResult.error || 'Facebook reel upload failed'
+          };
+        }
       }
 
       // For non-Google Drive URLs, try Reel upload with fallback to video
