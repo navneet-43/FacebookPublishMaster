@@ -103,20 +103,6 @@ export class SimpleFacebookPhotoService {
           };
         }
       }
-      // Handle Facebook photo URLs by downloading and re-uploading
-      else if (photoUrl.includes('facebook.com') && photoUrl.includes('photo') || photoUrl.includes('fbcdn.net')) {
-        console.log('📥 FACEBOOK IMAGE: Downloading for re-upload...');
-        
-        try {
-          // Facebook photo URLs require special handling - they're not directly downloadable
-          // For now, return an error with clear guidance
-          console.log('❌ Facebook photo URLs cannot be directly downloaded due to authentication restrictions');
-          return {
-            success: false,
-            error: 'Facebook photo URLs are not supported. Please download the image manually and re-upload it as a local file, or use a direct image URL from another source.'
-          };
-
-      }
       // Handle Google Drive links by downloading first
       else if (isGoogleDriveLink(photoUrl)) {
         console.log('📥 Downloading from Google Drive...');
