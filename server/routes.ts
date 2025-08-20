@@ -16,7 +16,8 @@ import multer from "multer";
 import { uploadImage } from "./utils/cloudinary";
 import passport from "passport";
 import { isAuthenticated, fetchUserPages } from "./auth";
-import platformAuthRouter, { sessionMiddleware, requireAuth as requirePlatformAuth } from "./routes/platformAuth";
+import platformAuthRouter, { sessionMiddleware } from "./routes/platformAuth";
+import { requireAuth, requireAdmin } from "./middleware/auth";
 import { GoogleSheetsService } from "./services/googleSheetsService";
 import { setupGoogleOAuthRoutes } from "./routes/googleOAuth";
 import { ExcelImportService } from "./services/excelImportService";
@@ -61,9 +62,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(sessionMiddleware);
   
   // Setup new platform authentication routes
-  app.use('/api/platform/auth', platformAuthRouter);
-  // Add alias for Replit environment URL rewrite
-  app.use('/api/client/auth', platformAuthRouter);
+  app.use('/api/auth', platformAuthRouter);
   
   // Setup Google OAuth routes
   setupGoogleOAuthRoutes(app);

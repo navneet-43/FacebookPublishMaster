@@ -14,28 +14,81 @@ import ExcelImport from "@/pages/ExcelImport";
 import CustomLabels from "@/pages/CustomLabels";
 import Settings from "@/pages/Settings";
 import ReportsPage from "@/pages/ReportsPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { AdminPage } from "@/pages/AdminPage";
 
 import Sidebar from "@/components/layout/Sidebar";
 import MobileMenu from "@/components/layout/MobileMenu";
-import TeamLogin from "@/pages/TeamLogin";
-import { usePlatformAuth } from "@/hooks/usePlatformAuth";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useState } from "react";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/posts" component={AllPosts} />
-      <Route path="/calendar" component={PublishingCalendar} />
-      <Route path="/publishing-calendar" component={PublishingCalendar} />
-      <Route path="/history" component={PublishingHistory} />
-      <Route path="/facebook-accounts" component={FacebookAccounts} />
-      <Route path="/google-sheets" component={GoogleSheetsIntegration} />
-      <Route path="/excel-import" component={ExcelImport} />
-      <Route path="/custom-labels" component={CustomLabels} />
-      <Route path="/reports" component={ReportsPage} />
-
-      <Route path="/settings" component={Settings} />
+      {/* Public routes */}
+      <Route path="/login" component={LoginPage} />
+      
+      {/* Admin routes */}
+      <Route path="/admin" component={AdminPage} />
+      
+      {/* Protected main app routes */}
+      <Route path="/">
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/posts">
+        <ProtectedRoute>
+          <AllPosts />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/calendar">
+        <ProtectedRoute>
+          <PublishingCalendar />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/publishing-calendar">
+        <ProtectedRoute>
+          <PublishingCalendar />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/history">
+        <ProtectedRoute>
+          <PublishingHistory />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/facebook-accounts">
+        <ProtectedRoute>
+          <FacebookAccounts />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/google-sheets">
+        <ProtectedRoute>
+          <GoogleSheetsIntegration />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/excel-import">
+        <ProtectedRoute>
+          <ExcelImport />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/custom-labels">
+        <ProtectedRoute>
+          <CustomLabels />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/reports">
+        <ProtectedRoute>
+          <ReportsPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <Settings />
+        </ProtectedRoute>
+      </Route>
+      
       <Route component={NotFound} />
     </Switch>
   );
@@ -43,6 +96,12 @@ function Router() {
 
 function AuthenticatedApp() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Show full-screen layout for login and admin pages
+  if (!isAuthenticated || isLoading) {
+    return <Router />;
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -81,8 +140,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthenticatedApp />
-        <Toaster />
+        <AuthProvider>
+          <AuthenticatedApp />
+          <Toaster />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

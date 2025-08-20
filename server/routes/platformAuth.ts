@@ -1,242 +1,303 @@
-import { Request, Response, Router } from 'express';
-import session from 'express-session';
-import { AuthService } from '../services/authService';
-import { loginSchema, registerSchema } from '@shared/schema';
-import { z } from 'zod';
+import express from "express";
+import session from "express-session";
+import { z } from "zod";
+import { storage } from "../storage";
+import { hashPassword, verifyPassword, generateTempPassword, requireAuth, requireAdmin } from "../middleware/auth";
+import type { PlatformUser } from "@shared/schema";
 
-const router = Router();
+const router = express.Router();
 
-// Session middleware
+// Session configuration
 export const sessionMiddleware = session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET || 'social-flow-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Set to true in production with HTTPS
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  },
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  }
 });
 
-// Middleware to check authentication
-export function requireAuth(req: Request, res: Response, next: Function) {
-  if (req.session && (req.session as any).userId) {
-    return next();
-  }
-  return res.status(401).json({ error: 'Authentication required' });
-}
+// Validation schemas
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
 
-// Register new user
-router.post('/register', async (req: Request, res: Response) => {
+const createUserSchema = z.object({
+  fullName: z.string().min(1, "Full name is required"),
+  email: z.string().email("Invalid email address"),
+  role: z.enum(["user", "admin"]).default("user"),
+});
+
+const updateUserSchema = z.object({
+  fullName: z.string().min(1, "Full name is required").optional(),
+  email: z.string().email("Invalid email address").optional(),
+  role: z.enum(["user", "admin"]).optional(),
+  isActive: z.boolean().optional(),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// Login endpoint
+router.post('/login', async (req, res) => {
   try {
-    const validatedData = registerSchema.parse(req.body);
-    const result = await AuthService.register(validatedData);
-
-    if (result.success && result.user) {
-      // Auto-login after registration
-      (req.session as any).userId = result.user.id;
-      (req.session as any).user = {
-        id: result.user.id,
-        username: result.user.username,
-        email: result.user.email,
-        fullName: result.user.fullName,
-        role: result.user.role
-      };
-
-      res.json({
-        success: true,
-        user: {
-          id: result.user.id,
-          username: result.user.username,
-          email: result.user.email,
-          fullName: result.user.fullName,
-          role: result.user.role
-        }
+    const result = loginSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ 
+        message: "Invalid input", 
+        errors: result.error.format() 
       });
-    } else {
-      res.status(400).json({ success: false, error: result.error });
     }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ success: false, error: error.errors[0].message });
-    } else {
-      console.error('Registration error:', error);
-      res.status(500).json({ success: false, error: 'Registration failed' });
+
+    const { email, password } = result.data;
+    const user = await storage.getPlatformUserByEmail(email);
+
+    if (!user) {
+      return res.status(401).json({ message: "Wrong email or password" });
     }
-  }
-});
 
-// Login user
-router.post('/login', async (req: Request, res: Response) => {
-  try {
-    const validatedData = loginSchema.parse(req.body);
-    const result = await AuthService.login(validatedData);
-
-    if (result.success && result.user) {
-      (req.session as any).userId = result.user.id;
-      (req.session as any).user = {
-        id: result.user.id,
-        username: result.user.username,
-        email: result.user.email,
-        fullName: result.user.fullName,
-        role: result.user.role
-      };
-
-      res.json({
-        success: true,
-        user: {
-          id: result.user.id,
-          username: result.user.username,
-          email: result.user.email,
-          fullName: result.user.fullName,
-          role: result.user.role
-        }
-      });
-    } else {
-      res.status(401).json({ success: false, error: result.error });
+    if (!user.isActive) {
+      return res.status(401).json({ message: "Your account is deactivated. Please contact an administrator." });
     }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ success: false, error: error.errors[0].message });
-    } else {
-      console.error('Login error:', error);
-      res.status(500).json({ success: false, error: 'Login failed' });
-    }
-  }
-});
 
-// Get current user status
-router.get('/status', (req: Request, res: Response) => {
-  if (req.session && (req.session as any).userId) {
-    res.json({
-      isAuthenticated: true,
-      user: (req.session as any).user
+    const isValidPassword = await verifyPassword(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Wrong email or password" });
+    }
+
+    // Update last login
+    await storage.updatePlatformUserLastLogin(user.id);
+
+    // Set session
+    (req.session as any).platformUserId = user.id;
+
+    const userResponse = {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+    };
+
+    res.json({ 
+      message: "Login successful", 
+      user: userResponse 
     });
-  } else {
-    res.json({
-      isAuthenticated: false,
-      user: null
-    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// Logout user
-router.post('/logout', (req: Request, res: Response) => {
+// Get current user endpoint
+router.get('/me', requireAuth, async (req, res) => {
+  const user = req.platformUser!;
+  const userResponse = {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+  };
+  res.json({ user: userResponse });
+});
+
+// Logout endpoint
+router.post('/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
-      console.error('Logout error:', err);
-      res.status(500).json({ success: false, error: 'Logout failed' });
-    } else {
-      res.clearCookie('connect.sid');
-      res.json({ success: true });
+      console.error("Logout error:", err);
+      return res.status(500).json({ message: "Failed to logout" });
     }
+    res.json({ message: "Logout successful" });
   });
 });
 
-// Update user profile
-router.put('/profile', requireAuth, async (req: Request, res: Response) => {
+// Change password endpoint
+router.put('/change-password', requireAuth, async (req, res) => {
   try {
-    const userId = (req.session as any).userId;
-    const { fullName, email } = req.body;
-
-    const result = await AuthService.updateUserProfile(userId, { fullName, email });
-
-    if (result.success) {
-      // Update session data
-      (req.session as any).user.fullName = fullName;
-      (req.session as any).user.email = email;
-
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ success: false, error: result.error });
+    const result = changePasswordSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ 
+        message: "Invalid input", 
+        errors: result.error.format() 
+      });
     }
+
+    const { currentPassword, newPassword } = result.data;
+    const user = req.platformUser!;
+
+    const isValidCurrentPassword = await verifyPassword(currentPassword, user.password);
+    if (!isValidCurrentPassword) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    const hashedNewPassword = await hashPassword(newPassword);
+    await storage.updatePlatformUser(user.id, { password: hashedNewPassword });
+
+    res.json({ message: "Password changed successfully" });
   } catch (error) {
-    console.error('Profile update error:', error);
-    res.status(500).json({ success: false, error: 'Profile update failed' });
+    console.error("Change password error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-// Change password
-router.put('/password', requireAuth, async (req: Request, res: Response) => {
+// Admin routes - User management
+router.get('/admin/users', requireAdmin, async (req, res) => {
   try {
-    const userId = (req.session as any).userId;
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, error: 'Current password and new password are required' });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters' });
-    }
-
-    const result = await AuthService.changePassword(userId, currentPassword, newPassword);
-
-    if (result.success) {
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ success: false, error: result.error });
-    }
-  } catch (error) {
-    console.error('Password change error:', error);
-    res.status(500).json({ success: false, error: 'Password change failed' });
-  }
-});
-
-// Get team members (admin only)
-router.get('/team', requireAuth, async (req: Request, res: Response) => {
-  try {
-    const user = (req.session as any).user;
-    
-    if (user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const teamMembers = await AuthService.getTeamMembers();
-    
-    // Remove sensitive data
-    const sanitizedMembers = teamMembers.map(member => ({
-      id: member.id,
-      username: member.username,
-      email: member.email,
-      fullName: member.fullName,
-      role: member.role,
-      isActive: member.isActive,
-      lastLoginAt: member.lastLoginAt,
-      createdAt: member.createdAt
+    const users = await storage.getAllPlatformUsers();
+    const usersResponse = users.map(user => ({
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
     }));
-
-    res.json(sanitizedMembers);
+    res.json(usersResponse);
   } catch (error) {
-    console.error('Get team members error:', error);
-    res.status(500).json({ error: 'Failed to fetch team members' });
+    console.error("Get users error:", error);
+    res.status(500).json({ message: "Failed to fetch users" });
   }
 });
 
-// Deactivate user (admin only)
-router.put('/team/:id/deactivate', requireAuth, async (req: Request, res: Response) => {
+// Create user (admin only)
+router.post('/admin/users', requireAdmin, async (req, res) => {
   try {
-    const user = (req.session as any).user;
-    const targetUserId = parseInt(req.params.id);
-
-    if (user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    const result = createUserSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ 
+        message: "Invalid input", 
+        errors: result.error.format() 
+      });
     }
 
-    if (user.id === targetUserId) {
-      return res.status(400).json({ error: 'Cannot deactivate your own account' });
+    const { fullName, email, role } = result.data;
+
+    // Check if user already exists
+    const existingUser = await storage.getPlatformUserByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({ message: "A user with this email already exists" });
     }
 
-    const result = await AuthService.deactivateUser(targetUserId, user.id);
+    // Generate temporary password
+    const tempPassword = generateTempPassword();
+    const hashedPassword = await hashPassword(tempPassword);
 
-    if (result.success) {
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ success: false, error: result.error });
-    }
+    // Generate username from email
+    const username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const userData = {
+      username,
+      fullName,
+      email,
+      password: hashedPassword,
+      role,
+      isActive: true,
+    };
+
+    const newUser = await storage.createPlatformUser(userData);
+
+    const userResponse = {
+      id: newUser.id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      role: newUser.role,
+      isActive: newUser.isActive,
+      tempPassword, // Send back temporary password for admin to share
+    };
+
+    res.status(201).json({ 
+      message: "User created successfully", 
+      user: userResponse 
+    });
   } catch (error) {
-    console.error('Deactivate user error:', error);
-    res.status(500).json({ success: false, error: 'User deactivation failed' });
+    console.error("Create user error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Update user (admin only)
+router.put('/admin/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const result = updateUserSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ 
+        message: "Invalid input", 
+        errors: result.error.format() 
+      });
+    }
+
+    const updateData = result.data;
+
+    // Check if email is being changed and doesn't conflict
+    if (updateData.email) {
+      const existingUser = await storage.getPlatformUserByEmail(updateData.email);
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ message: "A user with this email already exists" });
+      }
+    }
+
+    const updatedUser = await storage.updatePlatformUser(userId, updateData);
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const userResponse = {
+      id: updatedUser.id,
+      fullName: updatedUser.fullName,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      isActive: updatedUser.isActive,
+    };
+
+    res.json({ 
+      message: "User updated successfully", 
+      user: userResponse 
+    });
+  } catch (error) {
+    console.error("Update user error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Reset user password (admin only)
+router.post('/admin/users/:id/reset-password', requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const user = await storage.getPlatformUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Generate new temporary password
+    const tempPassword = generateTempPassword();
+    const hashedPassword = await hashPassword(tempPassword);
+
+    await storage.updatePlatformUser(userId, { password: hashedPassword });
+
+    res.json({ 
+      message: "Password reset successfully", 
+      tempPassword 
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 

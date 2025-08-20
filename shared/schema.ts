@@ -123,6 +123,7 @@ export const posts = pgTable("posts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   accountId: integer("account_id").references(() => facebookAccounts.id),
+  scheduledByUserId: integer("scheduled_by_user_id").references(() => platformUsers.id), // Track who scheduled the post
   content: text("content").notNull(),
   mediaUrl: text("media_url"),
   mediaType: text("media_type").default("none"), // none, photo, video, reel
@@ -140,6 +141,7 @@ export const posts = pgTable("posts", {
 export const insertPostSchema = createInsertSchema(posts).pick({
   userId: true,
   accountId: true,
+  scheduledByUserId: true,
   content: true,
   mediaUrl: true,
   mediaType: true,
