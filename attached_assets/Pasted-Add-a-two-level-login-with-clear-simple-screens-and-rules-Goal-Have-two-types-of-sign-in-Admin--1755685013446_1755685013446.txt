@@ -1,0 +1,87 @@
+Add a two-level login with clear, simple screens and rules:
+
+Goal
+
+Have two types of sign-in: Admin and User.
+
+Show who scheduled each post.
+
+Make sure Admins see everything, and Users only see their own work.
+
+What to add
+
+Sign-in & account basics
+
+Add a sign-in page (email + password).
+
+After sign-in, show the person’s name and role (Admin/User) in the header, with a Logout option.
+
+If a person is deactivated, they cannot sign in and should see a friendly message.
+
+Admin experience
+
+Add a Users page in the menu (only Admins can see it).
+
+On the Users page, an Admin can:
+
+Create a new team user (name, email). Show a temporary password the Admin can copy and share.
+
+Reset a user’s password (show a new temporary password).
+
+Deactivate/Reactivate a user.
+
+Optionally change a user’s role (User ↔ Admin).
+
+In Reports and Upcoming Posts pages:
+
+Show all posts from the whole team.
+
+Add a column called “Scheduled by” showing the person’s name who scheduled it.
+
+Add a simple filter at the top to view posts by a specific user or show “All users”.
+
+User experience
+
+Users do not see the Users page.
+
+In Reports and Upcoming Posts, show only the posts that this logged-in User scheduled.
+
+Keep the “Scheduled by” column (it will show their own name).
+
+When scheduling posts (manual or CSV)
+
+The system must automatically record who is scheduling (use the currently signed-in person).
+
+Do not let anyone choose another person’s name during scheduling.
+
+Keep all existing scheduling and publishing behavior the same—no changes to how posts are published, just record who scheduled them.
+
+What to display in Reports/Upcoming
+
+Keep the current columns.
+
+Add “Scheduled by” (person’s name).
+
+Admins can filter by user; Users cannot (they already see only their own posts).
+
+Success checklist (must work end-to-end)
+
+An Admin can sign in, open Users, create a User, reset passwords, and deactivate/reactivate users.
+
+A newly created User can sign in with the temporary password and then set a new one.
+
+When a User schedules posts (by hand or CSV), those posts show up in their Upcoming and Reports, and do not appear for other Users.
+
+Admins see all posts with the “Scheduled by” name filled in.
+
+Deactivated users cannot sign in.
+
+Existing publishing flows still work as before.
+
+Keep it simple
+
+Use the current design style.
+
+Show clear messages (e.g., “Wrong email or password”, “Your account is deactivated”).
+
+Do not change any Facebook upload logic—just add sign-in, the Users page for Admins, and the “Scheduled by” visibility rules.
