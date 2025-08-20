@@ -25,8 +25,12 @@ import { progressTracker } from "./services/progressTrackingService";
 import { reportsRouter } from "./routes/reports";
 
 const authenticateUser = async (req: Request) => {
-  // Use default Facebook OAuth user (ID 3) without authentication
-  return { id: 3 };
+  // Get platform user from session
+  const platformUser = (req as any).platformUser;
+  if (!platformUser) {
+    throw new Error('Authentication required');
+  }
+  return { id: platformUser.id };
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -156,7 +160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Posts route - FIXED THREE ACTION SYSTEM
-  app.post("/api/posts", async (req: Request, res: Response) => {
+  app.post("/api/posts", requireAuth, async (req: Request, res: Response) => {
     try {
       console.log(`🎯 POST /api/posts - Status: "${req.body.status}"`);
       console.log('🔍 Request body:', JSON.stringify(req.body, null, 2));
@@ -297,10 +301,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Other API routes (simplified for this fix)
-  app.get("/api/stats", async (req: Request, res: Response) => {
+  app.get("/api/stats", requireAuth, async (req: Request, res: Response) => {
     try {
-      const posts = await storage.getAllPosts();
-      const accounts = await storage.getFacebookAccounts(1);
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const posts = await storage.getPosts(user.id);
+      const accounts = await storage.getFacebookAccounts(user.id);
       
       const scheduled = posts.filter(p => p.status === "scheduled").length;
       const publishedToday = posts.filter(p => 
@@ -321,7 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/facebook-accounts", async (req: Request, res: Response) => {
+  app.get("/api/facebook-accounts", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -336,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/facebook-accounts/refresh", async (req: Request, res: Response) => {
+  app.post("/api/facebook-accounts/refresh", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -403,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/custom-labels", async (req: Request, res: Response) => {
+  app.get("/api/custom-labels", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -418,7 +427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/posts", async (req: Request, res: Response) => {
+  app.get("/api/posts", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -433,7 +442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/posts/upcoming", async (req: Request, res: Response) => {
+  app.get("/api/posts/upcoming", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -448,7 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/activities", async (req: Request, res: Response) => {
+  app.get("/api/activities", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -464,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Google Sheets Integration routes
-  app.get("/api/google-sheets-integration", async (req: Request, res: Response) => {
+  app.get("/api/google-sheets-integration", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -479,7 +488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/google-sheets-integration", async (req: Request, res: Response) => {
+  app.post("/api/google-sheets-integration", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -525,8 +534,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV Analysis endpoint for preview functionality
-  app.post('/api/csv-analyze', upload.single('file'), async (req: Request, res: Response) => {
+  app.post('/api/csv-analyze', requireAuth, upload.single('file'), async (req: Request, res: Response) => {
     try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       console.log('🔍 CSV analysis request received');
       
       if (!req.file) {
@@ -577,10 +591,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Excel/CSV Import Routes (replacing Google Sheets)
-  app.get("/api/excel-import/template", async (req: Request, res: Response) => {
+  app.get("/api/excel-import/template", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Use default user ID (3) for template generation
-      const userId = 3;
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = user.id;
       
       // Get user's Facebook accounts to include in template
       const userAccounts = await storage.getFacebookAccounts(userId);
@@ -595,11 +613,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/excel-import", upload.single('file'), async (req: Request, res: Response) => {
+  app.post("/api/excel-import", requireAuth, upload.single('file'), async (req: Request, res: Response) => {
     try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
       const file = req.file;
       const accountId = req.body.accountId;
-      const userId = 3; // Use default user ID
+      const userId = user.id;
       
       if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -656,7 +679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test endpoint for media link detection
-  app.post("/api/test-media-detection", async (req: Request, res: Response) => {
+  app.post("/api/test-media-detection", requireAuth, async (req: Request, res: Response) => {
     try {
       const { url } = req.body;
       
@@ -685,7 +708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test endpoint for Facebook video download
-  app.post("/api/test-facebook-download", async (req: Request, res: Response) => {
+  app.post("/api/test-facebook-download", requireAuth, async (req: Request, res: Response) => {
     try {
       const { url } = req.body;
       
@@ -717,7 +740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE individual post by ID
-  app.delete("/api/posts/:id", async (req: Request, res: Response) => {
+  app.delete("/api/posts/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const postId = parseInt(req.params.id);
       const user = await authenticateUser(req);
@@ -768,7 +791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/posts/scheduled/all", async (req: Request, res: Response) => {
+  app.delete("/api/posts/scheduled/all", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -826,7 +849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/import-from-google-sheets", async (req: Request, res: Response) => {
+  app.post("/api/import-from-google-sheets", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -894,7 +917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Progress tracking endpoint for real-time video upload updates
-  app.get('/api/upload-progress/:uploadId', async (req: Request, res: Response) => {
+  app.get('/api/upload-progress/:uploadId', requireAuth, async (req: Request, res: Response) => {
     try {
       const { uploadId } = req.params;
       
@@ -942,7 +965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Scheduling system status and debugging endpoints
-  app.get('/api/scheduling-status', async (req: Request, res: Response) => {
+  app.get('/api/scheduling-status', requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
@@ -976,7 +999,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Force check for overdue posts (manual trigger)
-  app.post('/api/force-check-posts', async (req: Request, res: Response) => {
+  app.post('/api/force-check-posts', requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
@@ -1002,7 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/reports', reportsRouter);
 
   // Facebook Video Download and Upload Routes
-  app.post('/api/facebook-video/download', async (req: Request, res: Response) => {
+  app.post('/api/facebook-video/download', requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {
@@ -1047,7 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/facebook-video/upload', async (req: Request, res: Response) => {
+  app.post('/api/facebook-video/upload', requireAuth, async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
       if (!user) {

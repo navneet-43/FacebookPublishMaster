@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { GoogleOAuthService } from "../services/googleOAuthService";
 import { storage } from "../storage";
+import { requireAuth } from "../middleware/auth";
 
 export function setupGoogleOAuthRoutes(app: Express) {
   // Initiate Google OAuth flow
@@ -25,9 +26,10 @@ export function setupGoogleOAuthRoutes(app: Express) {
     try {
       const tokens = await GoogleOAuthService.getTokens(code as string);
       
-      // Store tokens in session or database
+      // Store tokens in session or database  
       // For now, we'll store in the Google Sheets integration
-      const user = { id: 3 }; // Default user for demo
+      // TODO: Get authenticated user from platform auth
+      const user = { id: 3 }; // Default user for demo - to be updated
       
       await storage.createOrUpdateGoogleSheetsIntegration({
         userId: user.id,
@@ -46,9 +48,13 @@ export function setupGoogleOAuthRoutes(app: Express) {
   });
 
   // Get user's Google Sheets
-  app.get('/api/google/spreadsheets', async (req: Request, res: Response) => {
+  app.get('/api/google/spreadsheets', requireAuth, async (req: Request, res: Response) => {
     try {
-      const user = { id: 3 }; // Default user for demo
+      const platformUser = (req as any).platformUser;
+      if (!platformUser) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const user = { id: platformUser.id };
       const integration = await storage.getGoogleSheetsIntegration(user.id);
 
       if (!integration || !integration.accessToken) {
@@ -64,10 +70,14 @@ export function setupGoogleOAuthRoutes(app: Express) {
   });
 
   // Get sheets within a spreadsheet
-  app.get('/api/google/spreadsheets/:id/sheets', async (req: Request, res: Response) => {
+  app.get('/api/google/spreadsheets/:id/sheets', requireAuth, async (req: Request, res: Response) => {
     try {
       const { id: spreadsheetId } = req.params;
-      const user = { id: 3 }; // Default user for demo
+      const platformUser = (req as any).platformUser;
+      if (!platformUser) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const user = { id: platformUser.id };
       const integration = await storage.getGoogleSheetsIntegration(user.id);
 
       if (!integration || !integration.accessToken) {
@@ -83,10 +93,14 @@ export function setupGoogleOAuthRoutes(app: Express) {
   });
 
   // Import data from specific sheet
-  app.post('/api/google/import', async (req: Request, res: Response) => {
+  app.post('/api/google/import', requireAuth, async (req: Request, res: Response) => {
     try {
       const { spreadsheetId, sheetName, range = 'A:Z', accountId } = req.body;
-      const user = { id: 3 }; // Default user for demo
+      const platformUser = (req as any).platformUser;
+      if (!platformUser) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const user = { id: platformUser.id };
 
       if (!spreadsheetId || !sheetName || !accountId) {
         return res.status(400).json({ error: 'Missing required parameters' });
@@ -144,9 +158,13 @@ export function setupGoogleOAuthRoutes(app: Express) {
   });
 
   // Disconnect Google account
-  app.delete('/api/google/disconnect', async (req: Request, res: Response) => {
+  app.delete('/api/google/disconnect', requireAuth, async (req: Request, res: Response) => {
     try {
-      const user = { id: 3 }; // Default user for demo
+      const platformUser = (req as any).platformUser;
+      if (!platformUser) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const user = { id: platformUser.id };
       
       // Remove Google Sheets integration
       await storage.updateGoogleSheetsIntegration(user.id, {
