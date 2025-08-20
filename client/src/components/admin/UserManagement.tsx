@@ -61,16 +61,25 @@ export function UserManagement() {
   // Fetch users
   const { data: users, isLoading } = useQuery({
     queryKey: ['/api/auth/admin/users'],
-    queryFn: () => apiRequest('/api/auth/admin/users') as Promise<PlatformUser[]>,
+    queryFn: async () => {
+      const response = await apiRequest('/api/auth/admin/users');
+      const data = await response.json();
+      return data as PlatformUser[];
+    },
   });
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (userData: CreateUserFormData) =>
-      apiRequest('/api/auth/admin/users', {
+    mutationFn: async (userData: CreateUserFormData) => {
+      const response = await apiRequest('/api/auth/admin/users', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(userData),
-      }) as Promise<CreateUserResponse>,
+      });
+      return await response.json() as CreateUserResponse;
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/admin/users'] });
       setIsCreateDialogOpen(false);
@@ -91,11 +100,16 @@ export function UserManagement() {
 
   // Update user mutation
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateUserFormData }) =>
-      apiRequest(`/api/auth/admin/users/${id}`, {
+    mutationFn: async ({ id, data }: { id: number; data: UpdateUserFormData }) => {
+      const response = await apiRequest(`/api/auth/admin/users/${id}`, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(data),
-      }),
+      });
+      return await response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/admin/users'] });
       setEditingUser(null);
@@ -115,10 +129,15 @@ export function UserManagement() {
 
   // Reset password mutation
   const resetPasswordMutation = useMutation({
-    mutationFn: (userId: number) =>
-      apiRequest(`/api/auth/admin/users/${userId}/reset-password`, {
+    mutationFn: async (userId: number) => {
+      const response = await apiRequest(`/api/auth/admin/users/${userId}/reset-password`, {
         method: 'POST',
-      }) as Promise<ResetPasswordResponse>,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      return await response.json() as ResetPasswordResponse;
+    },
     onSuccess: (data) => {
       toast({
         title: 'Password reset successfully',
@@ -267,7 +286,7 @@ export function UserManagement() {
         <CardHeader>
           <CardTitle className="text-lg">Platform Users</CardTitle>
           <CardDescription>
-            {users?.length || 0} total users
+            {(users || []).length} total users
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -282,7 +301,7 @@ export function UserManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users?.map((user: PlatformUser) => (
+              {(users || []).map((user: PlatformUser) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
