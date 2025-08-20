@@ -42,10 +42,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const login = async (email: string, password: string) => {
-    const data = await apiRequest('/api/auth/login', {
+    const response = await apiRequest('/api/auth/login', {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ email, password }),
-    }) as unknown as AuthResponse;
+    });
+
+    const data = await response.json() as AuthResponse;
 
     if (data.user) {
       setUser(data.user);
@@ -54,7 +59,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
-      await apiRequest('/api/auth/logout', { method: 'POST' });
+      await apiRequest('/api/auth/logout', { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
