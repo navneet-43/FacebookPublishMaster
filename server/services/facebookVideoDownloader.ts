@@ -182,7 +182,7 @@ export class FacebookVideoDownloader {
 
         // Try to find source elements
         if (!videoSrc) {
-          const sources = document.querySelectorAll('video source[src]');
+          const sources = Array.from(document.querySelectorAll('video source[src]'));
           for (const source of sources) {
             const src = (source as HTMLSourceElement).src;
             if (src && src.includes('video')) {
@@ -306,9 +306,25 @@ export class FacebookVideoDownloader {
       const title = titleMatch ? titleMatch[1].trim() : 'Facebook Video';
 
       if (!videoUrl) {
+        // Check if this looks like a login or access restriction page
+        const isLoginPage = html.includes('login') || html.includes('log in') || html.includes('sign in');
+        const isPrivateContent = html.includes('private') || html.includes('not available') || html.includes('access denied');
+        const isError = html.includes('error') || html.includes('not found');
+        
+        let errorMsg = 'Could not find video URL in page source.';
+        if (isLoginPage) {
+          errorMsg += ' The video may require login to access.';
+        } else if (isPrivateContent) {
+          errorMsg += ' The video appears to be private or restricted.';
+        } else if (isError) {
+          errorMsg += ' The video may have been deleted or is unavailable.';
+        } else {
+          errorMsg += ' Facebook may have changed their page structure or the video URL patterns.';
+        }
+        
         return {
           success: false,
-          error: 'Could not find video URL in page source'
+          error: errorMsg
         };
       }
 
@@ -363,7 +379,30 @@ export class FacebookVideoDownloader {
       return new Promise((resolve) => {
         writeStream.on('finish', async () => {
           await writer.close();
-          console.log('✅ Video file downloaded successfully');
+          
+          // Validate the downloaded file is actually a video and not HTML
+          const { VideoValidator } = await import('./videoValidator');
+          const validation = await VideoValidator.validateVideoFile(filePath);
+          
+          if (!validation.isValid) {
+            console.error('❌ Downloaded file is not a valid video:', validation.error);
+            console.error('🔍 Detected format:', validation.actualFormat);
+            
+            // Clean up invalid file
+            try {
+              await fs.unlink(filePath);
+            } catch (e) {
+              console.warn('Failed to cleanup invalid file:', e);
+            }
+            
+            resolve({
+              success: false,
+              error: `Downloaded content is not a video file. Got: ${validation.actualFormat}. This usually means the Facebook video is private or the URL extraction failed.`
+            });
+            return;
+          }
+          
+          console.log('✅ Video file downloaded and validated successfully');
           resolve({
             success: true,
             filePath,
