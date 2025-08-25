@@ -651,60 +651,7 @@ export class HootsuiteStyleFacebookService {
         };
       }
 
-      // Skip validation for local file paths - they'll be handled by direct file upload
-      let fbValidation: any = null;
-      let forcedUploadMethod = 'direct_upload';
-      
-      if (!videoUrl.startsWith('/tmp/') && !videoUrl.startsWith('file://') && !videoUrl.startsWith('/home/') && !videoUrl.includes('temp/fb_videos/')) {
-        const { FacebookVideoValidator } = await import('./facebookVideoValidator');
-        fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
-        
-        if (!fbValidation.isValid) {
-          console.error('❌ FACEBOOK VALIDATION FAILED:', fbValidation.violations);
-          const report = FacebookVideoValidator.generateFacebookValidationReport(fbValidation);
-          return {
-            success: false,
-            error: `Video does not meet Facebook requirements:\n\n${report}`
-          };
-        }
-        console.log('✅ FACEBOOK VALIDATION PASSED:', fbValidation.uploadMethod, fbValidation.detectedFormat);
-        forcedUploadMethod = fbValidation.uploadMethod;
-      } else {
-        console.log('📁 LOCAL FILE DETECTED - Skipping URL validation, proceeding with direct upload');
-        
-        // For local Facebook video files, upload directly without any processing
-        if (videoUrl.startsWith('/home/runner/workspace/temp/fb_videos/')) {
-          console.log('🎬 FACEBOOK VIDEO FILE: Direct upload without processing');
-          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
-          const uploadService = new CompleteVideoUploadService();
-          
-          const uploadResult = await uploadService.uploadProcessedVideoFile({
-            videoFilePath: videoUrl,
-            pageId: pageId,
-            pageAccessToken: pageAccessToken,
-            description: description || 'Facebook video upload',
-            customLabels: customLabels || [],
-            language: language || 'en',
-            isReel: false // Facebook video files are regular videos
-          });
-          
-          if (uploadResult.success) {
-            console.log('✅ FACEBOOK VIDEO UPLOADED SUCCESSFULLY');
-            return {
-              success: true,
-              postId: uploadResult.postId || uploadResult.videoId
-            };
-          } else {
-            console.log('❌ FACEBOOK VIDEO UPLOAD FAILED:', uploadResult.error);
-            return {
-              success: false,
-              error: uploadResult.error || 'Facebook video upload failed'
-            };
-          }
-        }
-      }
-      
-      // Handle raw Facebook video URLs - download them first
+      // Handle raw Facebook video URLs - download them first BEFORE validation
       if (videoUrl.includes('facebook.com') && (videoUrl.includes('/videos/') || videoUrl.includes('/watch/?v='))) {
         console.log('📱 RAW FACEBOOK VIDEO URL DETECTED: Downloading first...');
         
@@ -755,6 +702,59 @@ export class HootsuiteStyleFacebookService {
             success: false,
             error: `Failed to process Facebook video: ${fbError instanceof Error ? fbError.message : 'Unknown error'}`
           };
+        }
+      }
+
+      // Skip validation for local file paths - they'll be handled by direct file upload
+      let fbValidation: any = null;
+      let forcedUploadMethod = 'direct_upload';
+      
+      if (!videoUrl.startsWith('/tmp/') && !videoUrl.startsWith('file://') && !videoUrl.startsWith('/home/') && !videoUrl.includes('temp/fb_videos/')) {
+        const { FacebookVideoValidator } = await import('./facebookVideoValidator');
+        fbValidation = await FacebookVideoValidator.validateForFacebook(videoUrl);
+        
+        if (!fbValidation.isValid) {
+          console.error('❌ FACEBOOK VALIDATION FAILED:', fbValidation.violations);
+          const report = FacebookVideoValidator.generateFacebookValidationReport(fbValidation);
+          return {
+            success: false,
+            error: `Video does not meet Facebook requirements:\n\n${report}`
+          };
+        }
+        console.log('✅ FACEBOOK VALIDATION PASSED:', fbValidation.uploadMethod, fbValidation.detectedFormat);
+        forcedUploadMethod = fbValidation.uploadMethod;
+      } else {
+        console.log('📁 LOCAL FILE DETECTED - Skipping URL validation, proceeding with direct upload');
+        
+        // For local Facebook video files, upload directly without any processing
+        if (videoUrl.startsWith('/home/runner/workspace/temp/fb_videos/')) {
+          console.log('🎬 FACEBOOK VIDEO FILE: Direct upload without processing');
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
+          
+          const uploadResult = await uploadService.uploadProcessedVideoFile({
+            videoFilePath: videoUrl,
+            pageId: pageId,
+            pageAccessToken: pageAccessToken,
+            description: description || 'Facebook video upload',
+            customLabels: customLabels || [],
+            language: language || 'en',
+            isReel: false // Facebook video files are regular videos
+          });
+          
+          if (uploadResult.success) {
+            console.log('✅ FACEBOOK VIDEO UPLOADED SUCCESSFULLY');
+            return {
+              success: true,
+              postId: uploadResult.postId || uploadResult.videoId
+            };
+          } else {
+            console.log('❌ FACEBOOK VIDEO UPLOAD FAILED:', uploadResult.error);
+            return {
+              success: false,
+              error: uploadResult.error || 'Facebook video upload failed'
+            };
+          }
         }
       }
       
