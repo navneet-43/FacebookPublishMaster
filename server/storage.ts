@@ -470,70 +470,6 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
 
-  // Platform user operations (new authentication system)
-  async getPlatformUser(id: number): Promise<PlatformUser | undefined> {
-    return this.platformUsers.get(id);
-  }
-
-  async getPlatformUserByUsername(username: string): Promise<PlatformUser | undefined> {
-    return Array.from(this.platformUsers.values()).find(
-      (user) => user.username === username
-    );
-  }
-
-  async getPlatformUserByEmail(email: string): Promise<PlatformUser | undefined> {
-    return Array.from(this.platformUsers.values()).find(
-      (user) => user.email === email
-    );
-  }
-
-  async createPlatformUser(userData: InsertPlatformUser): Promise<PlatformUser> {
-    const id = this.currentIds.platformUsers++;
-    const now = new Date();
-    const newUser: PlatformUser = { 
-      ...userData, 
-      id, 
-      createdAt: now,
-      updatedAt: now,
-      lastLoginAt: null,
-      username: userData.username || null,
-      email: userData.email || null,
-      role: userData.role || 'user',
-      isActive: userData.isActive !== undefined ? userData.isActive : true
-    };
-    this.platformUsers.set(id, newUser);
-    return newUser;
-  }
-
-  async updatePlatformUser(id: number, data: Partial<PlatformUser>): Promise<PlatformUser | undefined> {
-    const user = this.platformUsers.get(id);
-    if (!user) return undefined;
-    
-    const updatedUser = { 
-      ...user, 
-      ...data, 
-      updatedAt: new Date() 
-    };
-    this.platformUsers.set(id, updatedUser);
-    return updatedUser;
-  }
-
-  async updatePlatformUserLastLogin(id: number): Promise<void> {
-    const user = this.platformUsers.get(id);
-    if (user) {
-      const updatedUser = { 
-        ...user, 
-        lastLoginAt: new Date() 
-      };
-      this.platformUsers.set(id, updatedUser);
-    }
-  }
-
-  async getAllPlatformUsers(): Promise<PlatformUser[]> {
-    return Array.from(this.platformUsers.values())
-      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
-  }
-
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentIds.users++;
     const now = new Date();
@@ -801,23 +737,7 @@ export class MemStorage implements IStorage {
   async createPost(post: InsertPost): Promise<Post> {
     const id = this.currentIds.posts++;
     const now = new Date();
-    const newPost: Post = { 
-      ...post, 
-      id, 
-      createdAt: now,
-      link: post.link || null,
-      userId: post.userId || null,
-      accountId: post.accountId || null,
-      scheduledByUserId: post.scheduledByUserId || null,
-      mediaUrl: post.mediaUrl || null,
-      mediaType: post.mediaType || null,
-      labels: post.labels || null,
-      language: post.language || null,
-      scheduledFor: post.scheduledFor || null,
-      publishedAt: post.publishedAt || null,
-      sheetRowId: post.sheetRowId || null,
-      errorMessage: post.errorMessage || null
-    };
+    const newPost: Post = { ...post, id, createdAt: now };
     this.posts.set(id, newPost);
     return newPost;
   }
@@ -839,7 +759,7 @@ export class MemStorage implements IStorage {
   async getActivities(userId: number, limit?: number): Promise<Activity[]> {
     const activities = Array.from(this.activities.values())
       .filter((activity) => activity.userId === userId)
-      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     
     return limit ? activities.slice(0, limit) : activities;
   }
@@ -847,13 +767,7 @@ export class MemStorage implements IStorage {
   async createActivity(activity: InsertActivity): Promise<Activity> {
     const id = this.currentIds.activities++;
     const now = new Date();
-    const newActivity: Activity = { 
-      ...activity, 
-      id, 
-      createdAt: now,
-      userId: activity.userId || null,
-      metadata: activity.metadata || null
-    };
+    const newActivity: Activity = { ...activity, id, createdAt: now };
     this.activities.set(id, newActivity);
     return newActivity;
   }

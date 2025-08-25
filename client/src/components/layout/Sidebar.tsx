@@ -1,18 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/contexts/AuthContext";
-import { Shield, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export default function Sidebar() {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
 
   const isActive = (path: string) => {
     return location === path;
-  };
-
-  const handleLogout = async () => {
-    await logout();
   };
 
   return (
@@ -71,46 +63,22 @@ export default function Sidebar() {
           <i className="fa-solid fa-gear w-5"></i>
           <span className="ml-3">Settings</span>
         </Link>
-        
-        {user?.role === 'admin' && (
-          <>
-            <div className="px-4 mt-6 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Administration
-            </div>
-            <Link href="/admin" className={`flex items-center px-4 py-3 ${isActive('/admin') ? 'text-red-600 bg-red-50 border-l-4 border-red-600' : 'text-gray-600 hover:bg-red-50'}`}>
-              <Shield className="w-4 h-4" />
-              <span className="ml-3">Admin Panel</span>
-            </Link>
-          </>
-        )}
       </nav>
       
       <div className="absolute bottom-0 w-64 border-t border-fb-gray p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-              <i className="fa-solid fa-user text-white text-sm"></i>
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+              <i className="fa-solid fa-user text-gray-500"></i>
             </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.fullName || 'User'}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-              {user?.role === 'admin' && (
-                <div className="flex items-center gap-1 mt-1">
-                  <Shield className="w-3 h-3 text-red-500" />
-                  <span className="text-xs text-red-500 font-medium">Admin</span>
-                </div>
-              )}
+            <div className="ml-3">
+              <p className="text-sm font-medium">Admin User</p>
+              <p className="text-xs text-gray-500">admin@socialflow.com</p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-gray-500 hover:text-red-600 p-1.5 h-auto"
-            title="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </Button>
+          <button className="text-gray-500 hover:text-gray-700">
+            <i className="fa-solid fa-ellipsis-v"></i>
+          </button>
         </div>
       </div>
     </aside>
