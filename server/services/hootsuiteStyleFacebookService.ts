@@ -704,6 +704,60 @@ export class HootsuiteStyleFacebookService {
         }
       }
       
+      // Handle raw Facebook video URLs - download them first
+      if (videoUrl.includes('facebook.com') && (videoUrl.includes('/videos/') || videoUrl.includes('/watch/?v='))) {
+        console.log('📱 RAW FACEBOOK VIDEO URL DETECTED: Downloading first...');
+        
+        try {
+          const { FacebookVideoDownloader } = await import('./facebookVideoDownloader');
+          const downloadResult = await FacebookVideoDownloader.downloadVideo(videoUrl);
+          
+          if (downloadResult.success && downloadResult.filePath) {
+            console.log(`✅ Facebook video downloaded successfully: ${downloadResult.filename}`);
+            
+            // Use the downloaded file path for upload
+            const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+            const uploadService = new CompleteVideoUploadService();
+            
+            const uploadResult = await uploadService.uploadProcessedVideoFile({
+              videoFilePath: downloadResult.filePath,
+              pageId: pageId,
+              pageAccessToken: pageAccessToken,
+              description: description || 'Facebook video upload',
+              customLabels: customLabels || [],
+              language: language || 'en',
+              isReel: false
+            });
+            
+            if (uploadResult.success) {
+              console.log('✅ DOWNLOADED FACEBOOK VIDEO UPLOADED SUCCESSFULLY');
+              return {
+                success: true,
+                postId: uploadResult.postId || uploadResult.videoId
+              };
+            } else {
+              console.log('❌ DOWNLOADED FACEBOOK VIDEO UPLOAD FAILED:', uploadResult.error);
+              return {
+                success: false,
+                error: uploadResult.error || 'Downloaded Facebook video upload failed'
+              };
+            }
+          } else {
+            console.log(`❌ Facebook video download failed: ${downloadResult.error}`);
+            return {
+              success: false,
+              error: `Failed to download Facebook video: ${downloadResult.error || 'Unknown download error'}. This usually means the video is private, requires login, or has been deleted.`
+            };
+          }
+        } catch (fbError) {
+          console.error('Facebook video processing error:', fbError);
+          return {
+            success: false,
+            error: `Failed to process Facebook video: ${fbError instanceof Error ? fbError.message : 'Unknown error'}`
+          };
+        }
+      }
+      
       const { VideoProcessor } = await import('./videoProcessor');
 
       // Process video for optimal Facebook compatibility
