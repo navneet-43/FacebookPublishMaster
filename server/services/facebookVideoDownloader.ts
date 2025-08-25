@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer';
 import axios from 'axios';
-import { promises as fs } from 'fs';
+import { promises as fs, statSync, createWriteStream } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 
@@ -380,13 +380,18 @@ export class FacebookVideoDownloader {
         writeStream.on('finish', async () => {
           await writer.close();
           
-          // Validate the downloaded file is actually a video and not HTML
-          const { VideoValidator } = await import('./videoValidator');
-          const validation = await VideoValidator.validateVideoFile(filePath);
+          // Check if the downloaded file is actually a video by reading file header
+          const fileBuffer = await fs.readFile(filePath, { encoding: null });
+          const isValidVideo = this.isValidVideoFile(fileBuffer);
           
-          if (!validation.isValid) {
-            console.error('❌ Downloaded file is not a valid video:', validation.error);
-            console.error('🔍 Detected format:', validation.actualFormat);
+          if (!isValidVideo) {
+            console.error('❌ Downloaded file is not a valid video: File header indicates HTML or text content');
+            
+            // Check if it's HTML content
+            const textContent = fileBuffer.toString('utf8', 0, 500);
+            if (textContent.includes('<html') || textContent.includes('<!DOCTYPE')) {
+              console.error('🔍 Downloaded content is HTML page - likely access restricted or login required');
+            }
             
             // Clean up invalid file
             try {
@@ -397,11 +402,13 @@ export class FacebookVideoDownloader {
             
             resolve({
               success: false,
-              error: `Downloaded content is not a video file. Got: ${validation.actualFormat}. This usually means the Facebook video is private or the URL extraction failed.`
+              error: 'Downloaded content is not a video file. This usually means the Facebook video is private, requires login, or the URL extraction failed.'
             });
             return;
           }
           
+          console.log('✅ Downloaded file validated as video content');
+          const fileSize = statSync(filePath).size;
           console.log('✅ Video file downloaded and validated successfully');
           resolve({
             success: true,
@@ -427,6 +434,49 @@ export class FacebookVideoDownloader {
         error: error instanceof Error ? error.message : 'Download failed'
       };
     }
+  }
+
+  /**
+   * Check if a file buffer contains valid video content
+   */
+  private static isValidVideoFile(buffer: Buffer): boolean {
+    // Check for common video file signatures
+    const videoSignatures = [
+      // MP4
+      [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70],
+      [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70],
+      [0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70],
+      // AVI
+      [0x52, 0x49, 0x46, 0x46],
+      // MOV/QuickTime
+      [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70, 0x71, 0x74],
+      // WebM
+      [0x1A, 0x45, 0xDF, 0xA3],
+      // FLV
+      [0x46, 0x4C, 0x56]
+    ];
+
+    // Check for HTML content (common when video is private/inaccessible)
+    const text = buffer.toString('utf8', 0, Math.min(200, buffer.length));
+    if (text.includes('<html') || text.includes('<!DOCTYPE') || text.includes('<head>')) {
+      return false;
+    }
+
+    // Check video signatures
+    for (const signature of videoSignatures) {
+      if (buffer.length >= signature.length) {
+        let matches = true;
+        for (let i = 0; i < signature.length; i++) {
+          if (buffer[i] !== signature[i]) {
+            matches = false;
+            break;
+          }
+        }
+        if (matches) return true;
+      }
+    }
+
+    return false;
   }
 
   /**
