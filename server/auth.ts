@@ -12,10 +12,27 @@ interface FacebookProfile {
 
 // Set up Facebook authentication strategy
 export function setupAuth() {
+  // Dynamically determine the callback URL based on environment
+  const getCallbackURL = () => {
+    // Check if we're in production vs development
+    const replitDomains = process.env.REPLIT_DOMAINS;
+    if (replitDomains) {
+      // In production, REPLIT_DOMAINS contains the actual domain
+      const domains = replitDomains.split(',');
+      const callbackURL = `https://${domains[0]}/auth/facebook/callback`;
+      console.log(`🔧 Facebook OAuth Callback URL: ${callbackURL}`);
+      return callbackURL;
+    }
+    // Fallback to localhost for local development
+    const fallbackURL = 'https://localhost:5000/auth/facebook/callback';
+    console.log(`🔧 Facebook OAuth Callback URL (localhost fallback): ${fallbackURL}`);
+    return fallbackURL;
+  };
+
   passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID || '',
     clientSecret: process.env.FACEBOOK_APP_SECRET || '',
-    callbackURL: `https://b781679d-4a63-4962-b0b3-454a3c55c07c-00-22vmnl02o2c4l.picard.replit.dev/auth/facebook/callback`,
+    callbackURL: getCallbackURL(),
     profileFields: ['id', 'displayName', 'email'],
     scope: ['pages_manage_posts', 'pages_read_engagement', 'pages_manage_metadata', 'pages_show_list', 'business_management']
   }, async (accessToken: string, refreshToken: string, profile: FacebookProfile, done: Function) => {
