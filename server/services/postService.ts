@@ -1,7 +1,9 @@
 import schedule from 'node-schedule';
 import { storage } from '../storage';
-import { Post } from '@shared/schema';
+import { Post, posts } from '@shared/schema';
 import fetch from 'node-fetch';
+import { db } from '../db';
+import { and, eq } from 'drizzle-orm';
 
 // Store active job schedules by post ID
 const activeJobs: Record<number, schedule.Job> = {};
@@ -282,13 +284,34 @@ export function schedulePostPublication(post: Post): void {
       console.log(`🚀 EXECUTING SCHEDULED POST: ${post.id} at ${new Date().toISOString()}`);
       console.log(`🚀 IST TIME: ${new Date().toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}`);
       
-      // Get latest post data
-      const currentPost = await storage.getPost(post.id);
-      if (!currentPost || currentPost.status !== 'scheduled') {
-        console.warn(`❌ SCHEDULED EXECUTION FAILED: Post ${post.id} no longer exists or is not scheduled`);
-        console.warn(`❌ Current post status: ${currentPost?.status || 'NOT_FOUND'}`);
+      // CRITICAL: Use atomic update to prevent race conditions with ReliableSchedulingService
+      // This ensures only one scheduler can process the post at a time
+      const [updatedPost] = await db
+        .update(posts)
+        .set({ status: 'publishing' })
+        .where(and(eq(posts.id, post.id), eq(posts.status, 'scheduled')))
+        .returning();
+      
+      // If no row was updated, another process already took this post
+      if (!updatedPost) {
+        console.log(`⚡ RACE CONDITION PREVENTED: Post ${post.id} already being processed by ReliableSchedulingService`);
+        
+        // Log this critical event for production monitoring
+        await storage.createActivity({
+          userId: post.userId || null,
+          type: 'system_race_condition_prevented',
+          description: `Race condition prevented: Post ${post.id} was already being processed by ReliableSchedulingService (Primary vs Backup)`,
+          metadata: { 
+            postId: post.id,
+            preventedBy: 'PrimaryScheduler',
+            originalScheduledTime: post.scheduledFor,
+            attemptedAt: new Date().toISOString()
+          }
+        });
         return;
       }
+      
+      const currentPost = updatedPost;
       
       console.log(`📝 PUBLISHING POST: "${currentPost.content}" to Facebook...`);
       

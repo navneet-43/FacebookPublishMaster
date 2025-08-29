@@ -6,6 +6,9 @@
 
 import { storage } from '../storage';
 import { publishPostToFacebook } from './postService';
+import { db } from '../db';
+import { posts } from '@shared/schema';
+import { and, eq } from 'drizzle-orm';
 
 export class ReliableSchedulingService {
   private static checkInterval: NodeJS.Timeout | null = null;
@@ -84,10 +87,32 @@ export class ReliableSchedulingService {
           console.log(`⏰ PUBLISHING OVERDUE POST ${post.id}: "${post.content?.substring(0, 50)}..." (${delayMinutes} minutes late)`);
           
           try {
-            // Mark as 'publishing' immediately to prevent duplicates
-            await storage.updatePost(post.id, {
-              status: 'publishing'
-            });
+            // CRITICAL: Use atomic update to prevent race conditions between both schedulers
+            // This ensures only one scheduler can process the post at a time
+            const [updatedPost] = await db
+              .update(posts)
+              .set({ status: 'publishing' })
+              .where(and(eq(posts.id, post.id), eq(posts.status, 'scheduled')))
+              .returning();
+            
+            // If no row was updated, another process already took this post
+            if (!updatedPost) {
+              console.log(`⚡ RACE CONDITION PREVENTED: Post ${post.id} already being processed by another scheduler`);
+              
+              // Log this critical event for production monitoring
+              await storage.createActivity({
+                userId: post.userId || null,
+                type: 'system_race_condition_prevented',
+                description: `Race condition prevented: Post ${post.id} was already being processed by another scheduler (Primary vs Backup)`,
+                metadata: { 
+                  postId: post.id,
+                  preventedBy: 'ReliableSchedulingService',
+                  originalScheduledTime: post.scheduledFor,
+                  attemptedAt: new Date().toISOString()
+                }
+              });
+              continue;
+            }
             
             // Publish the post
             const result = await publishPostToFacebook(post);
