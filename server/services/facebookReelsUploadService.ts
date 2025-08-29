@@ -225,8 +225,8 @@ export class FacebookReelsUploadService {
       const fileStats = fs.statSync(options.filePath);
       const fileSizeMB = fileStats.size / (1024 * 1024);
       
-      if (fileSizeMB > 250) {
-        throw new Error(`Reel file too large: ${fileSizeMB.toFixed(1)}MB (max 250MB for Reels)`);
+      if (fileSizeMB > 4096) {
+        throw new Error(`Reel file too large: ${fileSizeMB.toFixed(1)}MB (max 4GB for Reels)`);
       }
       
       console.log(`Processing ${fileSizeMB.toFixed(1)}MB reel for Facebook`);
