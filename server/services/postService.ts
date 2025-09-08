@@ -428,7 +428,34 @@ async function processOverduePosts(): Promise<void> {
         console.log(`⏰ Content: "${post.content}"`);
         
         try {
-          const result = await publishPostToFacebook(post);
+          // CRITICAL: Use atomic update to prevent race conditions with ReliableSchedulingService
+          // This ensures only one scheduler can process the post at a time
+          const [updatedPost] = await db
+            .update(posts)
+            .set({ status: 'publishing' })
+            .where(and(eq(posts.id, post.id), eq(posts.status, 'scheduled')))
+            .returning();
+          
+          // If no row was updated, another process already took this post
+          if (!updatedPost) {
+            console.log(`⚡ RACE CONDITION PREVENTED: Post ${post.id} already being processed by ReliableSchedulingService`);
+            
+            // Log this critical event for production monitoring
+            await storage.createActivity({
+              userId: post.userId || null,
+              type: 'system_race_condition_prevented',
+              description: `Race condition prevented: Post ${post.id} was already being processed by ReliableSchedulingService (Backup vs Primary)`,
+              metadata: { 
+                postId: post.id,
+                preventedBy: 'BackupScheduler',
+                originalScheduledTime: post.scheduledFor,
+                attemptedAt: new Date().toISOString()
+              }
+            });
+            continue;
+          }
+          
+          const result = await publishPostToFacebook(updatedPost);
           
           if (result.success) {
             await storage.updatePost(post.id, {
