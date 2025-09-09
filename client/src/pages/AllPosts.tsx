@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { CalendarIcon, Filter } from "lucide-react";
+import { CalendarIcon, Filter, Check, X, Edit2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import type { Post } from "@shared/schema";
 
@@ -19,6 +20,12 @@ export default function AllPosts() {
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<number | null>(null);
+  const [editData, setEditData] = useState({
+    content: '',
+    language: '',
+    labels: [] as string[]
+  });
 
   // Ensure scroll isn't blocked when popover is open
   useEffect(() => {
@@ -45,6 +52,11 @@ export default function AllPosts() {
     queryKey: ["/api/facebook-accounts"],
   });
 
+  const { data: customLabels = [] } = useQuery({
+    queryKey: ['/api/custom-labels'],
+    queryFn: () => apiRequest('/api/custom-labels')
+  });
+
   const deletePostMutation = useMutation({
     mutationFn: async (postId: number) => {
       await apiRequest(`/api/posts/${postId}`, {
@@ -67,6 +79,33 @@ export default function AllPosts() {
         variant: "destructive",
       });
     },
+  });
+
+  const updatePostMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return apiRequest(`/api/posts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      setEditingPost(null);
+      toast({
+        title: "Post updated",
+        description: "The post has been successfully updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update post: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
   });
 
   const filteredPosts = posts.filter((post) => {
@@ -115,6 +154,40 @@ export default function AllPosts() {
       minute: "2-digit",
       hour12: true,
     });
+  };
+
+  const startEditing = (post: Post) => {
+    setEditingPost(post.id);
+    setEditData({
+      content: post.content,
+      language: post.language || 'English',
+      labels: Array.isArray(post.labels) ? post.labels : []
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingPost(null);
+    setEditData({ content: '', language: '', labels: [] });
+  };
+
+  const saveChanges = (postId: number) => {
+    updatePostMutation.mutate({
+      id: postId,
+      data: {
+        content: editData.content,
+        language: editData.language,
+        labels: editData.labels
+      }
+    });
+  };
+
+  const toggleLabel = (label: string) => {
+    setEditData(prev => ({
+      ...prev,
+      labels: prev.labels.includes(label)
+        ? prev.labels.filter(l => l !== label)
+        : [...prev.labels, label]
+    }));
   };
 
   const getStatusBadge = (status: string) => {
@@ -379,6 +452,9 @@ export default function AllPosts() {
                   Content
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Content Bucket
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Account
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -400,12 +476,50 @@ export default function AllPosts() {
                 filteredPosts.map((post) => (
                   <tr key={post.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-xs truncate">
-                        {post.content}
-                      </div>
-                      {post.mediaUrl && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          📎 {post.mediaType || 'Media'} attached
+                      {editingPost === post.id ? (
+                        <Input
+                          value={editData.content}
+                          onChange={(e) => setEditData(prev => ({ ...prev, content: e.target.value }))}
+                          className="text-sm"
+                          placeholder="Post content..."
+                        />
+                      ) : (
+                        <div>
+                          <div className="text-sm text-gray-900 max-w-xs truncate">
+                            {post.content}
+                          </div>
+                          {post.mediaUrl && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              📎 {post.mediaType || 'Media'} attached
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {editingPost === post.id ? (
+                        <div className="flex flex-wrap gap-1">
+                          {customLabels.map((label: any) => (
+                            <Badge
+                              key={label.id}
+                              variant={editData.labels.includes(label.name) ? "default" : "outline"}
+                              className="h-6 text-xs cursor-pointer"
+                              onClick={() => toggleLabel(label.name)}
+                            >
+                              {label.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {post.labels && Array.isArray(post.labels) && post.labels.map((label, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {label}
+                            </Badge>
+                          ))}
+                          {(!post.labels || post.labels.length === 0) && (
+                            <span className="text-xs text-gray-400">No labels</span>
+                          )}
                         </div>
                       )}
                     </td>
@@ -427,37 +541,83 @@ export default function AllPosts() {
                       {getStatusBadge(post.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        post.language === 'HI' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {post.language || 'EN'}
-                      </span>
+                      {editingPost === post.id ? (
+                        <Select
+                          value={editData.language}
+                          onValueChange={(value) => setEditData(prev => ({ ...prev, language: value }))}
+                        >
+                          <SelectTrigger className="w-28 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="English">English</SelectItem>
+                            <SelectItem value="Tamil">Tamil</SelectItem>
+                            <SelectItem value="Hindi">Hindi</SelectItem>
+                            <SelectItem value="Spanish">Spanish</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          post.language === 'HI' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {post.language || 'EN'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-3">
-                        <button 
-                          className="text-indigo-600 hover:text-indigo-900"
-                          onClick={() => {
-                            // Handle edit - could navigate to edit page or open modal
-                            console.log('Edit post', post.id);
-                          }}
-                        >
-                          <i className="fa-solid fa-edit"></i>
-                        </button>
-                        <button 
-                          className="text-red-600 hover:text-red-900"
-                          onClick={() => deletePostMutation.mutate(post.id)}
-                          disabled={deletePostMutation.isPending}
-                        >
-                          <i className="fa-solid fa-trash"></i>
-                        </button>
+                      <div className="flex items-center space-x-2">
+                        {editingPost === post.id ? (
+                          <>
+                            <button 
+                              className="p-1 rounded hover:bg-green-50 text-green-600 hover:text-green-700" 
+                              onClick={() => saveChanges(post.id)}
+                              title="Save Changes"
+                              disabled={updatePostMutation.isPending}
+                            >
+                              {updatePostMutation.isPending ? (
+                                <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                              ) : (
+                                <Check className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button 
+                              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" 
+                              onClick={cancelEditing}
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button 
+                              className="p-1 rounded hover:bg-gray-100 text-indigo-600 hover:text-indigo-900" 
+                              onClick={() => startEditing(post)}
+                              title="Edit Post"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              className="p-1 rounded hover:bg-red-50 text-red-600 hover:text-red-900" 
+                              onClick={() => deletePostMutation.mutate(post.id)}
+                              title="Delete Post"
+                              disabled={deletePostMutation.isPending}
+                            >
+                              {deletePostMutation.isPending ? (
+                                <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                              ) : (
+                                <i className="fa-solid fa-trash text-sm"></i>
+                              )}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <div className="text-gray-500">
                       <i className="fa-solid fa-calendar-xmark text-4xl mb-4 block"></i>
                       <p className="text-lg font-medium">No posts found</p>
