@@ -172,85 +172,20 @@ export class ExcelImportService {
       return { isValid: false, errors };
     }
     
-    // Parse the date correctly with proper timezone handling
+    // Import unified timezone conversion utility
+    const { parseISTDateToUTC } = await import('../utils/timezoneUtils');
+    
+    // Parse the date and convert from IST to UTC using unified timezone handling
     let parsedDate: Date;
     if (typeof scheduledFor === 'number') {
-      // Excel serial date number
-      parsedDate = new Date((scheduledFor - 25569) * 86400 * 1000);
+      // Excel serial date number - convert to date string first, then parse as IST
+      const excelDate = new Date((scheduledFor - 25569) * 86400 * 1000);
+      const dateString = excelDate.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD HH:MM:SS format in IST
+      parsedDate = parseISTDateToUTC(dateString, `Row ${rowIndex + 1} (Excel serial)`);
     } else {
-      // Handle various date/time formats including "2:30 PM" format
+      // Use unified timezone conversion for all string date formats
       const dateStr = scheduledFor.toString().trim();
-      
-      // Use the same parsing logic as validation above
-      if (dateStr.match(/^\d{1,2}:\d{2}\s*(AM|PM)$/i)) {
-        // Format: "2:30 PM" - time only, use today's date
-        const today = new Date();
-        const timeStr = dateStr.toUpperCase();
-        let [time, period] = timeStr.split(/\s+/);
-        let [hours, minutes] = time.split(':').map(Number);
-        
-        if (period === 'PM' && hours !== 12) hours += 12;
-        if (period === 'AM' && hours === 12) hours = 0;
-        
-        parsedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
-      } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(:\d{2})?$/)) {
-        // Format: "2024-07-24 14:30" or "2024-07-24 14:30:00"
-        const [datePart, timePart] = dateStr.split(' ');
-        const [year, month, day] = datePart.split('-').map(Number);
-        const timeParts = timePart.split(':').map(Number);
-        const [hours, minutes, seconds = 0] = timeParts;
-        parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
-      } else if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
-        // Format: "7/24/2024 2:30 PM", "07/24/2024 14:30", or "28/07/2025  15:05:00 PM"
-        const parts = dateStr.split(/\s+/).filter((p: string) => p.length > 0); // Remove extra spaces
-        const [datePart, timePart, period] = parts;
-        const dateParts = datePart.split('/').map(Number);
-        const timeParts = timePart.split(':').map(Number);
-        let [hours, minutes, seconds = 0] = timeParts;
-        
-        // Fix invalid 24-hour format with AM/PM (like "15:05:00 PM")
-        if (period && hours > 12) {
-          // If hour is >12 and has AM/PM, treat as 24-hour format and ignore AM/PM
-          console.log(`Row ${rowIndex + 1}: Invalid format "${timePart} ${period}" - treating as 24-hour format`);
-        } else {
-          // Apply AM/PM logic only for valid 12-hour format
-          if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
-          if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
-        }
-        
-        // Determine if it's DD/MM/YYYY or MM/DD/YYYY format
-        let month, day, year;
-        if (dateParts[0] > 12) {
-          // First number > 12, must be DD/MM/YYYY
-          [day, month, year] = dateParts;
-          console.log(`Row ${rowIndex + 1}: Detected DD/MM/YYYY format: ${day}/${month}/${year}`);
-        } else if (dateParts[1] > 12) {
-          // Second number > 12, must be MM/DD/YYYY
-          [month, day, year] = dateParts;
-          console.log(`Row ${rowIndex + 1}: Detected MM/DD/YYYY format: ${month}/${day}/${year}`);
-        } else {
-          // Ambiguous case, default to DD/MM/YYYY for international format
-          [day, month, year] = dateParts;
-          console.log(`Row ${rowIndex + 1}: Ambiguous date, using DD/MM/YYYY format: ${day}/${month}/${year}`);
-        }
-        
-        parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
-      } else if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i)) {
-        // Format: "7-24-2024 2:30 PM" or "07-24-2024 14:30"
-        const parts = dateStr.split(/\s+/);
-        const [datePart, timePart, period] = parts;
-        const [month, day, year] = datePart.split('-').map(Number);
-        const timeParts = timePart.split(':').map(Number);
-        let [hours, minutes, seconds = 0] = timeParts;
-        
-        if (period && period.toUpperCase() === 'PM' && hours !== 12) hours += 12;
-        if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
-        
-        parsedDate = new Date(year, month - 1, day, hours, minutes, seconds);
-      } else {
-        // Try standard Date parsing as fallback
-        parsedDate = new Date(dateStr);
-      }
+      parsedDate = parseISTDateToUTC(dateStr, `Row ${rowIndex + 1}`);
     }
     
     // Process Google Drive links to convert to direct download format
@@ -260,14 +195,6 @@ export class ExcelImportService {
       processedMediaUrl = ExcelImportService.convertGoogleDriveLink(processedMediaUrl);
       console.log(`Converted to: ${processedMediaUrl}`);
     }
-
-    console.log(`Row ${rowIndex + 1} - Original scheduledFor: ${scheduledFor}`);
-    console.log(`Row ${rowIndex + 1} - Parsed date: ${parsedDate.toISOString()}`);
-    console.log(`Row ${rowIndex + 1} - Local time: ${parsedDate.toLocaleString()}`);
-    console.log(`Row ${rowIndex + 1} - Timezone offset: ${parsedDate.getTimezoneOffset()} minutes`);
-
-    // Keep original input format for IST processing later
-    console.log(`Row ${rowIndex + 1} - Scheduling for: ${scheduledFor}`);
 
     // Use detected media type if not provided by user
     let finalMediaType = mediaType ? mediaType.toString().trim() : undefined;
@@ -698,32 +625,9 @@ export class ExcelImportService {
           console.log(`✅ Row ${i + 1}: Google Drive media URL preserved with mediaType: ${processedMediaType}`);
         }
         
-        // Parse date and convert from IST to UTC for storage
-        const dateMatch = postData.scheduledFor.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
-        let scheduledDate: Date;
-        
-        if (dateMatch) {
-          const [, year, month, day, hours, minutes, seconds] = dateMatch;
-          // Create date in IST and convert to UTC for storage
-          const istDate = new Date(
-            parseInt(year), 
-            parseInt(month) - 1, 
-            parseInt(day), 
-            parseInt(hours), 
-            parseInt(minutes), 
-            parseInt(seconds)
-          );
-          
-          // Convert IST to UTC (subtract 5 hours 30 minutes)
-          scheduledDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000));
-          
-          console.log(`IST input: ${postData.scheduledFor}`);
-          console.log(`Local IST date: ${istDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-          console.log(`Stored as UTC: ${scheduledDate.toISOString()}`);
-        } else {
-          scheduledDate = new Date(postData.scheduledFor);
-          console.log(`Fallback date creation: ${scheduledDate.toISOString()}`);
-        }
+        // Parse date and convert from IST to UTC using unified timezone conversion
+        const { parseISTDateToUTC } = await import('../utils/timezoneUtils');
+        const scheduledDate = parseISTDateToUTC(postData.scheduledFor, `Processing post ${i + 1}`);
         
         // Retry logic for database operations to handle connection issues
         let newPost;
