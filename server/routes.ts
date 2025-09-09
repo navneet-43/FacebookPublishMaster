@@ -455,6 +455,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PUT endpoint for updating posts
+  app.put("/api/posts/:id", async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const user = await authenticateUser(req);
+      
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      if (isNaN(postId)) {
+        return res.status(400).json({ message: "Invalid post ID" });
+      }
+      
+      // Check if post exists and belongs to the user
+      const existingPost = await storage.getPost(postId);
+      if (!existingPost) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      
+      if (existingPost.userId !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this post" });
+      }
+      
+      console.log('🔄 UPDATING POST:', postId, 'with data:', req.body);
+      
+      // Prepare update data - convert scheduledFor string to Date if needed
+      const updateData = { ...req.body };
+      if (updateData.scheduledFor && typeof updateData.scheduledFor === 'string') {
+        updateData.scheduledFor = new Date(updateData.scheduledFor);
+        console.log('🔄 Converted scheduledFor to Date:', updateData.scheduledFor);
+      }
+      
+      // Update the post
+      const updatedPost = await storage.updatePost(postId, updateData);
+      if (!updatedPost) {
+        return res.status(404).json({ message: "Post not found after update" });
+      }
+      
+      console.log('✅ POST UPDATED:', updatedPost);
+      
+      // Log activity
+      await storage.createActivity({
+        userId: user.id,
+        type: 'post_updated',
+        description: `Updated ${updatedPost.status} post`,
+        metadata: { postId: updatedPost.id }
+      });
+      
+      res.json(updatedPost);
+    } catch (error) {
+      console.error('Error updating post:', error);
+      res.status(500).json({ message: "Failed to update post" });
+    }
+  });
+
   app.get("/api/activities", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);

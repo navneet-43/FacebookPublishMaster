@@ -40,6 +40,8 @@ export default function UpcomingPostsCard() {
 
   const { data: posts, isLoading } = useQuery<Post[]>({
     queryKey: ['/api/posts/upcoming'],
+    refetchOnWindowFocus: true,
+    staleTime: 0
   });
 
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
@@ -86,13 +88,13 @@ export default function UpcomingPostsCard() {
       });
     },
     onSuccess: () => {
-      // Invalidate all related queries to ensure UI updates
-      queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
-      // Force refetch upcoming posts
+      // Clear all cache and force complete refresh
+      queryClient.clear();
+      // Force immediate refetch of upcoming posts
       queryClient.refetchQueries({ queryKey: ['/api/posts/upcoming'] });
+      queryClient.refetchQueries({ queryKey: ['/api/posts'] });
+      queryClient.refetchQueries({ queryKey: ['/api/stats'] });
+      queryClient.refetchQueries({ queryKey: ['/api/activities'] });
       setEditingPost(null);
       toast({
         title: "Post updated",

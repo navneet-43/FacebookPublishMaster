@@ -93,13 +93,13 @@ export default function AllPosts() {
       });
     },
     onSuccess: () => {
-      // Invalidate all related queries to ensure UI updates
-      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
-      // Force refetch posts
+      // Clear all cache and force complete refresh
+      queryClient.clear();
+      // Force immediate refetch of all data
       queryClient.refetchQueries({ queryKey: ['/api/posts'] });
+      queryClient.refetchQueries({ queryKey: ['/api/posts/upcoming'] });
+      queryClient.refetchQueries({ queryKey: ['/api/stats'] });
+      queryClient.refetchQueries({ queryKey: ['/api/activities'] });
       setEditingPost(null);
       toast({
         title: "Post updated",
