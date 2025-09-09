@@ -3,7 +3,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { Check, X, Edit2 } from "lucide-react";
+import { useState } from "react";
 
 interface Post {
   id: number;
@@ -25,12 +30,24 @@ interface FacebookAccount {
 
 export default function UpcomingPostsCard() {
   const { toast } = useToast();
+  const [editingPost, setEditingPost] = useState<number | null>(null);
+  const [editData, setEditData] = useState({
+    content: '',
+    language: '',
+    labels: [] as string[]
+  });
+
   const { data: posts, isLoading } = useQuery<Post[]>({
     queryKey: ['/api/posts/upcoming'],
   });
 
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
     queryKey: ['/api/facebook-accounts'],
+  });
+
+  const { data: customLabels = [] } = useQuery({
+    queryKey: ['/api/custom-labels'],
+    queryFn: () => apiRequest('/api/custom-labels')
   });
 
   const deletePostMutation = useMutation({
@@ -52,6 +69,33 @@ export default function UpcomingPostsCard() {
       toast({
         title: "Error",
         description: `Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const updatePostMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return apiRequest(`/api/posts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      setEditingPost(null);
+      toast({
+        title: "Post updated",
+        description: "The post has been successfully updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update post: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     }
@@ -85,12 +129,38 @@ export default function UpcomingPostsCard() {
     return "fa-font";
   };
 
-  const handleEdit = (postId: number) => {
-    // In a real application, this would open an edit modal or navigate to an edit page
-    toast({
-      title: "Edit post",
-      description: `Editing post ${postId} - This feature is not implemented in the demo.`,
+  const startEditing = (post: Post) => {
+    setEditingPost(post.id);
+    setEditData({
+      content: post.content,
+      language: post.language || 'English',
+      labels: Array.isArray(post.labels) ? post.labels : []
     });
+  };
+
+  const cancelEditing = () => {
+    setEditingPost(null);
+    setEditData({ content: '', language: '', labels: [] });
+  };
+
+  const saveChanges = (postId: number) => {
+    updatePostMutation.mutate({
+      id: postId,
+      data: {
+        content: editData.content,
+        language: editData.language,
+        labels: editData.labels
+      }
+    });
+  };
+
+  const toggleLabel = (label: string) => {
+    setEditData(prev => ({
+      ...prev,
+      labels: prev.labels.includes(label)
+        ? prev.labels.filter(l => l !== label)
+        : [...prev.labels, label]
+    }));
   };
 
   const handleDelete = (postId: number) => {
@@ -218,14 +288,53 @@ export default function UpcomingPostsCard() {
                         <div className="flex-shrink-0 h-10 w-10 rounded bg-gray-100 flex items-center justify-center">
                           <i className={`fa-solid ${getPostIcon(post)} text-gray-400`}></i>
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 truncate max-w-xs">{post.content}</div>
-                          <div className="text-xs text-gray-500">
-                            {post.labels && Array.isArray(post.labels) && post.labels.map((label, index) => (
-                              <span key={index} className={`${getLabelColorClass(label)} text-xs font-medium mr-1 px-2 py-0.5 rounded`}>{label}</span>
-                            ))}
-                            <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded">{post.language}</span>
-                          </div>
+                        <div className="ml-4 flex-1">
+                          {editingPost === post.id ? (
+                            <div className="space-y-2">
+                              <Input
+                                value={editData.content}
+                                onChange={(e) => setEditData(prev => ({ ...prev, content: e.target.value }))}
+                                className="text-sm"
+                                placeholder="Post content..."
+                              />
+                              <div className="flex flex-wrap gap-1">
+                                <Select
+                                  value={editData.language}
+                                  onValueChange={(value) => setEditData(prev => ({ ...prev, language: value }))}
+                                >
+                                  <SelectTrigger className="w-24 h-6 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="English">English</SelectItem>
+                                    <SelectItem value="Tamil">Tamil</SelectItem>
+                                    <SelectItem value="Hindi">Hindi</SelectItem>
+                                    <SelectItem value="Spanish">Spanish</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {customLabels.map((label: any) => (
+                                  <Badge
+                                    key={label.id}
+                                    variant={editData.labels.includes(label.name) ? "default" : "outline"}
+                                    className="h-6 text-xs cursor-pointer"
+                                    onClick={() => toggleLabel(label.name)}
+                                  >
+                                    {label.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="text-sm font-medium text-gray-900 truncate max-w-xs">{post.content}</div>
+                              <div className="text-xs text-gray-500 flex flex-wrap gap-1 mt-1">
+                                {post.labels && Array.isArray(post.labels) && post.labels.map((label, index) => (
+                                  <span key={index} className={`${getLabelColorClass(label)} text-xs font-medium px-2 py-0.5 rounded`}>{label}</span>
+                                ))}
+                                <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded">{post.language}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -267,25 +376,51 @@ export default function UpcomingPostsCard() {
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex items-center space-x-2">
-                        <button 
-                          className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" 
-                          onClick={() => handleEdit(post.id)}
-                          title="Edit Post"
-                        >
-                          <i className="fa-solid fa-pencil text-sm"></i>
-                        </button>
-                        <button 
-                          className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-600" 
-                          onClick={() => handleDelete(post.id)}
-                          title="Delete Post"
-                          disabled={deletePostMutation.isPending}
-                        >
-                          {deletePostMutation.isPending ? (
-                            <i className="fa-solid fa-spinner fa-spin text-sm"></i>
-                          ) : (
-                            <i className="fa-solid fa-trash text-sm"></i>
-                          )}
-                        </button>
+                        {editingPost === post.id ? (
+                          <>
+                            <button 
+                              className="p-1 rounded hover:bg-green-50 text-green-600 hover:text-green-700" 
+                              onClick={() => saveChanges(post.id)}
+                              title="Save Changes"
+                              disabled={updatePostMutation.isPending}
+                            >
+                              {updatePostMutation.isPending ? (
+                                <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                              ) : (
+                                <Check className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button 
+                              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" 
+                              onClick={cancelEditing}
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button 
+                              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" 
+                              onClick={() => startEditing(post)}
+                              title="Edit Post"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              className="p-1 rounded hover:bg-red-50 text-gray-500 hover:text-red-600" 
+                              onClick={() => handleDelete(post.id)}
+                              title="Delete Post"
+                              disabled={deletePostMutation.isPending}
+                            >
+                              {deletePostMutation.isPending ? (
+                                <i className="fa-solid fa-spinner fa-spin text-sm"></i>
+                              ) : (
+                                <i className="fa-solid fa-trash text-sm"></i>
+                              )}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
