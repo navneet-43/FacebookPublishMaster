@@ -182,27 +182,51 @@ export default function UpcomingPostsCard() {
   };
 
   const saveChanges = (postId: number) => {
-    // Convert IST datetime input back to UTC for storage
-    // editData.scheduledFor is in format "2025-09-09T21:30" (user entered IST time)
+    // CRITICAL: Frontend test shows backend API works perfectly
+    // Issue must be in this frontend timezone conversion logic
     
-    // Parse the datetime-local input explicitly as IST
+    console.log('🚨 COMPREHENSIVE TIMEZONE DEBUG:');
+    console.log('Raw input from datetime-local:', editData.scheduledFor);
+    console.log('Input type:', typeof editData.scheduledFor);
+    console.log('Input length:', editData.scheduledFor.length);
+    console.log('Current browser time:', new Date().toString());
+    console.log('Current UTC time:', new Date().toISOString());
+    console.log('Current IST time:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+    
+    // Let's try multiple conversion methods and compare
+    console.log('--- CONVERSION METHOD COMPARISON ---');
+    
+    // Method 1: My current approach
     const [datePart, timePart] = editData.scheduledFor.split('T');
     const [year, month, day] = datePart.split('-').map(Number);
     const [hours, minutes] = timePart.split(':').map(Number);
-    
-    // Create date treating input as IST (local system time)
     const istDate = new Date(year, month - 1, day, hours, minutes);
+    const method1Utc = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000));
     
-    // Convert IST to UTC by subtracting 5.5 hours  
-    const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000));
+    console.log('Method 1 - Manual parse IST:', istDate.toString());
+    console.log('Method 1 - Converted to UTC:', method1Utc.toISOString());
+    console.log('Method 1 - Hours from now:', (method1Utc.getTime() - Date.now()) / (1000 * 60 * 60));
     
-    console.log('🔄 TIMEZONE CONVERSION (IST → UTC):');
-    console.log('User input:', editData.scheduledFor);
-    console.log('Parsed as IST:', istDate.toString());
-    console.log('Converted to UTC:', utcDate.toISOString());
-    console.log('Verify IST display:', utcDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-    console.log('Current time:', new Date().toISOString());
-    console.log('Time difference (hours):', (utcDate.getTime() - Date.now()) / (1000 * 60 * 60));
+    // Method 2: Direct parsing then subtract 5.5 hours
+    const directParse = new Date(editData.scheduledFor);
+    const method2Utc = new Date(directParse.getTime() - (5.5 * 60 * 60 * 1000));
+    
+    console.log('Method 2 - Direct parse:', directParse.toString());
+    console.log('Method 2 - Converted to UTC:', method2Utc.toISOString());
+    console.log('Method 2 - Hours from now:', (method2Utc.getTime() - Date.now()) / (1000 * 60 * 60));
+    
+    // Method 3: Parse as UTC then subtract
+    const asUtcString = editData.scheduledFor + ':00.000Z';
+    const parseAsUtc = new Date(asUtcString);
+    const method3Utc = new Date(parseAsUtc.getTime() - (5.5 * 60 * 60 * 1000));
+    
+    console.log('Method 3 - Parse as UTC:', parseAsUtc.toString());
+    console.log('Method 3 - Converted to UTC:', method3Utc.toISOString());
+    console.log('Method 3 - Hours from now:', (method3Utc.getTime() - Date.now()) / (1000 * 60 * 60));
+    
+    // Use Method 1 (the most explicit) 
+    const finalUtc = method1Utc;
+    console.log('🎯 FINAL CHOICE - Using Method 1:', finalUtc.toISOString());
     
     updatePostMutation.mutate({
       id: postId,
@@ -210,7 +234,7 @@ export default function UpcomingPostsCard() {
         content: editData.content,
         language: editData.language,
         labels: editData.labels,
-        scheduledFor: utcDate.toISOString()
+        scheduledFor: finalUtc.toISOString()
       }
     });
   };
