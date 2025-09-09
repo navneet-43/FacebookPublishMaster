@@ -47,7 +47,9 @@ export default function UpcomingPostsCard() {
 
   const { data: customLabels = [] } = useQuery({
     queryKey: ['/api/custom-labels'],
-    queryFn: () => apiRequest('/api/custom-labels')
+    queryFn: () => apiRequest('/api/custom-labels'),
+    retry: false,
+    refetchOnWindowFocus: false
   });
 
   const deletePostMutation = useMutation({
@@ -312,7 +314,7 @@ export default function UpcomingPostsCard() {
                                     <SelectItem value="Spanish">Spanish</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                {customLabels.map((label: any) => (
+                                {Array.isArray(customLabels) && customLabels.map((label: any) => (
                                   <Badge
                                     key={label.id}
                                     variant={editData.labels.includes(label.name) ? "default" : "outline"}

@@ -54,7 +54,9 @@ export default function AllPosts() {
 
   const { data: customLabels = [] } = useQuery({
     queryKey: ['/api/custom-labels'],
-    queryFn: () => apiRequest('/api/custom-labels')
+    queryFn: () => apiRequest('/api/custom-labels'),
+    retry: false,
+    refetchOnWindowFocus: false
   });
 
   const deletePostMutation = useMutation({
@@ -499,7 +501,7 @@ export default function AllPosts() {
                     <td className="px-6 py-4">
                       {editingPost === post.id ? (
                         <div className="flex flex-wrap gap-1">
-                          {customLabels.map((label: any) => (
+                          {Array.isArray(customLabels) && customLabels.map((label: any) => (
                             <Badge
                               key={label.id}
                               variant={editData.labels.includes(label.name) ? "default" : "outline"}
