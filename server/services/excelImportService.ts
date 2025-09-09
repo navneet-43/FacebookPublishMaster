@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { YouTubeHelper } from './youtubeHelper';
 import { VideoProcessor } from './videoProcessor';
 import { MediaLinkDetector } from './mediaLinkDetector';
+import { parseISTDateToUTC } from '../utils/timezoneUtils';
 
 export interface ExcelPostData {
   content: string;
@@ -172,10 +173,7 @@ export class ExcelImportService {
       return { isValid: false, errors };
     }
     
-    // Import unified timezone conversion utility
-    const { parseISTDateToUTC } = await import('../utils/timezoneUtils');
-    
-    // Parse the date and convert from IST to UTC using unified timezone handling
+    // Use unified timezone conversion for all date formats
     let parsedDate: Date;
     if (typeof scheduledFor === 'number') {
       // Excel serial date number - convert to date string first, then parse as IST
@@ -626,7 +624,6 @@ export class ExcelImportService {
         }
         
         // Parse date and convert from IST to UTC using unified timezone conversion
-        const { parseISTDateToUTC } = await import('../utils/timezoneUtils');
         const scheduledDate = parseISTDateToUTC(postData.scheduledFor, `Processing post ${i + 1}`);
         
         // Retry logic for database operations to handle connection issues
