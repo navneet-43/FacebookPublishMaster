@@ -252,10 +252,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Scheduled date is required for scheduled posts" });
         }
 
+        // Import unified timezone conversion utility
+        const { parseISTDateToUTC } = await import('./utils/timezoneUtils');
+        
+        // Convert scheduledFor from IST to UTC for consistent storage
+        const scheduledForUTC = parseISTDateToUTC(result.data.scheduledFor, 'API scheduled post');
+        
         const post = await storage.createPost({
           ...result.data,
           userId: user.id,
-          scheduledFor: new Date(result.data.scheduledFor)
+          scheduledFor: scheduledForUTC
         } as any);
 
         // Set up the actual scheduling job
