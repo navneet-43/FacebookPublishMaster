@@ -34,7 +34,8 @@ export default function UpcomingPostsCard() {
   const [editData, setEditData] = useState({
     content: '',
     language: '',
-    labels: [] as string[]
+    labels: [] as string[],
+    scheduledFor: ''
   });
 
   const { data: posts, isLoading } = useQuery<Post[]>({
@@ -85,9 +86,13 @@ export default function UpcomingPostsCard() {
       });
     },
     onSuccess: () => {
+      // Invalidate all related queries to ensure UI updates
       queryClient.invalidateQueries({ queryKey: ['/api/posts/upcoming'] });
       queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities'] });
+      // Force refetch upcoming posts
+      queryClient.refetchQueries({ queryKey: ['/api/posts/upcoming'] });
       setEditingPost(null);
       toast({
         title: "Post updated",
@@ -133,25 +138,35 @@ export default function UpcomingPostsCard() {
 
   const startEditing = (post: Post) => {
     setEditingPost(post.id);
+    const scheduledDate = post.scheduledFor ? new Date(post.scheduledFor) : new Date();
+    const istDate = new Date(scheduledDate.getTime() + (5.5 * 60 * 60 * 1000)); // Convert UTC to IST for display
+    const formattedDate = istDate.toISOString().slice(0, 16); // Format for datetime-local input
+    
     setEditData({
       content: post.content,
       language: post.language || 'English',
-      labels: Array.isArray(post.labels) ? post.labels : []
+      labels: Array.isArray(post.labels) ? post.labels : [],
+      scheduledFor: formattedDate
     });
   };
 
   const cancelEditing = () => {
     setEditingPost(null);
-    setEditData({ content: '', language: '', labels: [] });
+    setEditData({ content: '', language: '', labels: [], scheduledFor: '' });
   };
 
   const saveChanges = (postId: number) => {
+    // Convert IST datetime input back to UTC for storage
+    const istDate = new Date(editData.scheduledFor);
+    const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000)); // Convert IST to UTC
+    
     updatePostMutation.mutate({
       id: postId,
       data: {
         content: editData.content,
         language: editData.language,
-        labels: editData.labels
+        labels: editData.labels,
+        scheduledFor: utcDate.toISOString()
       }
     });
   };
@@ -299,7 +314,13 @@ export default function UpcomingPostsCard() {
                                 className="text-sm"
                                 placeholder="Post content..."
                               />
-                              <div className="flex flex-wrap gap-1">
+                              <div className="flex flex-wrap gap-1 items-center">
+                                <input
+                                  type="datetime-local"
+                                  value={editData.scheduledFor}
+                                  onChange={(e) => setEditData(prev => ({ ...prev, scheduledFor: e.target.value }))}
+                                  className="h-6 text-xs border border-gray-300 rounded px-2"
+                                />
                                 <Select
                                   value={editData.language}
                                   onValueChange={(value) => setEditData(prev => ({ ...prev, language: value }))}
