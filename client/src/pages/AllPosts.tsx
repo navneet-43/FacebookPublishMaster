@@ -187,8 +187,22 @@ export default function AllPosts() {
 
   const saveChanges = (postId: number) => {
     // Convert IST datetime input back to UTC for storage
-    const istDate = new Date(editData.scheduledFor);
-    const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000)); // Convert IST to UTC
+    // editData.scheduledFor is in format "2025-09-09T21:30" (IST time)
+    // We need to parse this as IST and convert to UTC
+    const [datePart, timePart] = editData.scheduledFor.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Create date in IST (treat as IST timezone)
+    const istDate = new Date(year, month - 1, day, hours, minutes);
+    
+    // Convert IST to UTC by subtracting 5.5 hours
+    const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000));
+    
+    console.log('🔄 TIMEZONE CONVERSION:');
+    console.log('Original input:', editData.scheduledFor);
+    console.log('Parsed as IST:', istDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+    console.log('Converted to UTC:', utcDate.toISOString());
     
     updatePostMutation.mutate({
       id: postId,
