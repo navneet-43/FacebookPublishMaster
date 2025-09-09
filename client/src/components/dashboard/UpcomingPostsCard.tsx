@@ -113,22 +113,46 @@ export default function UpcomingPostsCard() {
   // Helper function to format the date
   const formatDate = (date: string | Date) => {
     const d = new Date(date);
-    const now = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(now.getDate() + 1);
+    // Convert UTC to IST by adding 5.5 hours
+    const istDate = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
     
-    // Check if it's today
-    if (d.toDateString() === now.toDateString()) {
-      return `Today, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    // Get current date in IST for comparison
+    const nowUtc = new Date();
+    const nowIst = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
+    
+    const tomorrowIst = new Date(nowIst);
+    tomorrowIst.setDate(nowIst.getDate() + 1);
+    
+    // Check if it's today in IST
+    if (istDate.toDateString() === nowIst.toDateString()) {
+      return `Today, ${istDate.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+      })}`;
     }
     
-    // Check if it's tomorrow
-    if (d.toDateString() === tomorrow.toDateString()) {
-      return `Tomorrow, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    // Check if it's tomorrow in IST
+    if (istDate.toDateString() === tomorrowIst.toDateString()) {
+      return `Tomorrow, ${istDate.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
+      })}`;
     }
     
-    // Otherwise return day of week + time
-    return `${d.toLocaleDateString([], { weekday: 'short' })}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    // Otherwise return day of week + time in IST
+    return `${istDate.toLocaleDateString('en-IN', { 
+      weekday: 'short',
+      timeZone: 'Asia/Kolkata'
+    })}, ${istDate.toLocaleTimeString('en-IN', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    })}`;
   };
 
   // Helper function to determine post icon

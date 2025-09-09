@@ -153,7 +153,10 @@ export default function AllPosts() {
 
   const formatDateTime = (date: string | Date) => {
     const d = new Date(date);
-    return d.toLocaleString("en-US", {
+    // Convert UTC to IST by adding 5.5 hours
+    const istDate = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+    return istDate.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
       year: "numeric",
       month: "short",
       day: "numeric",
