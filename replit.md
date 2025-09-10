@@ -43,6 +43,7 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
 - **Data Management**: PostgreSQL with Drizzle ORM for robust data handling.
 - **Facebook Integration**: Deep integration with Meta Graph API for publishing, account management, and real-time analytics.
 - **Content Scheduling**: Supports bulk post scheduling via Excel/CSV import with advanced date/time parsing and timezone management (IST to UTC conversion).
+- **Timezone Architecture**: CRITICAL - Frontend always displays IST times for user convenience, backend automatically converts to UTC for storage and processing. This ensures consistent user experience while maintaining database integrity.
 - **Media Handling**: Comprehensive system for media upload (images, videos), including:
     - Support for large video files via Facebook's resumable upload API (up to 1.75GB).
     - Intelligent upload method selection, prioritizing actual video file uploads over link posts.
