@@ -110,7 +110,13 @@ export function SchedulingStatus() {
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="text-sm text-muted-foreground">
             Last checked: {schedulingStatus?.lastCheck ? 
-              new Date(schedulingStatus.lastCheck).toLocaleTimeString() : 'Never'}
+              new Date(schedulingStatus.lastCheck).toLocaleTimeString('en-IN', { 
+                timeZone: 'Asia/Kolkata',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true 
+              }) + ' IST' : 'Never'}
           </div>
           
           <Button

@@ -121,7 +121,18 @@ export default function ReportsPage() {
     if (!dateString) return '-';
     try {
       const date = parseISO(dateString);
-      return isValid(date) ? format(date, 'MMM dd, yyyy HH:mm') : '-';
+      if (!isValid(date)) return '-';
+      
+      // Convert to IST and format
+      return date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }) + ' IST';
     } catch {
       return '-';
     }
