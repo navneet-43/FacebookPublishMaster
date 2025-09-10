@@ -587,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV Analysis endpoint for preview functionality
+  // CSV Analysis endpoint for preview functionality with optional AI conversion
   app.post('/api/csv-analyze', upload.single('file'), async (req: Request, res: Response) => {
     try {
       console.log('🔍 CSV analysis request received');
@@ -596,13 +596,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No file provided' });
       }
       
+      const useAiConverter = req.body.useAiConverter === 'true';
       console.log('📁 File details:', {
         originalname: req.file.originalname,
         mimetype: req.file.mimetype,
-        size: req.file.size
+        size: req.file.size,
+        aiConversion: useAiConverter
       });
       
-      const result = await ExcelImportService.analyzeExcelFile({
+      let result = await ExcelImportService.analyzeExcelFile({
         fileBuffer: req.file.buffer,
         filename: req.file.originalname
       });
@@ -614,11 +616,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: result.details
         });
       }
+
+      // If AI conversion is requested, try to convert the format
+      let aiConversionResult = null;
+      if (useAiConverter && result.data && result.data.length > 0) {
+        try {
+          const { OpenAICsvConverter } = await import('./services/openaiCsvConverter');
+          const converter = new OpenAICsvConverter();
+          
+          console.log('🤖 Attempting AI conversion of CSV format...');
+          const conversionResult = await converter.convertCsvFormat(result.data);
+          
+          if (conversionResult.success && conversionResult.convertedData) {
+            console.log('✅ AI conversion successful');
+            result.data = conversionResult.convertedData;
+            aiConversionResult = {
+              success: true,
+              originalFormat: conversionResult.originalFormat,
+              detectedColumns: conversionResult.detectedColumns
+            };
+          } else {
+            console.log('⚠️ AI conversion failed, using original data');
+            aiConversionResult = {
+              success: false,
+              error: conversionResult.error
+            };
+          }
+        } catch (aiError) {
+          console.error('❌ AI conversion error:', aiError);
+          aiConversionResult = {
+            success: false,
+            error: aiError instanceof Error ? aiError.message : 'AI conversion failed'
+          };
+        }
+      }
       
       console.log('✅ CSV analysis successful:', {
         totalRows: result.data?.length || 0,
         googleDriveVideos: result.googleDriveVideos || 0,
-        regularVideos: result.regularVideos || 0
+        regularVideos: result.regularVideos || 0,
+        aiConversion: aiConversionResult?.success || false
       });
       
       res.json({
@@ -627,7 +664,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalRows: result.data?.length || 0,
         googleDriveVideos: result.googleDriveVideos || 0,
         regularVideos: result.regularVideos || 0,
-        estimatedSizes: result.estimatedSizes || []
+        estimatedSizes: result.estimatedSizes || [],
+        aiConversion: aiConversionResult
       });
       
     } catch (error) {
@@ -662,6 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const file = req.file;
       const accountId = req.body.accountId;
+      const useAiConverter = req.body.useAiConverter === 'true';
       const userId = 3; // Use default user ID
       
       if (!file) {
@@ -687,9 +726,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let result;
       if (file.mimetype.includes('csv')) {
-        result = await ExcelImportService.parseCSVFile(file.buffer, userId, parseInt(accountId));
+        result = await ExcelImportService.parseCSVFile(file.buffer, userId, parseInt(accountId), useAiConverter);
       } else {
-        result = await ExcelImportService.parseExcelFile(file.buffer, userId, parseInt(accountId));
+        result = await ExcelImportService.parseExcelFile(file.buffer, userId, parseInt(accountId), useAiConverter);
       }
       
       console.log("Import result:", result);

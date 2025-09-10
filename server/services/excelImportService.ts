@@ -375,7 +375,7 @@ export class ExcelImportService {
     }
   }
   
-  static async parseExcelFile(fileBuffer: Buffer, userId: number, accountId?: number): Promise<ImportResult> {
+  static async parseExcelFile(fileBuffer: Buffer, userId: number, accountId?: number, useAiConverter: boolean = false): Promise<ImportResult> {
     try {
       const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
@@ -431,7 +431,7 @@ export class ExcelImportService {
           return obj;
         });
       
-      return await this.processPostsData(posts, userId, accountId);
+      return await this.processPostsData(posts, userId, accountId, useAiConverter);
     } catch (error) {
       console.error('Excel parsing error:', error);
       return {
@@ -443,7 +443,7 @@ export class ExcelImportService {
     }
   }
   
-  static async parseCSVFile(fileBuffer: Buffer, userId: number, accountId?: number): Promise<ImportResult> {
+  static async parseCSVFile(fileBuffer: Buffer, userId: number, accountId?: number, useAiConverter: boolean = false): Promise<ImportResult> {
     return new Promise((resolve) => {
       const csvText = fileBuffer.toString('utf-8');
       
@@ -462,7 +462,7 @@ export class ExcelImportService {
             return;
           }
           
-          const result = await this.processPostsData(results.data, userId, accountId);
+          const result = await this.processPostsData(results.data, userId, accountId, useAiConverter);
           resolve(result);
         },
         error: (error: any) => {
@@ -477,10 +477,32 @@ export class ExcelImportService {
     });
   }
   
-  private static async processPostsData(posts: any[], userId: number, accountId?: number): Promise<ImportResult> {
+  private static async processPostsData(posts: any[], userId: number, accountId?: number, useAiConverter: boolean = false): Promise<ImportResult> {
     const errors: string[] = [];
     let imported = 0;
     let failed = 0;
+    
+    // Apply AI conversion if requested
+    if (useAiConverter && posts.length > 0) {
+      try {
+        const { OpenAICsvConverter } = await import('./openaiCsvConverter');
+        const converter = new OpenAICsvConverter();
+        
+        console.log('🤖 Applying AI conversion during import...');
+        const conversionResult = await converter.convertCsvFormat(posts);
+        
+        if (conversionResult.success && conversionResult.convertedData) {
+          console.log('✅ AI conversion successful during import');
+          posts = conversionResult.convertedData;
+        } else {
+          console.log('⚠️ AI conversion failed during import, using original data:', conversionResult.error);
+          // Continue with original data
+        }
+      } catch (aiError) {
+        console.error('❌ AI conversion error during import:', aiError);
+        // Continue with original data
+      }
+    }
     
     // Get user's Facebook accounts
     const userAccounts = await storage.getFacebookAccounts(userId);
