@@ -9,6 +9,10 @@ import { storage } from "./storage";
 import { postService } from "./services/postService";
 import schedule from "node-schedule";
 import { pool } from "./db";
+import { KeepAliveService } from "./services/keepAliveService";
+import { SystemMonitoringService } from "./services/systemMonitoringService";
+import { ReliableSchedulingService } from "./services/reliableSchedulingService";
+import { progressTracker } from "./services/progressTrackingService";
 
 const PgSession = connectPgSimple(session);
 const app = express();
@@ -117,22 +121,18 @@ app.use((req, res, next) => {
     
     try {
       // Initialize keep-alive service first to prevent sleep
-      const { KeepAliveService } = await import('./services/keepAliveService');
       await KeepAliveService.initialize();
       
       // Initialize system monitoring
-      const { SystemMonitoringService } = await import('./services/systemMonitoringService');
       await SystemMonitoringService.initialize();
       
       // Initialize reliable scheduling system (replaces old scheduling)
-      const { ReliableSchedulingService } = await import('./services/reliableSchedulingService');
       await ReliableSchedulingService.initialize();
       log('Reliable scheduling system initialized');
       
       // Set up progress tracking cleanup to prevent memory buildup
       const cleanupJob = schedule.scheduleJob('*/10 * * * *', async () => { // Every 10 minutes
         try {
-          const { progressTracker } = await import('./services/progressTrackingService');
           progressTracker.cleanupCompletedUploads();
         } catch (error) {
           console.error('Error in progress tracking cleanup:', error);
