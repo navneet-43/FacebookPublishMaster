@@ -341,7 +341,7 @@ export default function ExcelImport() {
                       <Checkbox 
                         id="ai-converter"
                         checked={useAiConverter}
-                        onCheckedChange={setUseAiConverter}
+                        onCheckedChange={(checked) => setUseAiConverter(checked === true)}
                       />
                       <div className="flex-1">
                         <Label 
