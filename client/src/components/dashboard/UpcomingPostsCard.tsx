@@ -110,22 +110,22 @@ export default function UpcomingPostsCard() {
     }
   });
 
-  // Helper function to format the date
+  // Helper function to format the date in IST
   const formatDate = (date: string | Date) => {
     const d = new Date(date);
-    // Convert UTC to IST by adding 5.5 hours
-    const istDate = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
     
     // Get current date in IST for comparison
-    const nowUtc = new Date();
-    const nowIst = new Date(nowUtc.getTime() + (5.5 * 60 * 60 * 1000));
+    const now = new Date();
+    const today = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
     
-    const tomorrowIst = new Date(nowIst);
-    tomorrowIst.setDate(nowIst.getDate() + 1);
+    // Convert target date to IST for comparison
+    const targetIST = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     
     // Check if it's today in IST
-    if (istDate.toDateString() === nowIst.toDateString()) {
-      return `Today, ${istDate.toLocaleTimeString('en-IN', { 
+    if (targetIST.toDateString() === today.toDateString()) {
+      return `Today, ${d.toLocaleTimeString('en-IN', { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: true,
@@ -134,8 +134,8 @@ export default function UpcomingPostsCard() {
     }
     
     // Check if it's tomorrow in IST
-    if (istDate.toDateString() === tomorrowIst.toDateString()) {
-      return `Tomorrow, ${istDate.toLocaleTimeString('en-IN', { 
+    if (targetIST.toDateString() === tomorrow.toDateString()) {
+      return `Tomorrow, ${d.toLocaleTimeString('en-IN', { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: true,
@@ -144,10 +144,10 @@ export default function UpcomingPostsCard() {
     }
     
     // Otherwise return day of week + time in IST
-    return `${istDate.toLocaleDateString('en-IN', { 
+    return `${d.toLocaleDateString('en-IN', { 
       weekday: 'short',
       timeZone: 'Asia/Kolkata'
-    })}, ${istDate.toLocaleTimeString('en-IN', { 
+    })}, ${d.toLocaleTimeString('en-IN', { 
       hour: '2-digit', 
       minute: '2-digit',
       hour12: true,
@@ -165,8 +165,12 @@ export default function UpcomingPostsCard() {
   const startEditing = (post: Post) => {
     setEditingPost(post.id);
     const scheduledDate = post.scheduledFor ? new Date(post.scheduledFor) : new Date();
-    const istDate = new Date(scheduledDate.getTime() + (5.5 * 60 * 60 * 1000)); // Convert UTC to IST for display
-    const formattedDate = istDate.toISOString().slice(0, 16); // Format for datetime-local input
+    
+    // Convert UTC to IST for datetime-local input (browser expects local time format)
+    const istTimeString = scheduledDate.toLocaleString('sv-SE', { 
+      timeZone: 'Asia/Kolkata' 
+    }); // 'sv-SE' locale gives YYYY-MM-DD HH:mm:ss format
+    const formattedDate = istTimeString.slice(0, 16); // Remove seconds to get YYYY-MM-DDTHH:mm
     
     setEditData({
       content: post.content,

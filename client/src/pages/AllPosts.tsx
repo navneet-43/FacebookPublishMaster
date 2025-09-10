@@ -153,9 +153,7 @@ export default function AllPosts() {
 
   const formatDateTime = (date: string | Date) => {
     const d = new Date(date);
-    // Convert UTC to IST by adding 5.5 hours
-    const istDate = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
-    return istDate.toLocaleString("en-IN", {
+    return d.toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       year: "numeric",
       month: "short",
@@ -163,14 +161,18 @@ export default function AllPosts() {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
-    });
+    }) + " IST";
   };
 
   const startEditing = (post: Post) => {
     setEditingPost(post.id);
     const scheduledDate = post.scheduledFor ? new Date(post.scheduledFor) : new Date();
-    const istDate = new Date(scheduledDate.getTime() + (5.5 * 60 * 60 * 1000)); // Convert UTC to IST for display
-    const formattedDate = istDate.toISOString().slice(0, 16); // Format for datetime-local input
+    
+    // Convert UTC to IST for datetime-local input (browser expects local time format)
+    const istTimeString = scheduledDate.toLocaleString('sv-SE', { 
+      timeZone: 'Asia/Kolkata' 
+    }); // 'sv-SE' locale gives YYYY-MM-DD HH:mm:ss format
+    const formattedDate = istTimeString.slice(0, 16); // Remove seconds to get YYYY-MM-DDTHH:mm
     
     setEditData({
       content: post.content,
