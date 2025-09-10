@@ -35,6 +35,7 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - COMPLETE (Aug 18, 2025): Automatic media link detection system fully functional - Facebook and Google Drive video links are automatically detected during CSV import without manual mediaType specification. System seamlessly processes mixed media types in CSV files
 - FIXED (Aug 19, 2025): Resolved "Invalid URL Error" affecting automatic Facebook video processing - local Facebook video files now bypass Google Drive validation and route directly to Facebook upload service. System successfully uploads downloaded Facebook videos (34.8MB files tested) with proper chunked upload and custom labels integration. Posts 403 & 405 validated as successful uploads to Alright Tamil page.
 - CRITICAL FIX (Aug 19, 2025): Resolved Reel posting issue where posts with media_type "reel" were incorrectly uploaded as regular videos. Added specific handling for local Facebook video files in publishReelPost method with proper isReel parameter propagation. System now correctly uses Facebook Reels endpoint (v23.0/video_reels) for Reel uploads. Post 419 validated as successful Reel upload with Facebook Post ID 1254849803005348.
+- NEW (Sep 10, 2025): Complete OpenAI-powered CSV format converter implementation - automatically transforms any CSV format into SocialFlow's expected structure using intelligent column mapping. Users can enable the "Smart CSV Converter" option during import to convert files with different column names or structures. System uses OpenAI GPT-5 to analyze CSV headers and data, providing seamless compatibility with various CSV formats while maintaining all existing functionality.
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
@@ -70,3 +71,4 @@ The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a N
 - **Google Drive**: Integrated for video download and processing (with enhanced downloader and virus scan bypass).
 - **Dropbox**: (Limited integration) Formerly used for video hosting.
 - **Vimeo**: (Limited integration) Formerly used for video hosting.
+- **OpenAI API**: Integrated for AI-powered CSV format conversion, automatically transforming any CSV structure into SocialFlow's expected format using GPT-5 intelligent analysis.
