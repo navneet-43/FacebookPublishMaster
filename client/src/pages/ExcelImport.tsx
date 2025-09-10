@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { FileSpreadsheet, Upload, Download, AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { FileSpreadsheet, Upload, Download, AlertCircle, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ImportResult {
@@ -21,6 +22,7 @@ export default function ExcelImport() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [useAiConverter, setUseAiConverter] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -69,10 +71,11 @@ export default function ExcelImport() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (data: { file: File; accountId: string }) => {
+    mutationFn: async (data: { file: File; accountId: string; useAiConverter: boolean }) => {
       const formData = new FormData();
       formData.append("file", data.file);
       formData.append("accountId", data.accountId);
+      formData.append("useAiConverter", data.useAiConverter.toString());
 
       const response = await fetch("/api/excel-import", {
         method: "POST",
@@ -180,7 +183,7 @@ export default function ExcelImport() {
 
   const handleImport = () => {
     if (file && selectedAccountId) {
-      importMutation.mutate({ file, accountId: selectedAccountId });
+      importMutation.mutate({ file, accountId: selectedAccountId, useAiConverter });
     } else {
       toast({
         title: "Missing information",
@@ -330,6 +333,30 @@ export default function ExcelImport() {
                         )}
                       </SelectContent>
                     </Select>
+                  </div>
+                  
+                  {/* AI Converter Option */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox 
+                        id="ai-converter"
+                        checked={useAiConverter}
+                        onCheckedChange={setUseAiConverter}
+                      />
+                      <div className="flex-1">
+                        <Label 
+                          htmlFor="ai-converter" 
+                          className="flex items-center gap-2 font-medium text-purple-900 cursor-pointer"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Smart CSV Converter (AI-powered)
+                        </Label>
+                        <p className="text-sm text-purple-700 mt-1">
+                          Automatically converts any CSV format to work with SocialFlow. 
+                          Perfect for files with different column names or structures.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="flex gap-2">
