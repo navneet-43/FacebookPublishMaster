@@ -331,8 +331,8 @@ export class CompleteVideoUploadService {
       const fileSizeMB = (stats.size / 1024 / 1024);
       console.log(`Reel file size: ${fileSizeMB.toFixed(1)}MB`);
       
-      if (fileSizeMB > 250) { // Facebook Reels size limit
-        throw new Error(`Reel file too large: ${fileSizeMB.toFixed(1)}MB (max 250MB for Reels)`);
+      if (fileSizeMB > 1024) { // Facebook Reels size limit (increased)
+        throw new Error(`Reel file too large: ${fileSizeMB.toFixed(1)}MB (max 1GB for Reels)`);
       }
       
       // Use chunked upload but target Reels endpoint
