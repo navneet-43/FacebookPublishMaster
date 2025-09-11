@@ -2126,4 +2126,48 @@ Google Drive's security policies prevent external applications from downloading 
       };
     }
   }
+
+  /**
+   * Check the status of a Facebook video/reel upload
+   */
+  static async checkVideoStatus(videoId: string, pageAccessToken: string): Promise<{
+    success: boolean;
+    status?: string;
+    publishTime?: string;
+    error?: string;
+  }> {
+    try {
+      console.log(`🔍 CHECKING VIDEO STATUS: ${videoId}`);
+      
+      const response = await fetch(
+        `https://graph.facebook.com/v20.0/${videoId}?fields=status,published,created_time,updated_time&access_token=${pageAccessToken}`,
+        { method: 'GET' }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.log(`❌ Facebook video status check failed: ${response.status} ${errorData}`);
+        return {
+          success: false,
+          error: `Facebook API error: ${response.status} ${errorData}`
+        };
+      }
+
+      const data = await response.json() as any;
+      console.log(`📊 VIDEO STATUS RESULT:`, JSON.stringify(data, null, 2));
+
+      return {
+        success: true,
+        status: data.status?.video_status || data.status,
+        publishTime: data.created_time,
+      };
+
+    } catch (error) {
+      console.error('❌ Video status check error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error checking video status'
+      };
+    }
+  }
 }

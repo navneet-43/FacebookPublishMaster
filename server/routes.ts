@@ -1264,6 +1264,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check Facebook video/reel status
+  app.get('/api/facebook-video/status/:videoId/:accountId', async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { videoId, accountId } = req.params;
+      if (!videoId || !accountId) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Video ID and account ID are required" 
+        });
+      }
+
+      console.log(`🔍 Checking Facebook video status: ${videoId} for account: ${accountId}`);
+
+      // Get account info to get the page access token
+      const account = await storage.getFacebookAccount(parseInt(accountId), user.id);
+      if (!account) {
+        return res.status(404).json({ 
+          success: false,
+          error: "Facebook account not found" 
+        });
+      }
+
+      const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
+      const statusResult = await HootsuiteStyleFacebookService.checkVideoStatus(videoId, account.pageToken);
+
+      res.json(statusResult);
+    } catch (error) {
+      console.error("Error checking Facebook video status:", error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to check video status"
+      });
+    }
+  });
+
   // Health endpoint for keep-alive service
   app.get('/api/health', (req: Request, res: Response) => {
     res.json({ 
