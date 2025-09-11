@@ -255,8 +255,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Import unified timezone conversion utility
         const { parseISTDateToUTC } = await import('./utils/timezoneUtils');
         
-        // Convert scheduledFor from IST to UTC for consistent storage
-        const scheduledForUTC = parseISTDateToUTC(result.data.scheduledFor, 'API scheduled post');
+        // Normalize timezone handling: if scheduledFor has timezone info, use as-is; else assume IST
+        let scheduledForUTC: Date;
+        const scheduledForStr = result.data.scheduledFor.toString().trim();
+        
+        // Check if input already has timezone information
+        if (/\d{4}-\d{2}-\d{2}T.*(Z|[+\-]\d{2}:\d{2})/.test(scheduledForStr) || /GMT[+\-]\d{4}/.test(scheduledForStr)) {
+          // Already timezone-aware, use directly
+          scheduledForUTC = new Date(result.data.scheduledFor);
+          console.log(`API scheduled post: Using TZ-aware input directly: ${scheduledForStr}`);
+          console.log(`🔍 DEBUG: scheduledForUTC type: ${typeof scheduledForUTC}, instanceof Date: ${scheduledForUTC instanceof Date}`);
+        } else {
+          // Assume IST and convert to UTC
+          scheduledForUTC = parseISTDateToUTC(result.data.scheduledFor, 'API scheduled post');
+          console.log(`🔍 DEBUG: parseISTDateToUTC result type: ${typeof scheduledForUTC}, instanceof Date: ${scheduledForUTC instanceof Date}`);
+        }
         
         const post = await storage.createPost({
           ...result.data,

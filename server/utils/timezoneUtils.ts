@@ -27,10 +27,17 @@ export function convertISTToUTC(istDate: Date): Date {
 export function parseISTDateToUTC(dateString: string, rowContext?: string): Date {
   const context = rowContext || 'Date parsing';
   
-  let istDate: Date;
-  
   // Handle various date formats
   const dateStr = dateString.toString().trim();
+  
+  // CRITICAL FIX: Early return for timezone-aware inputs to prevent double conversion
+  // Check for ISO format with timezone (Z or ±HH:MM) or GMT notation
+  if (/\d{4}-\d{2}-\d{2}T.*(Z|[+\-]\d{2}:\d{2})/.test(dateStr) || /GMT[+\-]\d{4}/.test(dateStr)) {
+    console.log(`${context}: Detected TZ-aware input - no IST adjustment needed: ${dateStr}`);
+    return new Date(dateStr);
+  }
+  
+  let istDate: Date;
   
   // Format: "2024-07-24 14:30:00" or "2024-07-24 14:30"
   const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
