@@ -324,20 +324,20 @@ export class TrueStreamingVideoUploadService {
       }
 
       let uploadedBytes = 0;
-      const reader = (fileResponse.body as unknown as ReadableStream<Uint8Array>).getReader();
+      // Use Node.js stream iteration instead of Web Streams getReader()
+      if (!fileResponse.body) {
+        throw new Error('No response body available for streaming');
+      }
       let buffer = Buffer.alloc(0);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (value) {
-          buffer = Buffer.concat([buffer, Buffer.from(value)]);
-        }
+      // Use Node.js async iteration instead of Web Streams
+      for await (const chunk of fileResponse.body as any) {
+        buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
 
         // Upload complete chunks
-        while (buffer.length >= this.CHUNK_SIZE || (done && buffer.length > 0)) {
-          const chunkSize = Math.min(this.CHUNK_SIZE, buffer.length);
-          const chunk = buffer.subarray(0, chunkSize);
+        while (buffer.length >= this.CHUNK_SIZE) {
+          const chunkSize = this.CHUNK_SIZE;
+          const uploadChunk = buffer.subarray(0, chunkSize);
           buffer = buffer.subarray(chunkSize);
 
           // Upload chunk to Facebook
@@ -345,7 +345,7 @@ export class TrueStreamingVideoUploadService {
             account.accessToken,
             account.pageId,
             uploadSession.sessionId,
-            chunk,
+            uploadChunk,
             uploadedBytes,
             options.isReel
           );
@@ -354,7 +354,7 @@ export class TrueStreamingVideoUploadService {
             throw new Error(chunkResult.error || 'Chunk upload failed');
           }
 
-          uploadedBytes += chunk.length;
+          uploadedBytes += uploadChunk.length;
           
           // Update progress
           const progress = 30 + Math.round((uploadedBytes / metadata.contentLength) * 60);
@@ -365,8 +365,24 @@ export class TrueStreamingVideoUploadService {
             'Streaming chunks to Facebook'
           );
         }
+      }
 
-        if (done) break;
+      // Upload any remaining data in buffer
+      if (buffer.length > 0) {
+        const chunkResult = await this.uploadChunkToFacebook(
+          account.accessToken,
+          account.pageId,
+          uploadSession.sessionId,
+          buffer,
+          uploadedBytes,
+          options.isReel
+        );
+
+        if (!chunkResult.success) {
+          throw new Error(chunkResult.error || 'Final chunk upload failed');
+        }
+
+        uploadedBytes += buffer.length;
       }
 
       console.log(`📤 All chunks uploaded: ${uploadedBytes} bytes`);
