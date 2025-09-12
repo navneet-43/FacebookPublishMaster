@@ -1,0 +1,410 @@
+import fetch from 'node-fetch';
+import { storage } from '../storage';
+import { progressTracker } from './progressTrackingService';
+import { Readable } from 'stream';
+
+export interface TrueStreamingOptions {
+  googleDriveUrl: string;
+  accountId: number;
+  userId: number;
+  content?: string;
+  customLabels?: string[];
+  language?: string;
+  uploadId?: string;
+  isReel?: boolean;
+}
+
+export interface TrueStreamingResult {
+  success: boolean;
+  facebookVideoId?: string;
+  facebookPostId?: string;
+  facebookUrl?: string;
+  error?: string;
+  method: 'true_chunked_streaming';
+  sizeMB?: number;
+}
+
+export class TrueStreamingVideoUploadService {
+  private static readonly CHUNK_SIZE = 8 * 1024 * 1024; // 8MB chunks
+  private static readonly MAX_RETRIES = 3;
+
+  /**
+   * Extract Google Drive file ID from URL
+   */
+  private static extractFileId(url: string): string | null {
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9-_]+)/,
+      /id=([a-zA-Z0-9-_]+)/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  /**
+   * Get Google Drive direct download URL with confirmation bypass
+   */
+  private static getGoogleDriveUrl(fileId: string): string {
+    return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+  }
+
+  /**
+   * Get file metadata from Google Drive without downloading
+   */
+  private static async getFileMetadata(url: string): Promise<{ sizeMB: number; contentLength: number } | null> {
+    try {
+      const response = await fetch(url, { method: 'HEAD' });
+      const contentLength = parseInt(response.headers.get('content-length') || '0');
+      
+      if (contentLength === 0) {
+        // Try with GET to get redirect and actual size
+        const getResponse = await fetch(url, { method: 'GET', redirect: 'manual' });
+        const redirectLocation = getResponse.headers.get('location');
+        
+        if (redirectLocation) {
+          const redirectResponse = await fetch(redirectLocation, { method: 'HEAD' });
+          const actualLength = parseInt(redirectResponse.headers.get('content-length') || '0');
+          if (actualLength > 0) {
+            return { sizeMB: actualLength / (1024 * 1024), contentLength: actualLength };
+          }
+        }
+      }
+
+      return contentLength > 0 ? { 
+        sizeMB: contentLength / (1024 * 1024), 
+        contentLength 
+      } : null;
+
+    } catch (error) {
+      console.error('Failed to get file metadata:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Initialize Facebook chunked upload session
+   */
+  private static async initializeFacebookUpload(
+    pageToken: string, 
+    pageId: string, 
+    fileSize: number, 
+    isReel: boolean = false
+  ): Promise<{ videoId: string; sessionId: string } | null> {
+    try {
+      const endpoint = isReel 
+        ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
+        : `https://graph.facebook.com/v20.0/${pageId}/videos`;
+
+      console.log(`🚀 Initializing Facebook ${isReel ? 'Reel' : 'Video'} upload session`);
+      console.log(`📊 File size: ${(fileSize / 1024 / 1024).toFixed(1)}MB`);
+
+      const params = new URLSearchParams({
+        upload_phase: 'start',
+        access_token: pageToken,
+      });
+
+      // Add file_size only for regular videos (not Reels per Facebook docs)
+      if (!isReel) {
+        params.append('file_size', fileSize.toString());
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params
+      });
+
+      const data = await response.json() as { 
+        video_id?: string; 
+        upload_session_id?: string; 
+        error?: any;
+        start_offset?: number;
+        end_offset?: number;
+      };
+
+      if (!response.ok || !data.video_id) {
+        console.error('Facebook upload initialization failed:', data);
+        return null;
+      }
+
+      console.log(`✅ Upload session initialized - Video ID: ${data.video_id}`);
+      return { 
+        videoId: data.video_id, 
+        sessionId: data.upload_session_id || data.video_id 
+      };
+
+    } catch (error) {
+      console.error('Failed to initialize Facebook upload:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Upload a chunk to Facebook
+   */
+  private static async uploadChunkToFacebook(
+    pageToken: string,
+    pageId: string,
+    sessionId: string,
+    chunkData: Buffer,
+    startOffset: number,
+    isReel: boolean = false
+  ): Promise<{ success: boolean; nextOffset?: number; error?: string }> {
+    try {
+      const endpoint = isReel 
+        ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
+        : `https://graph.facebook.com/v20.0/${pageId}/videos`;
+
+      const params = new URLSearchParams({
+        upload_phase: 'transfer',
+        access_token: pageToken,
+        upload_session_id: sessionId,
+        start_offset: startOffset.toString()
+      });
+
+      console.log(`📤 Uploading chunk: ${chunkData.length} bytes at offset ${startOffset}`);
+
+      const formData = new (await import('form-data')).default();
+      formData.append('upload_phase', 'transfer');
+      formData.append('access_token', pageToken);
+      formData.append('upload_session_id', sessionId);
+      formData.append('start_offset', startOffset.toString());
+      formData.append('video_file_chunk', chunkData, {
+        filename: 'chunk.mp4',
+        contentType: 'video/mp4'
+      });
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+        headers: formData.getHeaders()
+      });
+
+      const result = await response.json() as { 
+        start_offset?: number; 
+        end_offset?: number; 
+        error?: any 
+      };
+
+      if (!response.ok) {
+        console.error('Chunk upload failed:', result);
+        return { success: false, error: JSON.stringify(result) };
+      }
+
+      const nextOffset = result.end_offset || (startOffset + chunkData.length);
+      console.log(`✅ Chunk uploaded successfully, next offset: ${nextOffset}`);
+      
+      return { success: true, nextOffset };
+
+    } catch (error) {
+      console.error('Chunk upload error:', error);
+      return { success: false, error: `Chunk upload failed: ${error}` };
+    }
+  }
+
+  /**
+   * Finalize Facebook upload
+   */
+  private static async finalizeFacebookUpload(
+    pageToken: string,
+    pageId: string,
+    sessionId: string,
+    description: string = '',
+    isReel: boolean = false
+  ): Promise<{ success: boolean; postId?: string; error?: string }> {
+    try {
+      const endpoint = isReel 
+        ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
+        : `https://graph.facebook.com/v20.0/${pageId}/videos`;
+
+      const params = new URLSearchParams({
+        upload_phase: 'finish',
+        access_token: pageToken,
+        upload_session_id: sessionId,
+      });
+
+      if (description) {
+        params.append('description', description);
+      }
+
+      console.log('🏁 Finalizing Facebook upload...');
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params
+      });
+
+      const result = await response.json() as { success?: boolean; id?: string; error?: any };
+
+      if (!response.ok) {
+        console.error('Upload finalization failed:', result);
+        return { success: false, error: JSON.stringify(result) };
+      }
+
+      console.log('✅ Facebook upload finalized successfully');
+      return { success: true, postId: result.id };
+
+    } catch (error) {
+      console.error('Upload finalization error:', error);
+      return { success: false, error: `Finalization failed: ${error}` };
+    }
+  }
+
+  /**
+   * Stream video from Google Drive to Facebook in chunks without local storage
+   */
+  static async uploadGoogleDriveVideo(options: TrueStreamingOptions): Promise<TrueStreamingResult> {
+    const uploadId = options.uploadId || `true_stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`🌊 STARTING TRUE CHUNKED STREAMING - ID: ${uploadId}`);
+    
+    try {
+      // Check disk space using monitoring service
+      const { DiskSpaceMonitor } = await import('./diskSpaceMonitor');
+      const spaceAlert = await DiskSpaceMonitor.checkDiskSpace();
+      
+      if (spaceAlert && (spaceAlert.level === 'critical' || spaceAlert.level === 'emergency')) {
+        throw new Error(`Disk space too low: ${spaceAlert.message}`);
+      }
+
+      // Get account details
+      const account = await storage.getFacebookAccount(options.accountId);
+      if (!account) {
+        throw new Error('Facebook account not found');
+      }
+
+      // Extract file ID and get metadata
+      const fileId = this.extractFileId(options.googleDriveUrl);
+      if (!fileId) {
+        throw new Error('Invalid Google Drive URL');
+      }
+
+      const directUrl = this.getGoogleDriveUrl(fileId);
+      console.log(`📥 Getting file metadata for: ${fileId}`);
+      
+      progressTracker.updateProgress(uploadId, 'Getting file information...', 10, 'Retrieving file metadata from Google Drive');
+
+      const metadata = await this.getFileMetadata(directUrl);
+      if (!metadata) {
+        throw new Error('Unable to determine file size - file may be too large or require authentication');
+      }
+
+      console.log(`📊 File size: ${metadata.sizeMB.toFixed(1)}MB (${metadata.contentLength} bytes)`);
+
+      // Check if safe for operation
+      const safetyCheck = await DiskSpaceMonitor.isSafeForLargeOperation(metadata.sizeMB);
+      if (!safetyCheck.safe) {
+        throw new Error(`Operation not safe: ${safetyCheck.reason}`);
+      }
+
+      progressTracker.updateProgress(uploadId, 'Initializing Facebook upload...', 20, 'Starting Facebook upload session');
+
+      // Initialize Facebook upload
+      const uploadSession = await this.initializeFacebookUpload(
+        account.accessToken,
+        account.pageId,
+        metadata.contentLength,
+        options.isReel
+      );
+
+      if (!uploadSession) {
+        throw new Error('Failed to initialize Facebook upload session');
+      }
+
+      progressTracker.updateProgress(uploadId, 'Streaming chunks to Facebook...', 30, 'Beginning chunked upload');
+
+      // Start streaming upload
+      const fileResponse = await fetch(directUrl);
+      if (!fileResponse.ok || !fileResponse.body) {
+        throw new Error('Failed to start Google Drive file stream');
+      }
+
+      let uploadedBytes = 0;
+      const reader = (fileResponse.body as unknown as ReadableStream<Uint8Array>).getReader();
+      let buffer = Buffer.alloc(0);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (value) {
+          buffer = Buffer.concat([buffer, Buffer.from(value)]);
+        }
+
+        // Upload complete chunks
+        while (buffer.length >= this.CHUNK_SIZE || (done && buffer.length > 0)) {
+          const chunkSize = Math.min(this.CHUNK_SIZE, buffer.length);
+          const chunk = buffer.subarray(0, chunkSize);
+          buffer = buffer.subarray(chunkSize);
+
+          // Upload chunk to Facebook
+          const chunkResult = await this.uploadChunkToFacebook(
+            account.accessToken,
+            account.pageId,
+            uploadSession.sessionId,
+            chunk,
+            uploadedBytes,
+            options.isReel
+          );
+
+          if (!chunkResult.success) {
+            throw new Error(chunkResult.error || 'Chunk upload failed');
+          }
+
+          uploadedBytes += chunk.length;
+          
+          // Update progress
+          const progress = 30 + Math.round((uploadedBytes / metadata.contentLength) * 60);
+          progressTracker.updateProgress(
+            uploadId, 
+            `Uploaded ${(uploadedBytes / 1024 / 1024).toFixed(1)}MB of ${metadata.sizeMB.toFixed(1)}MB`, 
+            progress, 
+            'Streaming chunks to Facebook'
+          );
+        }
+
+        if (done) break;
+      }
+
+      console.log(`📤 All chunks uploaded: ${uploadedBytes} bytes`);
+      progressTracker.updateProgress(uploadId, 'Finalizing upload...', 95, 'Completing Facebook upload');
+
+      // Finalize upload
+      const finalResult = await this.finalizeFacebookUpload(
+        account.accessToken,
+        account.pageId,
+        uploadSession.sessionId,
+        options.content || '',
+        options.isReel
+      );
+
+      if (!finalResult.success) {
+        throw new Error(finalResult.error || 'Upload finalization failed');
+      }
+
+      console.log('✅ TRUE CHUNKED STREAMING COMPLETED SUCCESSFULLY');
+      progressTracker.updateProgress(uploadId, 'Upload complete!', 100, 'Video successfully uploaded to Facebook');
+
+      return {
+        success: true,
+        facebookVideoId: uploadSession.videoId,
+        facebookPostId: finalResult.postId || uploadSession.videoId,
+        method: 'true_chunked_streaming',
+        sizeMB: metadata.sizeMB
+      };
+
+    } catch (error) {
+      console.error('❌ TRUE STREAMING UPLOAD FAILED:', error);
+      progressTracker.updateProgress(uploadId, `Upload failed: ${error}`, 0, 'Upload process failed');
+      
+      return {
+        success: false,
+        error: `True streaming upload failed: ${error}`,
+        method: 'true_chunked_streaming'
+      };
+    }
+  }
+}

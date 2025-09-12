@@ -1220,17 +1220,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { filePath, accountId, content, videoInfo } = req.body;
+      const { filePath, googleDriveUrl, accountId, content, videoInfo, isReel } = req.body;
       
-      if (!filePath || !accountId) {
+      if ((!filePath && !googleDriveUrl) || !accountId) {
         return res.status(400).json({ 
           success: false,
-          error: "File path and account ID are required" 
+          error: "Google Drive URL or file path and account ID are required" 
         });
       }
 
-      console.log('📤 Starting Facebook video upload for account:', accountId);
+      console.log('🌊 Starting TRUE STREAMING Facebook video upload for account:', accountId);
 
+      // CRITICAL: Check disk space before proceeding
+      const { DiskSpaceMonitor } = await import('./services/diskSpaceMonitor');
+      const spaceAlert = await DiskSpaceMonitor.checkDiskSpace();
+      
+      if (spaceAlert && (spaceAlert.level === 'critical' || spaceAlert.level === 'emergency')) {
+        console.log(`🚨 BLOCKING UPLOAD - ${spaceAlert.message}`);
+        return res.status(503).json({ 
+          success: false,
+          error: `Upload blocked due to low disk space: ${spaceAlert.message}. Please try again later.`
+        });
+      }
+
+      // Use true streaming for Google Drive URLs (preferred)
+      if (googleDriveUrl) {
+        const { TrueStreamingVideoUploadService } = await import('./services/trueStreamingVideoUploadService');
+        const result = await TrueStreamingVideoUploadService.uploadGoogleDriveVideo({
+          googleDriveUrl,
+          accountId: parseInt(accountId),
+          userId: user.id,
+          content: content || '',
+          isReel: isReel || false
+        });
+        
+        if (result.success) {
+          await storage.createActivity({
+            userId: user.id,
+            type: "true_streaming_upload_completed",
+            description: `True streaming upload completed: ${result.facebookPostId}`,
+            metadata: { 
+              accountId,
+              facebookPostId: result.facebookPostId,
+              method: result.method,
+              sizeMB: result.sizeMB
+            }
+          });
+        }
+
+        return res.json(result);
+      }
+
+      // Fallback for local files (discouraged)
+      console.log('⚠️ Using legacy local file upload - consider switching to Google Drive URLs');
       const { FacebookVideoUploader } = await import('./services/facebookVideoUploader');
       const result = await FacebookVideoUploader.uploadVideo(
         filePath,
@@ -1283,7 +1325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 Checking Facebook video status: ${videoId} for account: ${accountId}`);
 
       // Get account info to get the page access token
-      const account = await storage.getFacebookAccount(parseInt(accountId), user.id);
+      const account = await storage.getFacebookAccount(parseInt(accountId));
       if (!account) {
         return res.status(404).json({ 
           success: false,
@@ -1292,7 +1334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
-      const statusResult = await HootsuiteStyleFacebookService.checkVideoStatus(videoId, account.pageToken);
+      const statusResult = await HootsuiteStyleFacebookService.checkVideoStatus(videoId, account.accessToken);
 
       res.json(statusResult);
     } catch (error) {

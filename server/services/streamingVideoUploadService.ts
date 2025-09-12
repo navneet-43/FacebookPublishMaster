@@ -30,18 +30,23 @@ export interface StreamingUploadResult {
 
 export class StreamingVideoUploadService {
   private static readonly MAX_STREAMING_SIZE = 100 * 1024 * 1024; // 100MB
-  private static readonly MIN_FREE_SPACE = 500 * 1024 * 1024; // 500MB minimum free space
+  private static readonly MIN_FREE_MB = 500; // 500MB minimum free space
   
   /**
-   * Check available disk space before proceeding
+   * Check available disk space using proper disk space monitor
    */
-  private static checkDiskSpace(): { hasSpace: boolean; freeMB: number } {
+  private static async checkDiskSpace(): Promise<{ hasSpace: boolean; freeMB: number }> {
     try {
-      const stats = statSync('/tmp');
-      const freeMB = (stats.size || 0) / (1024 * 1024);
+      const { DiskSpaceMonitor } = await import('./diskSpaceMonitor');
+      const spaceInfo = await DiskSpaceMonitor.getDiskSpaceInfo();
+      
+      if (!spaceInfo) {
+        return { hasSpace: false, freeMB: 0 };
+      }
+      
       return { 
-        hasSpace: freeMB > this.MIN_FREE_SPACE / (1024 * 1024), 
-        freeMB 
+        hasSpace: spaceInfo.freeMB > this.MIN_FREE_MB && spaceInfo.usagePercent < 90,
+        freeMB: spaceInfo.freeMB 
       };
     } catch (error) {
       console.error('Could not check disk space:', error);
@@ -183,7 +188,7 @@ export class StreamingVideoUploadService {
     
     try {
       // Check disk space first
-      const spaceCheck = this.checkDiskSpace();
+      const spaceCheck = await this.checkDiskSpace();
       if (!spaceCheck.hasSpace) {
         throw new Error(`Insufficient disk space. Free space: ${spaceCheck.freeMB.toFixed(1)}MB`);
       }
