@@ -1969,18 +1969,20 @@ Google Drive's security policies prevent external applications from downloading 
           
           // Upload to Facebook using the Reel-specific upload system
           console.log('🚀 STARTING FACEBOOK REEL UPLOAD');
-          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
-          const uploadService = new CompleteVideoUploadService();
+          const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
+          const uploadService = new ChunkedVideoUploadService();
           
           const finalDescription = description || 'Google Drive Reel Upload';
           
-          const uploadResult = await uploadService.uploadProcessedReelFile({
-            videoFilePath: finalPath,
+          const uploadResult = await uploadService.uploadVideoInChunks({
+            accessToken: pageAccessToken,
             pageId: pageId,
-            pageAccessToken: pageAccessToken,
+            filePath: finalPath,
+            title: finalDescription,
             description: finalDescription,
             customLabels: customLabels || [],
-            language: language || 'en'
+            language: language || 'en',
+            isReel: true
           });
           
           console.log('📊 REEL UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
