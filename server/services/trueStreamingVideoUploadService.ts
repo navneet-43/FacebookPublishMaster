@@ -231,17 +231,22 @@ export class TrueStreamingVideoUploadService {
       console.log(`📤 Uploading reel chunk: ${chunkData.length} bytes at offset ${startOffset}`);
 
       const formData = new (await import('form-data')).default();
-      formData.append('access_token', pageToken);
-      formData.append('start_offset', startOffset.toString());
+      // Facebook rupload requires OAuth Authorization header instead of form-based access_token
+      formData.append('offset', startOffset.toString());
       formData.append('video_file_chunk', chunkData, {
         filename: 'chunk.mp4',
         contentType: 'video/mp4'
       });
 
+      const headers = {
+        ...formData.getHeaders(),
+        'Authorization': `OAuth ${pageToken}`
+      };
+
       const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
-        headers: formData.getHeaders()
+        headers: headers
       });
 
       const result = await response.json() as { 
