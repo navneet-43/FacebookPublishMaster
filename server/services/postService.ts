@@ -203,30 +203,96 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Processing video for Facebook upload...', 25, 'Starting video processing and upload');
           }
-          result = await HootsuiteStyleFacebookService.publishVideoPost(
-            account.pageId,
-            freshPageToken,
-            post.mediaUrl,
-            post.content || undefined,
-            resolvedLabels || undefined,
-            post.language || undefined,
-            (post as any).uploadId // Pass uploadId for progress tracking
-          );
+          
+          // Check if this is a Google Drive URL - use streaming to prevent ENOSPC
+          if (post.mediaUrl && post.mediaUrl.includes('drive.google.com')) {
+            console.log('🌊 SCHEDULED POST: Using streaming service for Google Drive video to prevent ENOSPC');
+            const { TrueStreamingVideoUploadService } = await import('./trueStreamingVideoUploadService');
+            
+            const streamingResult = await TrueStreamingVideoUploadService.uploadGoogleDriveVideo({
+              googleDriveUrl: post.mediaUrl,
+              accountId: post.accountId!,
+              userId: post.userId!,
+              content: post.content || undefined,
+              customLabels: resolvedLabels || undefined,
+              language: post.language || undefined,
+              uploadId: (post as any).uploadId,
+              isReel: false
+            });
+            
+            if (streamingResult.success) {
+              result = {
+                success: true,
+                postId: streamingResult.facebookPostId,
+                videoId: streamingResult.facebookVideoId,
+                url: streamingResult.facebookUrl
+              };
+            } else {
+              result = {
+                success: false,
+                error: streamingResult.error || 'Streaming upload failed'
+              };
+            }
+          } else {
+            // Use HootsuiteStyleFacebookService for non-Google Drive videos
+            result = await HootsuiteStyleFacebookService.publishVideoPost(
+              account.pageId,
+              freshPageToken,
+              post.mediaUrl,
+              post.content || undefined,
+              resolvedLabels || undefined,
+              post.language || undefined,
+              (post as any).uploadId // Pass uploadId for progress tracking
+            );
+          }
           break;
           
         case 'reel':
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Processing Reel for Facebook upload...', 25, 'Starting Reel processing and upload');
           }
-          result = await HootsuiteStyleFacebookService.publishReelPost(
-            account.pageId,
-            freshPageToken,
-            post.mediaUrl,
-            post.content || undefined,
-            resolvedLabels || undefined,
-            post.language || undefined,
-            (post as any).uploadId // Pass uploadId for progress tracking
-          );
+          
+          // Check if this is a Google Drive URL - use streaming to prevent ENOSPC
+          if (post.mediaUrl && post.mediaUrl.includes('drive.google.com')) {
+            console.log('🌊 SCHEDULED REEL: Using streaming service for Google Drive reel to prevent ENOSPC');
+            const { TrueStreamingVideoUploadService } = await import('./trueStreamingVideoUploadService');
+            
+            const streamingResult = await TrueStreamingVideoUploadService.uploadGoogleDriveVideo({
+              googleDriveUrl: post.mediaUrl,
+              accountId: post.accountId!,
+              userId: post.userId!,
+              content: post.content || undefined,
+              customLabels: resolvedLabels || undefined,
+              language: post.language || undefined,
+              uploadId: (post as any).uploadId,
+              isReel: true
+            });
+            
+            if (streamingResult.success) {
+              result = {
+                success: true,
+                postId: streamingResult.facebookPostId,
+                videoId: streamingResult.facebookVideoId,
+                url: streamingResult.facebookUrl
+              };
+            } else {
+              result = {
+                success: false,
+                error: streamingResult.error || 'Streaming reel upload failed'
+              };
+            }
+          } else {
+            // Use HootsuiteStyleFacebookService for non-Google Drive reels
+            result = await HootsuiteStyleFacebookService.publishReelPost(
+              account.pageId,
+              freshPageToken,
+              post.mediaUrl,
+              post.content || undefined,
+              resolvedLabels || undefined,
+              post.language || undefined,
+              (post as any).uploadId // Pass uploadId for progress tracking
+            );
+          }
           break;
           
         default:
