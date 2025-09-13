@@ -62,7 +62,24 @@ export class FacebookVideoDownloader {
       }
       
       if (!videoInfo.success || !videoInfo.videoUrl) {
-        return { success: false, error: videoInfo.error || 'Failed to extract video URL from all methods' };
+        // Provide comprehensive error message with solutions
+        const baseError = videoInfo.error || 'Failed to extract video URL from all methods';
+        const solutionMessage = `
+
+🔧 SOLUTIONS TO TRY:
+1. Check if the Facebook video is public (not private/friends-only)
+2. Verify the video URL is correct and complete
+3. Try copying the video URL again from Facebook
+4. Use a public Facebook page video instead of personal profile video
+5. Download the video manually and upload it directly
+
+⚠️  FACEBOOK RESTRICTIONS:
+Facebook has tightened security for video downloads. Only public videos from pages can typically be accessed programmatically.`;
+        
+        return { 
+          success: false, 
+          error: baseError + solutionMessage
+        };
       }
 
       // Download the video file
@@ -267,15 +284,22 @@ export class FacebookVideoDownloader {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'gzip, deflate',
-          'Connection': 'keep-alive'
+          'Connection': 'keep-alive',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         },
-        timeout: 15000
+        timeout: 20000,
+        maxRedirects: 5,
+        validateStatus: function (status) {
+          return status >= 200 && status < 400; // Accept redirects
+        }
       });
 
       const html = response.data;
 
-      // Extract video URL using regex patterns
+      // Extract video URL using updated regex patterns for 2025
       const videoUrlPatterns = [
+        // Latest Facebook video patterns (2025)
         /"hd_src":"([^"]+)"/,
         /"sd_src":"([^"]+)"/,
         /"browser_native_hd_url":"([^"]+)"/,
@@ -287,7 +311,20 @@ export class FacebookVideoDownloader {
         /"playable_url_quality_hd":"([^"]+)"/,
         /"playable_url_quality_sd":"([^"]+)"/,
         /\\"hd_src\\":\\"([^"]+)\\"/,
-        /\\"sd_src\\":\\"([^"]+)\\"/
+        /\\"sd_src\\":\\"([^"]+)\\"/,
+        // New 2025 patterns
+        /"dash_manifest":"([^"]+)"/,
+        /"progressive_urls":\[.*?"([^"]+)".*?\]/,
+        /"src":"([^"]+\.mp4[^"]*)"/, 
+        /"video_url":"([^"]+)"/,
+        /"media_url":"([^"]+)"/,
+        /"src":"(https:\/\/[^"]*\.mp4[^"]*)"/,
+        /"url":"(https:\/\/[^"]*\.mp4[^"]*)"/,
+        /data-video-url="([^"]+)"/,
+        /data-src="([^"]*\.mp4[^"]*)"/,
+        // Mobile specific patterns
+        /"src":"(https:\/\/[^"]*video_dash[^"]*)"/,
+        /"progressive_url":"([^"]+)"/
       ];
 
       let videoUrl = '';
@@ -306,21 +343,42 @@ export class FacebookVideoDownloader {
       const title = titleMatch ? titleMatch[1].trim() : 'Facebook Video';
 
       if (!videoUrl) {
-        // Check if this looks like a login or access restriction page
-        const isLoginPage = html.includes('login') || html.includes('log in') || html.includes('sign in');
-        const isPrivateContent = html.includes('private') || html.includes('not available') || html.includes('access denied');
-        const isError = html.includes('error') || html.includes('not found');
+        // Enhanced detection for access restrictions and error pages
+        const isLoginPage = html.includes('login') || html.includes('log in') || html.includes('sign in') || 
+                           html.includes('Log In') || html.includes('Sign Up') || html.includes('Create Account');
+        const isPrivateContent = html.includes('private') || html.includes('not available') || html.includes('access denied') ||
+                                html.includes('restricted') || html.includes('permission') || html.includes('unavailable');
+        const isError = html.includes('error') || html.includes('not found') || html.includes('404') || 
+                       html.includes('Content Not Found') || html.includes('Page Not Found');
+        const isBlocked = html.includes('blocked') || html.includes('suspended') || html.includes('removed') ||
+                         html.includes('violation') || html.includes('community standards');
+        const isMobilRedirect = html.includes('m.facebook.com') && html.length < 5000; // Very short mobile redirect
         
-        let errorMsg = 'Could not find video URL in page source.';
+        let errorMsg = 'Facebook video is not accessible for download.';
         if (isLoginPage) {
-          errorMsg += ' The video may require login to access.';
+          errorMsg = 'This Facebook video requires login to access. Please use a public video or check video privacy settings.';
         } else if (isPrivateContent) {
-          errorMsg += ' The video appears to be private or restricted.';
+          errorMsg = 'This Facebook video is private or restricted. Only public videos can be downloaded.';
         } else if (isError) {
-          errorMsg += ' The video may have been deleted or is unavailable.';
+          errorMsg = 'Facebook video not found. The video may have been deleted or the URL is incorrect.';
+        } else if (isBlocked) {
+          errorMsg = 'This Facebook video has been removed due to policy violations or account suspension.';
+        } else if (isMobilRedirect) {
+          errorMsg = 'Facebook mobile redirect detected. The video URL may be invalid or require direct access.';
         } else {
-          errorMsg += ' Facebook may have changed their page structure or the video URL patterns.';
+          errorMsg = 'Unable to extract video URL. Facebook may have updated their security or this video requires special permissions.';
         }
+        
+        console.log('🔍 Facebook video access analysis:', {
+          isLoginPage,
+          isPrivateContent, 
+          isError,
+          isBlocked,
+          isMobilRedirect,
+          htmlLength: html.length,
+          containsVideo: html.includes('video'),
+          containsScript: html.includes('<script>')
+        });
         
         return {
           success: false,
