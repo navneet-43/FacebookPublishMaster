@@ -135,9 +135,17 @@ export class TrueStreamingVideoUploadService {
       if (data.upload_session_id) {
         console.log(`📝 Upload Session ID: ${data.upload_session_id}`);
       }
-      // For reels, Facebook may not return upload_url, so we construct it as fallback
+      // Handle upload_url from Facebook response
       let uploadUrl = data.upload_url;
-      if (isReel && !uploadUrl) {
+      if (uploadUrl) {
+        // Facebook sometimes returns v23.0 URLs even when we use v20.0 - fix this
+        if (uploadUrl.includes('/v23.0/')) {
+          console.warn('⚠️ Facebook returned v23.0 upload URL, correcting to v20.0');
+          uploadUrl = uploadUrl.replace('/v23.0/', '/v20.0/');
+          console.log(`🔧 Corrected upload URL: ${uploadUrl}`);
+        }
+      } else if (isReel) {
+        // Only construct fallback if Facebook didn't provide upload_url at all
         console.warn('Reel upload session missing upload_url, constructing fallback URL');
         uploadUrl = constructRuploadUrl(data.video_id);
       }

@@ -88,6 +88,7 @@ export class FacebookReelsUploadService {
     videoId: string;
     filePath: string;
     accessToken: string;
+    uploadUrl?: string; // Add uploadUrl parameter
   }): Promise<{
     success: boolean;
     error?: string;
@@ -102,22 +103,57 @@ export class FacebookReelsUploadService {
       
       console.log(`Uploading ${(fileSize / (1024 * 1024)).toFixed(1)}MB reel to Facebook`);
       
-      // Use Facebook's Reels upload endpoint (different from regular videos)
-      const uploadUrl = constructRuploadUrl(options.videoId);
+      // Use Facebook-provided upload URL - fail if not provided
+      if (!options.uploadUrl) {
+        throw new Error('Upload URL not provided - cannot proceed with Reel upload');
+      }
+      const uploadUrl = options.uploadUrl;
       
       const response = await fetch(uploadUrl, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Authorization': `OAuth ${options.accessToken}`,
-          'offset': '0',
-          'file_size': fileSize.toString(),
-          'Content-Type': 'application/octet-stream'
+          'Offset': '0',
+          'X-Entity-Name': options.videoId,
+          'X-Entity-Type': 'video/mp4',
+          'X-Entity-Length': fileSize.toString(),
+          'Content-Type': 'video/mp4',
+          'Content-Length': fileSize.toString()
         },
-        body: videoBuffer
+        body: videoBuffer,
+        redirect: 'manual' // Handle redirects manually to preserve headers
       });
       
-      if (!response.ok) {
+      // Handle redirects (307/308) manually to preserve Authorization header
+      if (response.status === 307 || response.status === 308) {
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new Error(`Redirect without Location header: ${response.status}`);
+        }
+        console.log(`Following redirect (${response.status}) to: ${location}`);
+        
+        const redirectResponse = await fetch(location, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `OAuth ${options.accessToken}`,
+            'Offset': '0',
+            'X-Entity-Name': options.videoId,
+            'X-Entity-Type': 'video/mp4',
+            'X-Entity-Length': fileSize.toString(),
+            'Content-Type': 'video/mp4',
+            'Content-Length': fileSize.toString()
+          },
+          body: videoBuffer
+        });
+        
+        if (!redirectResponse.ok) {
+          const errorText = await redirectResponse.text();
+          console.error(`Reel upload failed after redirect: ${redirectResponse.status} - ${errorText}`);
+          throw new Error(`Reel upload failed after redirect: ${redirectResponse.status} - ${errorText}`);
+        }
+      } else if (!response.ok) {
         const errorText = await response.text();
+        console.error(`Reel upload failed: ${response.status} - ${errorText}`);
         throw new Error(`Reel upload failed: ${response.status} - ${errorText}`);
       }
       
