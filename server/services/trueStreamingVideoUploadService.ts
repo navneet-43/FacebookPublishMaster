@@ -134,16 +134,17 @@ export class TrueStreamingVideoUploadService {
       if (data.upload_session_id) {
         console.log(`📝 Upload Session ID: ${data.upload_session_id}`);
       }
-      // For reels, upload_session_id is required for chunk transfers
-      if (isReel && !data.upload_session_id) {
-        console.error('Reel upload session missing upload_session_id:', data);
+      // For reels, Facebook uses upload_url instead of upload_session_id
+      if (isReel && !data.upload_url) {
+        console.error('Reel upload session missing upload_url:', data);
         return null;
       }
       
       return { 
         videoId: data.video_id, 
         sessionId: data.upload_session_id || data.video_id,
-        uploadSessionId: data.upload_session_id // Track upload session ID separately
+        uploadSessionId: data.upload_session_id, // Track upload session ID separately
+        uploadUrl: data.upload_url // Track upload URL for reels
       };
 
     } catch (error) {
@@ -214,6 +215,54 @@ export class TrueStreamingVideoUploadService {
     } catch (error) {
       console.error('Chunk upload error:', error);
       return { success: false, error: `Chunk upload failed: ${error}` };
+    }
+  }
+
+  /**
+   * Upload chunk directly to Facebook Reels upload URL
+   */
+  private static async uploadChunkToReelUrl(
+    uploadUrl: string,
+    pageToken: string,
+    chunkData: Buffer,
+    startOffset: number
+  ): Promise<{ success: boolean; nextOffset?: number; error?: string }> {
+    try {
+      console.log(`📤 Uploading reel chunk: ${chunkData.length} bytes at offset ${startOffset}`);
+
+      const formData = new (await import('form-data')).default();
+      formData.append('access_token', pageToken);
+      formData.append('start_offset', startOffset.toString());
+      formData.append('video_file_chunk', chunkData, {
+        filename: 'chunk.mp4',
+        contentType: 'video/mp4'
+      });
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+        headers: formData.getHeaders()
+      });
+
+      const result = await response.json() as { 
+        start_offset?: number; 
+        end_offset?: number; 
+        error?: any 
+      };
+
+      if (!response.ok) {
+        console.error('Reel chunk upload failed:', result);
+        return { success: false, error: JSON.stringify(result) };
+      }
+
+      const nextOffset = result.end_offset || (startOffset + chunkData.length);
+      console.log(`✅ Reel chunk uploaded successfully, next offset: ${nextOffset}`);
+      
+      return { success: true, nextOffset };
+
+    } catch (error) {
+      console.error('Reel chunk upload error:', error);
+      return { success: false, error: `Reel chunk upload failed: ${error}` };
     }
   }
 
@@ -364,18 +413,30 @@ export class TrueStreamingVideoUploadService {
           const uploadChunk = buffer.subarray(0, chunkSize);
           buffer = buffer.subarray(chunkSize);
 
-          // Upload chunk to Facebook - use uploadSessionId for reels to avoid invalid session error
-          const sessionIdForChunk = options.isReel && uploadSession.uploadSessionId ? 
-            uploadSession.uploadSessionId : uploadSession.sessionId;
-          
-          const chunkResult = await this.uploadChunkToFacebook(
-            account.accessToken,
-            account.pageId,
-            sessionIdForChunk,
-            uploadChunk,
-            uploadedBytes,
-            options.isReel
-          );
+          // Upload chunk to Facebook - use different method for reels
+          let chunkResult;
+          if (options.isReel && uploadSession.uploadUrl) {
+            // Use direct upload URL for reels
+            chunkResult = await this.uploadChunkToReelUrl(
+              uploadSession.uploadUrl,
+              account.accessToken,
+              uploadChunk,
+              uploadedBytes
+            );
+          } else {
+            // Use session-based upload for regular videos
+            const sessionIdForChunk = options.isReel && uploadSession.uploadSessionId ? 
+              uploadSession.uploadSessionId : uploadSession.sessionId;
+            
+            chunkResult = await this.uploadChunkToFacebook(
+              account.accessToken,
+              account.pageId,
+              sessionIdForChunk,
+              uploadChunk,
+              uploadedBytes,
+              options.isReel
+            );
+          }
 
           if (!chunkResult.success) {
             throw new Error(chunkResult.error || 'Chunk upload failed');
@@ -396,18 +457,30 @@ export class TrueStreamingVideoUploadService {
 
       // Upload any remaining data in buffer
       if (buffer.length > 0) {
-        // Upload final chunk - use uploadSessionId for reels to avoid invalid session error
-        const sessionIdForChunk = options.isReel && uploadSession.uploadSessionId ? 
-          uploadSession.uploadSessionId : uploadSession.sessionId;
-        
-        const chunkResult = await this.uploadChunkToFacebook(
-          account.accessToken,
-          account.pageId,
-          sessionIdForChunk,
-          buffer,
-          uploadedBytes,
-          options.isReel
-        );
+        // Upload final chunk - use different method for reels
+        let chunkResult;
+        if (options.isReel && uploadSession.uploadUrl) {
+          // Use direct upload URL for reels
+          chunkResult = await this.uploadChunkToReelUrl(
+            uploadSession.uploadUrl,
+            account.accessToken,
+            buffer,
+            uploadedBytes
+          );
+        } else {
+          // Use session-based upload for regular videos
+          const sessionIdForChunk = options.isReel && uploadSession.uploadSessionId ? 
+            uploadSession.uploadSessionId : uploadSession.sessionId;
+          
+          chunkResult = await this.uploadChunkToFacebook(
+            account.accessToken,
+            account.pageId,
+            sessionIdForChunk,
+            buffer,
+            uploadedBytes,
+            options.isReel
+          );
+        }
 
         if (!chunkResult.success) {
           throw new Error(chunkResult.error || 'Final chunk upload failed');
