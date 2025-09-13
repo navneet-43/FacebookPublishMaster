@@ -93,7 +93,7 @@ export class TrueStreamingVideoUploadService {
     pageId: string, 
     fileSize: number, 
     isReel: boolean = false
-  ): Promise<{ videoId: string; sessionId: string } | null> {
+  ): Promise<{ videoId: string; sessionId: string; uploadUrl?: string; uploadSessionId?: string } | null> {
     try {
       const endpoint = isReel 
         ? getReelsEndpoint(pageId)
@@ -121,6 +121,7 @@ export class TrueStreamingVideoUploadService {
       const data = await response.json() as { 
         video_id?: string; 
         upload_session_id?: string; 
+        upload_url?: string;
         error?: any;
         start_offset?: number;
         end_offset?: number;
