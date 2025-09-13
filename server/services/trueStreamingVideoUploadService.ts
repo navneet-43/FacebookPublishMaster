@@ -134,6 +134,12 @@ export class TrueStreamingVideoUploadService {
       if (data.upload_session_id) {
         console.log(`📝 Upload Session ID: ${data.upload_session_id}`);
       }
+      // For reels, upload_session_id is required for chunk transfers
+      if (isReel && !data.upload_session_id) {
+        console.error('Reel upload session missing upload_session_id:', data);
+        return null;
+      }
+      
       return { 
         videoId: data.video_id, 
         sessionId: data.upload_session_id || data.video_id,
@@ -358,11 +364,14 @@ export class TrueStreamingVideoUploadService {
           const uploadChunk = buffer.subarray(0, chunkSize);
           buffer = buffer.subarray(chunkSize);
 
-          // Upload chunk to Facebook
+          // Upload chunk to Facebook - use uploadSessionId for reels to avoid invalid session error
+          const sessionIdForChunk = options.isReel && uploadSession.uploadSessionId ? 
+            uploadSession.uploadSessionId : uploadSession.sessionId;
+          
           const chunkResult = await this.uploadChunkToFacebook(
             account.accessToken,
             account.pageId,
-            uploadSession.sessionId,
+            sessionIdForChunk,
             uploadChunk,
             uploadedBytes,
             options.isReel
@@ -387,10 +396,14 @@ export class TrueStreamingVideoUploadService {
 
       // Upload any remaining data in buffer
       if (buffer.length > 0) {
+        // Upload final chunk - use uploadSessionId for reels to avoid invalid session error
+        const sessionIdForChunk = options.isReel && uploadSession.uploadSessionId ? 
+          uploadSession.uploadSessionId : uploadSession.sessionId;
+        
         const chunkResult = await this.uploadChunkToFacebook(
           account.accessToken,
           account.pageId,
-          uploadSession.sessionId,
+          sessionIdForChunk,
           buffer,
           uploadedBytes,
           options.isReel
