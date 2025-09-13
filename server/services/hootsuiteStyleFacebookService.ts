@@ -662,18 +662,18 @@ export class HootsuiteStyleFacebookService {
           if (downloadResult.success && downloadResult.filePath) {
             console.log(`✅ Facebook video downloaded successfully: ${downloadResult.filename}`);
             
-            // Use the downloaded file path for upload
-            const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
-            const uploadService = new CompleteVideoUploadService();
+            // Use the chunked upload service for the downloaded Facebook video
+            const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
+            const uploadService = new ChunkedVideoUploadService();
             
-            const uploadResult = await uploadService.uploadProcessedVideoFile({
-              videoFilePath: downloadResult.filePath,
+            const uploadResult = await uploadService.uploadVideoInChunks({
+              accessToken: pageAccessToken,
               pageId: pageId,
-              pageAccessToken: pageAccessToken,
+              filePath: downloadResult.filePath,
+              title: description || 'Facebook video upload',
               description: description || 'Facebook video upload',
               customLabels: customLabels || [],
-              language: language || 'en',
-              isReel: false
+              language: language || 'en'
             });
             
             if (uploadResult.success) {

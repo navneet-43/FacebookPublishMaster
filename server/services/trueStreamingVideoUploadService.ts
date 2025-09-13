@@ -158,8 +158,11 @@ export class TrueStreamingVideoUploadService {
         ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
         : `https://graph.facebook.com/v20.0/${pageId}/videos`;
 
+      // Facebook Reels API uses different upload phases than regular videos
+      const uploadPhase = isReel ? 'start' : 'transfer';
+      
       const params = new URLSearchParams({
-        upload_phase: 'transfer',
+        upload_phase: uploadPhase,
         access_token: pageToken,
         upload_session_id: sessionId,
         start_offset: startOffset.toString()
@@ -168,7 +171,7 @@ export class TrueStreamingVideoUploadService {
       console.log(`📤 Uploading chunk: ${chunkData.length} bytes at offset ${startOffset}`);
 
       const formData = new (await import('form-data')).default();
-      formData.append('upload_phase', 'transfer');
+      formData.append('upload_phase', uploadPhase);
       formData.append('access_token', pageToken);
       formData.append('upload_session_id', sessionId);
       formData.append('start_offset', startOffset.toString());
