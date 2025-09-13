@@ -131,9 +131,13 @@ export class TrueStreamingVideoUploadService {
       }
 
       console.log(`✅ Upload session initialized - Video ID: ${data.video_id}`);
+      if (data.upload_session_id) {
+        console.log(`📝 Upload Session ID: ${data.upload_session_id}`);
+      }
       return { 
         videoId: data.video_id, 
-        sessionId: data.upload_session_id || data.video_id 
+        sessionId: data.upload_session_id || data.video_id,
+        uploadSessionId: data.upload_session_id // Track upload session ID separately
       };
 
     } catch (error) {
@@ -154,12 +158,11 @@ export class TrueStreamingVideoUploadService {
     isReel: boolean = false
   ): Promise<{ success: boolean; nextOffset?: number; error?: string }> {
     try {
-      const endpoint = isReel 
-        ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
-        : `https://graph.facebook.com/v20.0/${pageId}/videos`;
+      // Always use videos endpoint for chunk transfers (both reels and regular videos)
+      const endpoint = `https://graph-video.facebook.com/v20.0/${pageId}/videos`;
 
-      // Facebook Reels API uses different upload phases than regular videos
-      const uploadPhase = isReel ? 'start' : 'transfer';
+      // Always use 'transfer' phase for chunk uploads
+      const uploadPhase = 'transfer';
       
       const params = new URLSearchParams({
         upload_phase: uploadPhase,
@@ -214,7 +217,8 @@ export class TrueStreamingVideoUploadService {
   private static async finalizeFacebookUpload(
     pageToken: string,
     pageId: string,
-    sessionId: string,
+    videoId: string,
+    uploadSessionId: string | undefined,
     description: string = '',
     isReel: boolean = false
   ): Promise<{ success: boolean; postId?: string; error?: string }> {
@@ -230,9 +234,14 @@ export class TrueStreamingVideoUploadService {
       });
       
       if (isReel) {
-        params.append('video_id', sessionId);
+        params.append('video_id', videoId);
+        console.log(`🎬 REEL FINALIZE: Using video_id=${videoId}`);
       } else {
-        params.append('upload_session_id', sessionId);
+        if (!uploadSessionId) {
+          throw new Error('Upload session ID required for regular video finalization');
+        }
+        params.append('upload_session_id', uploadSessionId);
+        console.log(`🎥 VIDEO FINALIZE: Using upload_session_id=${uploadSessionId}`);
       }
 
       if (description) {
@@ -401,7 +410,8 @@ export class TrueStreamingVideoUploadService {
       const finalResult = await this.finalizeFacebookUpload(
         account.accessToken,
         account.pageId,
-        uploadSession.sessionId,
+        uploadSession.videoId,
+        uploadSession.uploadSessionId,
         options.content || '',
         options.isReel
       );
