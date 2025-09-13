@@ -50,7 +50,9 @@ export class ActualVideoOnlyService {
         videoUrl,
         description,
         customLabels,
-        language
+        language,
+        undefined, // uploadId
+        false // isReel
       );
       
       if (result.success) {
@@ -94,7 +96,9 @@ export class ActualVideoOnlyService {
         videoUrl,
         description,
         customLabels,
-        language
+        language,
+        undefined, // uploadId
+        false // isReel
       );
       
       if (result.success) {

@@ -217,7 +217,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
               customLabels: resolvedLabels || undefined,
               language: post.language || undefined,
               uploadId: (post as any).uploadId,
-              isReel: false
+              isReel: post.mediaType === 'reel'
             });
             
             if (streamingResult.success) {
@@ -235,6 +235,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
             }
           } else {
             // Use HootsuiteStyleFacebookService for non-Google Drive videos
+            const isReel = post.mediaType === 'reel';
             result = await HootsuiteStyleFacebookService.publishVideoPost(
               account.pageId,
               freshPageToken,
@@ -242,7 +243,8 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
               post.content || undefined,
               resolvedLabels || undefined,
               post.language || undefined,
-              (post as any).uploadId // Pass uploadId for progress tracking
+              (post as any).uploadId, // Pass uploadId for progress tracking
+              isReel
             );
           }
           break;

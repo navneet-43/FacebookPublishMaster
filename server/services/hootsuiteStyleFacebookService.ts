@@ -327,7 +327,7 @@ export class HootsuiteStyleFacebookService {
   /**
    * Publish video post to Facebook page (supports Google Drive links)
    */
-  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string, uploadId?: string): Promise<{success: boolean, postId?: string, error?: string}> {
+  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string, uploadId?: string, isReel?: boolean): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
@@ -666,6 +666,31 @@ export class HootsuiteStyleFacebookService {
             const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
             const uploadService = new ChunkedVideoUploadService();
             
+            // Check if downloaded Facebook video should be uploaded as reel
+            let shouldUploadAsReel = isReel || false;
+            
+            // If it's supposed to be a reel, validate the video format first
+            if (shouldUploadAsReel) {
+              console.log('🎬 REEL UPLOAD: Validating video format for Facebook Reels requirements...');
+              
+              try {
+                const { ReelsValidator } = await import('./reelsValidator');
+                const validation = await ReelsValidator.validateForReels(downloadResult.filePath);
+                
+                if (!validation.isValid) {
+                  console.log(`❌ REEL VALIDATION FAILED: ${validation.issues.join(', ')}`);
+                  console.log('📺 FALLBACK: Uploading as regular video instead of reel');
+                  shouldUploadAsReel = false;
+                } else {
+                  console.log('✅ REEL VALIDATION PASSED: Video meets Facebook Reels requirements');
+                }
+              } catch (validationError) {
+                console.log(`❌ REEL VALIDATION ERROR: ${validationError}`);
+                console.log('📺 FALLBACK: Uploading as regular video instead of reel');
+                shouldUploadAsReel = false;
+              }
+            }
+            
             const uploadResult = await uploadService.uploadVideoInChunks({
               accessToken: pageAccessToken,
               pageId: pageId,
@@ -673,7 +698,8 @@ export class HootsuiteStyleFacebookService {
               title: description || 'Facebook video upload',
               description: description || 'Facebook video upload',
               customLabels: customLabels || [],
-              language: language || 'en'
+              language: language || 'en',
+              isReel: shouldUploadAsReel
             });
             
             if (uploadResult.success) {
@@ -2100,7 +2126,7 @@ Google Drive's security policies prevent external applications from downloading 
         // For now, fallback to regular video upload for non-Google Drive Reels
         console.log('📝 NON-GOOGLE DRIVE REEL: Using video upload method (Reel-specific upload requires file download)');
         
-        const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+        const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId, true);
         
         if (videoResult.success) {
           return {
