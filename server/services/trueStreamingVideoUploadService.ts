@@ -238,11 +238,36 @@ export class TrueStreamingVideoUploadService {
         'Content-Length': chunkData.length.toString()
       };
 
-      const response = await fetch(uploadUrl, {
+      console.log(`🔍 DEBUG Headers:`, headers);
+      console.log(`🔍 DEBUG Body length:`, chunkData.length);
+      console.log(`🔍 DEBUG Upload URL:`, uploadUrl);
+
+      // Disable auto-redirect to preserve headers
+      let response = await fetch(uploadUrl, {
         method: 'POST',
-        body: chunkData, // Send raw buffer directly
-        headers: headers
+        body: chunkData,
+        headers: headers,
+        redirect: 'manual' // Handle redirects manually to preserve Content-Length
       });
+
+      console.log(`🔍 Response status:`, response.status);
+      
+      // Handle redirects manually to preserve Content-Length header
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        console.log(`🔄 Redirect to:`, location);
+        
+        if (location) {
+          // Re-send to redirected URL with same headers
+          response = await fetch(location, {
+            method: 'POST',
+            body: chunkData,
+            headers: headers,
+            redirect: 'manual'
+          });
+          console.log(`🔍 Redirected response status:`, response.status);
+        }
+      }
 
       const result = await response.json() as { 
         start_offset?: number; 
