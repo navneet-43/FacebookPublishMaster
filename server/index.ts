@@ -140,16 +140,6 @@ app.use((req, res, next) => {
       });
       log('Progress tracking cleanup job scheduled');
       
-      // Initialize disk space monitoring service
-      const { DiskSpaceMonitor } = await import('./services/diskSpaceMonitor');
-      DiskSpaceMonitor.startMonitoring(10); // Check every 10 minutes
-      log('Disk space monitoring initialized');
-      
-      // Initialize daily cleanup service to prevent ENOSPC
-      const { DailyCleanupService } = await import('./services/dailyCleanupService');
-      DailyCleanupService.initialize();
-      log('Daily cleanup service initialized');
-      
       // Set up a daily job to retry failed posts
       const retryJob = schedule.scheduleJob('0 */4 * * *', async () => { // Every 4 hours
         try {

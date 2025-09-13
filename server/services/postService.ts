@@ -9,72 +9,6 @@ import { and, eq } from 'drizzle-orm';
 const activeJobs: Record<number, schedule.Job> = {};
 
 /**
- * Resolve fresh page token from user's long-lived token
- * CRITICAL: Fetches page tokens at publish time instead of relying on cached tokens
- */
-async function resolvePageToken(accountId: number): Promise<{
-  success: boolean;
-  pageToken?: string;
-  error?: string;
-}> {
-  try {
-    // Get Facebook account to find user and page info
-    const account = await storage.getFacebookAccount(accountId);
-    if (!account) {
-      return { success: false, error: 'Facebook account not found' };
-    }
-
-    // Get user's long-lived Facebook token
-    const user = await storage.getUser(account.userId);
-    if (!user || !user.facebookToken) {
-      return { success: false, error: 'User Facebook token not found. Please reconnect your Facebook account.' };
-    }
-
-    console.log(`🔄 Resolving fresh page token for page: ${account.name} (${account.pageId})`);
-
-    // Fetch fresh page tokens using user's long-lived token (Facebook Graph API v20.0)
-    const response = await fetch(`https://graph.facebook.com/v20.0/me/accounts?fields=id,name,access_token&access_token=${user.facebookToken}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { success: false, error: `Failed to fetch page tokens: ${response.status} - ${errorText}` };
-    }
-
-    const data = await response.json() as any;
-    if (data.error) {
-      return { success: false, error: `Facebook API error: ${data.error.message}` };
-    }
-
-    if (!data.data || !Array.isArray(data.data)) {
-      return { success: false, error: 'No pages found in Facebook response' };
-    }
-
-    // Find the target page by ID
-    const targetPage = data.data.find((page: any) => page.id === account.pageId);
-    if (!targetPage) {
-      return { success: false, error: `Page ${account.pageId} not found in user's managed pages. Please check permissions.` };
-    }
-
-    if (!targetPage.access_token) {
-      return { success: false, error: `No access token found for page ${account.name}. Please check page permissions.` };
-    }
-
-    console.log(`✅ Fresh page token resolved for: ${targetPage.name}`);
-    return { 
-      success: true, 
-      pageToken: targetPage.access_token 
-    };
-
-  } catch (error) {
-    console.error('Error resolving page token:', error);
-    return { 
-      success: false, 
-      error: `Failed to resolve page token: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    };
-  }
-}
-
-/**
  * Publish a post to Facebook using Hootsuite-style approach
  * @param post The post to publish
  * @returns Result of the operation
@@ -117,27 +51,17 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       progressTracker.updateProgress((post as any).uploadId, 'Validating Facebook authentication...', 10, 'Checking page access token');
     }
     
-    // CRITICAL FIX: Resolve fresh page token at publish time instead of using cached token
-    const freshTokenResult = await resolvePageToken(post.accountId);
-    if (!freshTokenResult.success) {
-      console.log('Failed to resolve fresh page token:', freshTokenResult.error);
+    // Validate token before using it
+    const isValidToken = await HootsuiteStyleFacebookService.validatePageToken(account.pageId, account.accessToken);
+    if (!isValidToken) {
+      console.log('Invalid page token detected, attempting refresh...');
       if ((post as any).uploadId) {
-        progressTracker.completeUpload((post as any).uploadId, false, freshTokenResult.error);
+        progressTracker.completeUpload((post as any).uploadId, false, 'Facebook access token is invalid or expired');
       }
       return { 
         success: false, 
-        error: freshTokenResult.error 
+        error: 'Facebook access token is invalid or expired. Please refresh your Facebook connection.' 
       };
-    }
-    
-    // Use fresh page token for publishing
-    const freshPageToken = freshTokenResult.pageToken;
-    console.log(`✅ Using fresh page token for account ${account.name}`);
-    
-    // Update account token if it changed
-    if (freshPageToken !== account.accessToken) {
-      console.log('📝 Updating stored page token with fresh token');
-      await storage.updateFacebookAccount(account.id, { accessToken: freshPageToken });
     }
     
     console.log(`Publishing post ${post.id} to Facebook page: ${account.name} (${account.pageId})`);
@@ -203,98 +127,30 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Processing video for Facebook upload...', 25, 'Starting video processing and upload');
           }
-          
-          // Check if this is a Google Drive URL - use streaming to prevent ENOSPC
-          if (post.mediaUrl && post.mediaUrl.includes('drive.google.com')) {
-            console.log('🌊 SCHEDULED POST: Using streaming service for Google Drive video to prevent ENOSPC');
-            const { TrueStreamingVideoUploadService } = await import('./trueStreamingVideoUploadService');
-            
-            const streamingResult = await TrueStreamingVideoUploadService.uploadGoogleDriveVideo({
-              googleDriveUrl: post.mediaUrl,
-              accountId: post.accountId!,
-              userId: post.userId!,
-              content: post.content || undefined,
-              customLabels: resolvedLabels || undefined,
-              language: post.language || undefined,
-              uploadId: (post as any).uploadId,
-              isReel: post.mediaType === 'reel'
-            });
-            
-            if (streamingResult.success) {
-              result = {
-                success: true,
-                postId: streamingResult.facebookPostId,
-                videoId: streamingResult.facebookVideoId,
-                url: streamingResult.facebookUrl
-              };
-            } else {
-              result = {
-                success: false,
-                error: streamingResult.error || 'Streaming upload failed'
-              };
-            }
-          } else {
-            // Use HootsuiteStyleFacebookService for non-Google Drive videos
-            const isReel = post.mediaType === 'reel';
-            result = await HootsuiteStyleFacebookService.publishVideoPost(
-              account.pageId,
-              freshPageToken,
-              post.mediaUrl,
-              post.content || undefined,
-              resolvedLabels || undefined,
-              post.language || undefined,
-              (post as any).uploadId, // Pass uploadId for progress tracking
-              isReel
-            );
-          }
+          result = await HootsuiteStyleFacebookService.publishVideoPost(
+            account.pageId,
+            account.accessToken,
+            post.mediaUrl,
+            post.content || undefined,
+            resolvedLabels || undefined,
+            post.language || undefined,
+            (post as any).uploadId // Pass uploadId for progress tracking
+          );
           break;
           
         case 'reel':
           if ((post as any).uploadId) {
             progressTracker.updateProgress((post as any).uploadId, 'Processing Reel for Facebook upload...', 25, 'Starting Reel processing and upload');
           }
-          
-          // Check if this is a Google Drive URL - use streaming to prevent ENOSPC
-          if (post.mediaUrl && post.mediaUrl.includes('drive.google.com')) {
-            console.log('🌊 SCHEDULED REEL: Using streaming service for Google Drive reel to prevent ENOSPC');
-            const { TrueStreamingVideoUploadService } = await import('./trueStreamingVideoUploadService');
-            
-            const streamingResult = await TrueStreamingVideoUploadService.uploadGoogleDriveVideo({
-              googleDriveUrl: post.mediaUrl,
-              accountId: post.accountId!,
-              userId: post.userId!,
-              content: post.content || undefined,
-              customLabels: resolvedLabels || undefined,
-              language: post.language || undefined,
-              uploadId: (post as any).uploadId,
-              isReel: true
-            });
-            
-            if (streamingResult.success) {
-              result = {
-                success: true,
-                postId: streamingResult.facebookPostId,
-                videoId: streamingResult.facebookVideoId,
-                url: streamingResult.facebookUrl
-              };
-            } else {
-              result = {
-                success: false,
-                error: streamingResult.error || 'Streaming reel upload failed'
-              };
-            }
-          } else {
-            // Use HootsuiteStyleFacebookService for non-Google Drive reels
-            result = await HootsuiteStyleFacebookService.publishReelPost(
-              account.pageId,
-              freshPageToken,
-              post.mediaUrl,
-              post.content || undefined,
-              resolvedLabels || undefined,
-              post.language || undefined,
-              (post as any).uploadId // Pass uploadId for progress tracking
-            );
-          }
+          result = await HootsuiteStyleFacebookService.publishReelPost(
+            account.pageId,
+            account.accessToken,
+            post.mediaUrl,
+            post.content || undefined,
+            resolvedLabels || undefined,
+            post.language || undefined,
+            (post as any).uploadId // Pass uploadId for progress tracking
+          );
           break;
           
         default:
@@ -304,7 +160,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
           // Fallback to text post with media as link
           result = await HootsuiteStyleFacebookService.publishTextPost(
             account.pageId,
-            freshPageToken,
+            account.accessToken,
             post.content || 'Check out this content!',
             post.mediaUrl,
             resolvedLabels || undefined,
@@ -318,7 +174,7 @@ export async function publishPostToFacebook(post: Post): Promise<{success: boole
       }
       result = await HootsuiteStyleFacebookService.publishTextPost(
         account.pageId,
-        freshPageToken,
+        account.accessToken,
         post.content!,
         post.link || undefined,
         resolvedLabels || undefined,

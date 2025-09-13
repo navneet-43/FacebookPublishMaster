@@ -255,21 +255,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Import unified timezone conversion utility
         const { parseISTDateToUTC } = await import('./utils/timezoneUtils');
         
-        // Normalize timezone handling: if scheduledFor has timezone info, use as-is; else assume IST
-        let scheduledForUTC: Date;
-        const scheduledForStr = result.data.scheduledFor.toString().trim();
-        
-        // Check if input already has timezone information
-        if (/\d{4}-\d{2}-\d{2}T.*(Z|[+\-]\d{2}:\d{2})/.test(scheduledForStr) || /GMT[+\-]\d{4}/.test(scheduledForStr)) {
-          // Already timezone-aware, use directly
-          scheduledForUTC = new Date(result.data.scheduledFor);
-          console.log(`API scheduled post: Using TZ-aware input directly: ${scheduledForStr}`);
-          console.log(`🔍 DEBUG: scheduledForUTC type: ${typeof scheduledForUTC}, instanceof Date: ${scheduledForUTC instanceof Date}`);
-        } else {
-          // Assume IST and convert to UTC
-          scheduledForUTC = parseISTDateToUTC(result.data.scheduledFor, 'API scheduled post');
-          console.log(`🔍 DEBUG: parseISTDateToUTC result type: ${typeof scheduledForUTC}, instanceof Date: ${scheduledForUTC instanceof Date}`);
-        }
+        // Convert scheduledFor from IST to UTC for consistent storage
+        const scheduledForUTC = parseISTDateToUTC(result.data.scheduledFor, 'API scheduled post');
         
         const post = await storage.createPost({
           ...result.data,
@@ -1220,59 +1207,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { filePath, googleDriveUrl, accountId, content, videoInfo, isReel } = req.body;
+      const { filePath, accountId, content, videoInfo } = req.body;
       
-      if ((!filePath && !googleDriveUrl) || !accountId) {
+      if (!filePath || !accountId) {
         return res.status(400).json({ 
           success: false,
-          error: "Google Drive URL or file path and account ID are required" 
+          error: "File path and account ID are required" 
         });
       }
 
-      console.log('🌊 Starting TRUE STREAMING Facebook video upload for account:', accountId);
+      console.log('📤 Starting Facebook video upload for account:', accountId);
 
-      // CRITICAL: Check disk space before proceeding
-      const { DiskSpaceMonitor } = await import('./services/diskSpaceMonitor');
-      const spaceAlert = await DiskSpaceMonitor.checkDiskSpace();
-      
-      if (spaceAlert && (spaceAlert.level === 'critical' || spaceAlert.level === 'emergency')) {
-        console.log(`🚨 BLOCKING UPLOAD - ${spaceAlert.message}`);
-        return res.status(503).json({ 
-          success: false,
-          error: `Upload blocked due to low disk space: ${spaceAlert.message}. Please try again later.`
-        });
-      }
-
-      // Use true streaming for Google Drive URLs (preferred)
-      if (googleDriveUrl) {
-        const { TrueStreamingVideoUploadService } = await import('./services/trueStreamingVideoUploadService');
-        const result = await TrueStreamingVideoUploadService.uploadGoogleDriveVideo({
-          googleDriveUrl,
-          accountId: parseInt(accountId),
-          userId: user.id,
-          content: content || '',
-          isReel: isReel || false
-        });
-        
-        if (result.success) {
-          await storage.createActivity({
-            userId: user.id,
-            type: "true_streaming_upload_completed",
-            description: `True streaming upload completed: ${result.facebookPostId}`,
-            metadata: { 
-              accountId,
-              facebookPostId: result.facebookPostId,
-              method: result.method,
-              sizeMB: result.sizeMB
-            }
-          });
-        }
-
-        return res.json(result);
-      }
-
-      // Fallback for local files (discouraged)
-      console.log('⚠️ Using legacy local file upload - consider switching to Google Drive URLs');
       const { FacebookVideoUploader } = await import('./services/facebookVideoUploader');
       const result = await FacebookVideoUploader.uploadVideo(
         filePath,
@@ -1302,46 +1247,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false,
         error: error instanceof Error ? error.message : "Failed to upload video"
-      });
-    }
-  });
-
-  // Check Facebook video/reel status
-  app.get('/api/facebook-video/status/:videoId/:accountId', async (req: Request, res: Response) => {
-    try {
-      const user = await authenticateUser(req);
-      if (!user) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      const { videoId, accountId } = req.params;
-      if (!videoId || !accountId) {
-        return res.status(400).json({ 
-          success: false,
-          error: "Video ID and account ID are required" 
-        });
-      }
-
-      console.log(`🔍 Checking Facebook video status: ${videoId} for account: ${accountId}`);
-
-      // Get account info to get the page access token
-      const account = await storage.getFacebookAccount(parseInt(accountId));
-      if (!account) {
-        return res.status(404).json({ 
-          success: false,
-          error: "Facebook account not found" 
-        });
-      }
-
-      const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
-      const statusResult = await HootsuiteStyleFacebookService.checkVideoStatus(videoId, account.accessToken);
-
-      res.json(statusResult);
-    } catch (error) {
-      console.error("Error checking Facebook video status:", error);
-      res.status(500).json({ 
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to check video status"
       });
     }
   });

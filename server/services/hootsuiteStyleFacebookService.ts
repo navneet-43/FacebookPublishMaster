@@ -327,7 +327,7 @@ export class HootsuiteStyleFacebookService {
   /**
    * Publish video post to Facebook page (supports Google Drive links)
    */
-  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string, uploadId?: string, isReel?: boolean): Promise<{success: boolean, postId?: string, error?: string}> {
+  static async publishVideoPost(pageId: string, pageAccessToken: string, videoUrl: string, description?: string, customLabels?: string[], language?: string, uploadId?: string): Promise<{success: boolean, postId?: string, error?: string}> {
     try {
       console.log('🎬 PROCESSING VIDEO for Facebook upload:', videoUrl);
       
@@ -662,45 +662,18 @@ export class HootsuiteStyleFacebookService {
           if (downloadResult.success && downloadResult.filePath) {
             console.log(`✅ Facebook video downloaded successfully: ${downloadResult.filename}`);
             
-            // Use the chunked upload service for the downloaded Facebook video
-            const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
-            const uploadService = new ChunkedVideoUploadService();
+            // Use the downloaded file path for upload
+            const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+            const uploadService = new CompleteVideoUploadService();
             
-            // Check if downloaded Facebook video should be uploaded as reel
-            let shouldUploadAsReel = isReel || false;
-            
-            // If it's supposed to be a reel, validate the video format first
-            if (shouldUploadAsReel) {
-              console.log('🎬 REEL UPLOAD: Validating video format for Facebook Reels requirements...');
-              
-              try {
-                const { ReelsValidator } = await import('./reelsValidator');
-                const validation = await ReelsValidator.validateForReels(downloadResult.filePath);
-                
-                if (!validation.isValid) {
-                  const validationMessage = validation.error || 'Validation failed';
-                  console.log(`❌ REEL VALIDATION FAILED: ${validationMessage}`);
-                  console.log('📺 FALLBACK: Uploading as regular video instead of reel');
-                  shouldUploadAsReel = false;
-                } else {
-                  console.log('✅ REEL VALIDATION PASSED: Video meets Facebook Reels requirements');
-                }
-              } catch (validationError) {
-                console.log(`❌ REEL VALIDATION ERROR: ${validationError}`);
-                console.log('📺 FALLBACK: Uploading as regular video instead of reel');
-                shouldUploadAsReel = false;
-              }
-            }
-            
-            const uploadResult = await uploadService.uploadVideoInChunks({
-              accessToken: pageAccessToken,
+            const uploadResult = await uploadService.uploadProcessedVideoFile({
+              videoFilePath: downloadResult.filePath,
               pageId: pageId,
-              filePath: downloadResult.filePath,
-              title: description || 'Facebook video upload',
+              pageAccessToken: pageAccessToken,
               description: description || 'Facebook video upload',
               customLabels: customLabels || [],
               language: language || 'en',
-              isReel: shouldUploadAsReel
+              isReel: false
             });
             
             if (uploadResult.success) {
@@ -1996,20 +1969,18 @@ Google Drive's security policies prevent external applications from downloading 
           
           // Upload to Facebook using the Reel-specific upload system
           console.log('🚀 STARTING FACEBOOK REEL UPLOAD');
-          const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
-          const uploadService = new ChunkedVideoUploadService();
+          const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+          const uploadService = new CompleteVideoUploadService();
           
           const finalDescription = description || 'Google Drive Reel Upload';
           
-          const uploadResult = await uploadService.uploadVideoInChunks({
-            accessToken: pageAccessToken,
+          const uploadResult = await uploadService.uploadProcessedReelFile({
+            videoFilePath: finalPath,
             pageId: pageId,
-            filePath: finalPath,
-            title: finalDescription,
+            pageAccessToken: pageAccessToken,
             description: finalDescription,
             customLabels: customLabels || [],
-            language: language || 'en',
-            isReel: true
+            language: language || 'en'
           });
           
           console.log('📊 REEL UPLOAD RESULT:', JSON.stringify(uploadResult, null, 2));
@@ -2127,7 +2098,7 @@ Google Drive's security policies prevent external applications from downloading 
         // For now, fallback to regular video upload for non-Google Drive Reels
         console.log('📝 NON-GOOGLE DRIVE REEL: Using video upload method (Reel-specific upload requires file download)');
         
-        const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId, true);
+        const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
         
         if (videoResult.success) {
           return {
@@ -2152,50 +2123,6 @@ Google Drive's security policies prevent external applications from downloading 
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown reel upload error'
-      };
-    }
-  }
-
-  /**
-   * Check the status of a Facebook video/reel upload
-   */
-  static async checkVideoStatus(videoId: string, pageAccessToken: string): Promise<{
-    success: boolean;
-    status?: string;
-    publishTime?: string;
-    error?: string;
-  }> {
-    try {
-      console.log(`🔍 CHECKING VIDEO STATUS: ${videoId}`);
-      
-      const response = await fetch(
-        `https://graph.facebook.com/v20.0/${videoId}?fields=status,published,created_time,updated_time&access_token=${pageAccessToken}`,
-        { method: 'GET' }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.log(`❌ Facebook video status check failed: ${response.status} ${errorData}`);
-        return {
-          success: false,
-          error: `Facebook API error: ${response.status} ${errorData}`
-        };
-      }
-
-      const data = await response.json() as any;
-      console.log(`📊 VIDEO STATUS RESULT:`, JSON.stringify(data, null, 2));
-
-      return {
-        success: true,
-        status: data.status?.video_status || data.status,
-        publishTime: data.created_time,
-      };
-
-    } catch (error) {
-      console.error('❌ Video status check error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error checking video status'
       };
     }
   }

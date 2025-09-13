@@ -29,7 +29,7 @@ export class ReelsValidator {
   static readonly PREFERRED_ASPECT_RATIO = 9/16; // 9:16 aspect ratio
   static readonly MIN_DURATION = 3; // 3 seconds
   static readonly MAX_DURATION = 90; // 90 seconds
-  static readonly MAX_SIZE_MB = 1024; // 1GB max (increased from 250MB)
+  static readonly MAX_SIZE_MB = 250; // 250MB max
   
   /**
    * Get video information using FFprobe
