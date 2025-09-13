@@ -230,22 +230,17 @@ export class TrueStreamingVideoUploadService {
     try {
       console.log(`📤 Uploading reel chunk: ${chunkData.length} bytes at offset ${startOffset}`);
 
-      const formData = new (await import('form-data')).default();
-      // Facebook rupload requires OAuth Authorization header and Offset as header, not form parameter
-      formData.append('video_file_chunk', chunkData, {
-        filename: 'chunk.mp4',
-        contentType: 'video/mp4'
-      });
-
+      // Facebook rupload requires raw bytes, NOT multipart/form-data
       const headers = {
-        ...formData.getHeaders(),
         'Authorization': `OAuth ${pageToken}`,
-        'Offset': startOffset.toString()
+        'Offset': startOffset.toString(),
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': chunkData.length.toString()
       };
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        body: formData,
+        body: chunkData, // Send raw buffer directly
         headers: headers
       });
 
