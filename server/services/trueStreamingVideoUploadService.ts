@@ -223,11 +223,17 @@ export class TrueStreamingVideoUploadService {
         ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
         : `https://graph.facebook.com/v20.0/${pageId}/videos`;
 
+      // Facebook Reels API uses video_id instead of upload_session_id for finalization
       const params = new URLSearchParams({
         upload_phase: 'finish',
         access_token: pageToken,
-        upload_session_id: sessionId,
       });
+      
+      if (isReel) {
+        params.append('video_id', sessionId);
+      } else {
+        params.append('upload_session_id', sessionId);
+      }
 
       if (description) {
         params.append('description', description);
