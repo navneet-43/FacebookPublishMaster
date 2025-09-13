@@ -85,8 +85,11 @@ export class ChunkedVideoUploadService {
           throw new Error(`Incomplete Reel response - missing video_id: ${JSON.stringify(result)}`);
         }
         
-        // Construct fallback URL if Facebook didn't provide one
-        const uploadUrl = result.upload_url || constructRuploadUrl(result.video_id);
+        // Fail fast if Facebook didn't provide upload_url - don't construct fallback
+        if (!result.upload_url) {
+          throw new Error(`Facebook did not provide upload_url for Reel - cannot proceed without it`);
+        }
+        const uploadUrl = result.upload_url;
         
         console.log(`Reel upload session started`);
         console.log(`Video ID: ${result.video_id}`);
@@ -97,7 +100,7 @@ export class ChunkedVideoUploadService {
           success: true,
           sessionId: result.video_id, // Use video_id as session identifier for Reels
           videoId: result.video_id,
-          uploadUrl: uploadUrl, // Use constructed URL if Facebook didn't provide one
+          uploadUrl: uploadUrl, // Use Facebook-provided upload_url
           startOffset: 0, // Reels typically start from 0
           endOffset: fileSize // Upload entire file for Reels
         };
@@ -199,6 +202,96 @@ export class ChunkedVideoUploadService {
       
     } catch (error) {
       console.error('Transfer chunk error:', error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
+    }
+  }
+  
+  async transferReelChunk(options: {
+    uploadUrl: string;
+    accessToken: string;
+    videoId: string;
+    filePath: string;
+    startOffset: number;
+    endOffset: number;
+    totalSize: number;
+  }): Promise<{
+    success: boolean;
+    isComplete?: boolean;
+    error?: string;
+  }> {
+    
+    const chunkSize = options.endOffset - options.startOffset;
+    console.log(`Transferring Reel chunk to rupload: ${options.startOffset} to ${options.endOffset} (${(chunkSize / (1024 * 1024)).toFixed(1)}MB)`);
+    
+    try {
+      // Read the specific chunk from file
+      const fileHandle = fs.openSync(options.filePath, 'r');
+      const buffer = Buffer.alloc(chunkSize);
+      fs.readSync(fileHandle, buffer, 0, chunkSize, options.startOffset);
+      fs.closeSync(fileHandle);
+      
+      // Use PUT with proper rupload headers
+      const headers = {
+        'Authorization': `OAuth ${options.accessToken}`,
+        'Offset': options.startOffset.toString(),
+        'X-Entity-Name': options.videoId,
+        'X-Entity-Type': 'video/mp4',
+        'X-Entity-Length': options.totalSize.toString(),
+        'Content-Type': 'video/mp4',
+        'Content-Length': chunkSize.toString()
+      };
+      
+      console.log(`PUT to ${options.uploadUrl} with headers:`, {
+        ...headers,
+        'Authorization': 'OAuth [MASKED]' // Don't log the token
+      });
+      
+      let currentUrl = options.uploadUrl;
+      let maxRedirects = 3;
+      
+      while (maxRedirects > 0) {
+        const response = await fetch(currentUrl, {
+          method: 'PUT',
+          body: buffer,
+          headers,
+          redirect: 'manual' // Handle redirects manually to preserve headers
+        });
+        
+        // Handle redirects (307/308) manually to preserve Authorization header
+        if (response.status === 307 || response.status === 308) {
+          const location = response.headers.get('location');
+          if (!location) {
+            throw new Error(`Redirect without Location header: ${response.status}`);
+          }
+          console.log(`Following redirect (${response.status}) to: ${location}`);
+          currentUrl = location;
+          maxRedirects--;
+          continue;
+        }
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Rupload failed: ${response.status} - ${errorText}`);
+          throw new Error(`Rupload failed: ${response.status} - ${errorText}`);
+        }
+        
+        // Success - check if upload is complete
+        const isComplete = options.endOffset >= options.totalSize;
+        console.log(`Reel chunk uploaded successfully${isComplete ? ' (Complete)' : ''}`);
+        
+        return {
+          success: true,
+          isComplete: isComplete
+        };
+      }
+      
+      throw new Error('Too many redirects during rupload');
+      
+    } catch (error) {
+      console.error('Transfer Reel chunk error:', error);
       return {
         success: false,
         error: (error as Error).message
@@ -350,20 +443,53 @@ export class ChunkedVideoUploadService {
         try {
           const fileBuffer = fs.readFileSync(options.filePath);
           
-          // Upload directly to rupload.facebook.com as per Facebook documentation
+          // Upload directly to rupload.facebook.com using proper PUT method and headers
           const uploadResponse = await fetch(startResult.uploadUrl, {
-            method: 'POST',
+            method: 'PUT',
             headers: {
               'Authorization': `OAuth ${options.accessToken}`,
-              'offset': '0',
-              'file_size': fileSize.toString(),
-              'Content-Type': 'application/octet-stream'
+              'Offset': '0',
+              'X-Entity-Name': startResult.videoId,
+              'X-Entity-Type': 'video/mp4',
+              'X-Entity-Length': fileSize.toString(),
+              'Content-Type': 'video/mp4',
+              'Content-Length': fileSize.toString()
             },
-            body: fileBuffer
+            body: fileBuffer,
+            redirect: 'manual' // Handle redirects manually to preserve headers
           });
           
-          if (!uploadResponse.ok) {
+          // Handle redirects (307/308) manually to preserve Authorization header
+          if (uploadResponse.status === 307 || uploadResponse.status === 308) {
+            const location = uploadResponse.headers.get('location');
+            if (!location) {
+              throw new Error(`Redirect without Location header: ${uploadResponse.status}`);
+            }
+            console.log(`Following redirect (${uploadResponse.status}) to: ${location}`);
+            
+            // Re-issue PUT to the redirect location with same headers
+            const redirectResponse = await fetch(location, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `OAuth ${options.accessToken}`,
+                'Offset': '0',
+                'X-Entity-Name': startResult.videoId,
+                'X-Entity-Type': 'video/mp4',
+                'X-Entity-Length': fileSize.toString(),
+                'Content-Type': 'video/mp4',
+                'Content-Length': fileSize.toString()
+              },
+              body: fileBuffer
+            });
+            
+            if (!redirectResponse.ok) {
+              const errorText = await redirectResponse.text();
+              console.error(`Reel upload failed after redirect: ${redirectResponse.status} - ${errorText}`);
+              throw new Error(`Reel upload failed after redirect: ${redirectResponse.status} - ${errorText}`);
+            }
+          } else if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
+            console.error(`Reel upload failed: ${uploadResponse.status} - ${errorText}`);
             throw new Error(`Reel upload failed: ${uploadResponse.status} - ${errorText}`);
           }
           
