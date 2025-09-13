@@ -678,7 +678,8 @@ export class HootsuiteStyleFacebookService {
                 const validation = await ReelsValidator.validateForReels(downloadResult.filePath);
                 
                 if (!validation.isValid) {
-                  console.log(`❌ REEL VALIDATION FAILED: ${validation.issues.join(', ')}`);
+                  const validationMessage = validation.error || 'Validation failed';
+                  console.log(`❌ REEL VALIDATION FAILED: ${validationMessage}`);
                   console.log('📺 FALLBACK: Uploading as regular video instead of reel');
                   shouldUploadAsReel = false;
                 } else {
