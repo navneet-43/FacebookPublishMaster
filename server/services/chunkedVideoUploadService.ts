@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
+import { FB_API_VERSION, constructRuploadUrl, getReelsEndpoint, getVideosEndpoint } from '../config/facebookConfig';
 
 export interface ChunkedUploadOptions {
   accessToken: string;
@@ -42,8 +43,8 @@ export class ChunkedVideoUploadService {
     
     // Use appropriate endpoint - for Reels, we use the Page's video_reels endpoint
     const startUrl = options.isReel 
-      ? `https://graph.facebook.com/v23.0/${options.pageId}/video_reels`
-      : `https://graph-video.facebook.com/v20.0/${options.pageId}/videos`;
+      ? getReelsEndpoint(options.pageId)
+      : getVideosEndpoint(options.pageId);
       
     console.log(`Using ${options.isReel ? 'REEL' : 'VIDEO'} endpoint: ${startUrl}`);
     
@@ -79,10 +80,13 @@ export class ChunkedVideoUploadService {
       
       // Handle different response formats for Reels vs regular videos
       if (options.isReel) {
-        // For Reels API, Facebook returns video_id and upload_url instead of upload_session_id
-        if (!result.video_id || !result.upload_url) {
-          throw new Error(`Incomplete Reel response: ${JSON.stringify(result)}`);
+        // For Reels API, Facebook returns video_id and may not return upload_url
+        if (!result.video_id) {
+          throw new Error(`Incomplete Reel response - missing video_id: ${JSON.stringify(result)}`);
         }
+        
+        // Construct fallback URL if Facebook didn't provide one
+        const uploadUrl = result.upload_url || constructRuploadUrl(result.video_id);
         
         console.log(`Reel upload session started`);
         console.log(`Video ID: ${result.video_id}`);
@@ -93,7 +97,7 @@ export class ChunkedVideoUploadService {
           success: true,
           sessionId: result.video_id, // Use video_id as session identifier for Reels
           videoId: result.video_id,
-          uploadUrl: result.upload_url, // Store the upload URL for Reels
+          uploadUrl: uploadUrl, // Use constructed URL if Facebook didn't provide one
           startOffset: 0, // Reels typically start from 0
           endOffset: fileSize // Upload entire file for Reels
         };

@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import * as fs from 'fs';
+import { FB_API_VERSION, constructRuploadUrl, getReelsEndpoint } from '../config/facebookConfig';
 
 export interface ReelsUploadOptions {
   accessToken: string;
@@ -34,7 +35,7 @@ export class FacebookReelsUploadService {
     console.log('🎬 Initializing Facebook Reel upload session');
     
     try {
-      const initUrl = `https://graph.facebook.com/v23.0/${options.pageId}/video_reels`;
+      const initUrl = getReelsEndpoint(options.pageId);
       
       const response = await fetch(initUrl, {
         method: 'POST',
@@ -102,7 +103,7 @@ export class FacebookReelsUploadService {
       console.log(`Uploading ${(fileSize / (1024 * 1024)).toFixed(1)}MB reel to Facebook`);
       
       // Use Facebook's Reels upload endpoint (different from regular videos)
-      const uploadUrl = `https://rupload.facebook.com/video-upload/v23.0/${options.videoId}`;
+      const uploadUrl = constructRuploadUrl(options.videoId);
       
       const response = await fetch(uploadUrl, {
         method: 'POST',
@@ -159,7 +160,7 @@ export class FacebookReelsUploadService {
     console.log(`📱 Publishing reel: ${options.videoId}`);
     
     try {
-      const publishUrl = `https://graph.facebook.com/v23.0/${options.pageId}/video_reels`;
+      const publishUrl = getReelsEndpoint(options.pageId);
       
       const params = new URLSearchParams({
         access_token: options.accessToken,

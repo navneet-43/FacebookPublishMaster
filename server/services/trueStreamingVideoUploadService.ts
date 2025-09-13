@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { storage } from '../storage';
 import { progressTracker } from './progressTrackingService';
 import { Readable } from 'stream';
+import { FB_API_VERSION, constructRuploadUrl, getReelsEndpoint, getVideosEndpoint } from '../config/facebookConfig';
 
 export interface TrueStreamingOptions {
   googleDriveUrl: string;
@@ -95,8 +96,8 @@ export class TrueStreamingVideoUploadService {
   ): Promise<{ videoId: string; sessionId: string } | null> {
     try {
       const endpoint = isReel 
-        ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
-        : `https://graph.facebook.com/v20.0/${pageId}/videos`;
+        ? getReelsEndpoint(pageId)
+        : getVideosEndpoint(pageId);
 
       console.log(`🚀 Initializing Facebook ${isReel ? 'Reel' : 'Video'} upload session`);
       console.log(`📊 File size: ${(fileSize / 1024 / 1024).toFixed(1)}MB`);
@@ -134,17 +135,18 @@ export class TrueStreamingVideoUploadService {
       if (data.upload_session_id) {
         console.log(`📝 Upload Session ID: ${data.upload_session_id}`);
       }
-      // For reels, Facebook uses upload_url instead of upload_session_id
-      if (isReel && !data.upload_url) {
-        console.error('Reel upload session missing upload_url:', data);
-        return null;
+      // For reels, Facebook may not return upload_url, so we construct it as fallback
+      let uploadUrl = data.upload_url;
+      if (isReel && !uploadUrl) {
+        console.warn('Reel upload session missing upload_url, constructing fallback URL');
+        uploadUrl = constructRuploadUrl(data.video_id);
       }
       
       return { 
         videoId: data.video_id, 
         sessionId: data.upload_session_id || data.video_id,
         uploadSessionId: data.upload_session_id, // Track upload session ID separately
-        uploadUrl: data.upload_url // Track upload URL for reels
+        uploadUrl: uploadUrl // Use constructed URL if Facebook didn't provide one
       };
 
     } catch (error) {
@@ -236,7 +238,7 @@ export class TrueStreamingVideoUploadService {
       const headers: any = {
         'Authorization': `OAuth ${pageToken}`,
         'Offset': startOffset.toString(),
-        'Content-Type': 'video/mp4',
+        'Content-Type': 'application/octet-stream',
         'Content-Length': chunkData.length.toString(),
         'X-Entity-Name': videoId, // Required for Reels
         'X-Entity-Type': 'video/mp4' // Required metadata
@@ -244,7 +246,7 @@ export class TrueStreamingVideoUploadService {
 
       // Add total file size for first chunk
       if (startOffset === 0) {
-        headers['X-Entity-Length'] = totalFileSize.toString();
+        headers['file_size'] = totalFileSize.toString();
       }
 
       // Log headers without exposing the token
@@ -325,8 +327,8 @@ export class TrueStreamingVideoUploadService {
   ): Promise<{ success: boolean; postId?: string; error?: string }> {
     try {
       const endpoint = isReel 
-        ? `https://graph.facebook.com/v23.0/${pageId}/video_reels`
-        : `https://graph.facebook.com/v20.0/${pageId}/videos`;
+        ? getReelsEndpoint(pageId)
+        : getVideosEndpoint(pageId);
 
       // Facebook Reels API uses video_id instead of upload_session_id for finalization
       const params = new URLSearchParams({
