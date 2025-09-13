@@ -225,29 +225,41 @@ export class TrueStreamingVideoUploadService {
     uploadUrl: string,
     pageToken: string,
     chunkData: Buffer,
-    startOffset: number
+    startOffset: number,
+    videoId: string,
+    totalFileSize: number
   ): Promise<{ success: boolean; nextOffset?: number; error?: string }> {
     try {
       console.log(`📤 Uploading reel chunk: ${chunkData.length} bytes at offset ${startOffset}`);
 
-      // Facebook rupload requires raw bytes, NOT multipart/form-data
-      const headers = {
+      // Facebook rupload requires PUT with Reels-specific headers
+      const headers: any = {
         'Authorization': `OAuth ${pageToken}`,
         'Offset': startOffset.toString(),
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': chunkData.length.toString()
+        'Content-Type': 'video/mp4',
+        'Content-Length': chunkData.length.toString(),
+        'X-Entity-Name': videoId, // Required for Reels
+        'X-Entity-Type': 'video/mp4' // Required metadata
       };
 
-      console.log(`🔍 DEBUG Headers:`, headers);
+      // Add total file size for first chunk
+      if (startOffset === 0) {
+        headers['X-Entity-Length'] = totalFileSize.toString();
+      }
+
+      // Log headers without exposing the token
+      const safeHeaders = { ...headers };
+      delete safeHeaders.Authorization;
+      console.log(`🔍 DEBUG Headers:`, safeHeaders, '(Authorization: OAuth <token>)');
       console.log(`🔍 DEBUG Body length:`, chunkData.length);
       console.log(`🔍 DEBUG Upload URL:`, uploadUrl);
 
-      // Disable auto-redirect to preserve headers
+      // Use PUT method for Facebook rupload endpoint
       let response = await fetch(uploadUrl, {
-        method: 'POST',
+        method: 'PUT', // Facebook rupload requires PUT
         body: chunkData,
         headers: headers,
-        redirect: 'manual' // Handle redirects manually to preserve Content-Length
+        redirect: 'manual' // Handle redirects manually to preserve headers
       });
 
       console.log(`🔍 Response status:`, response.status);
@@ -260,7 +272,7 @@ export class TrueStreamingVideoUploadService {
         if (location) {
           // Re-send to redirected URL with same headers
           response = await fetch(location, {
-            method: 'POST',
+            method: 'PUT', // Keep using PUT for redirect
             body: chunkData,
             headers: headers,
             redirect: 'manual'
@@ -269,15 +281,24 @@ export class TrueStreamingVideoUploadService {
         }
       }
 
-      const result = await response.json() as { 
-        start_offset?: number; 
-        end_offset?: number; 
-        error?: any 
-      };
-
+      // Handle response safely - don't parse JSON on errors
+      let result: any;
       if (!response.ok) {
-        console.error('Reel chunk upload failed:', result);
-        return { success: false, error: JSON.stringify(result) };
+        const errorText = await response.text();
+        console.error(`Reel chunk upload failed with status ${response.status}:`, errorText || '(empty response)');
+        return { success: false, error: `HTTP ${response.status}: ${errorText || 'Empty response'}` };
+      }
+
+      try {
+        result = await response.json() as { 
+          start_offset?: number; 
+          end_offset?: number; 
+          error?: any 
+        };
+      } catch (e) {
+        // Handle successful responses with empty/non-JSON body
+        console.log('✅ Reel chunk uploaded (empty response, assuming success)');
+        return { success: true, nextOffset: startOffset + chunkData.length };
       }
 
       const nextOffset = result.end_offset || (startOffset + chunkData.length);
@@ -446,7 +467,9 @@ export class TrueStreamingVideoUploadService {
               uploadSession.uploadUrl,
               account.accessToken,
               uploadChunk,
-              uploadedBytes
+              uploadedBytes,
+              uploadSession.videoId, // Pass videoId for X-Entity-Name header
+              metadata.contentLength
             );
           } else {
             // Use session-based upload for regular videos
@@ -490,7 +513,9 @@ export class TrueStreamingVideoUploadService {
             uploadSession.uploadUrl,
             account.accessToken,
             buffer,
-            uploadedBytes
+            uploadedBytes,
+            uploadSession.videoId, // Pass videoId for X-Entity-Name header
+            metadata.contentLength
           );
         } else {
           // Use session-based upload for regular videos
