@@ -18,7 +18,17 @@ interface VideoDownloadResult {
 
 export class FacebookVideoDownloader {
   private static readonly DOWNLOAD_DIR = path.join(process.cwd(), 'temp', 'fb_videos');
-  private static readonly USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0'
+  ];
+
+  private static getRandomUserAgent(): string {
+    return this.USER_AGENTS[Math.floor(Math.random() * this.USER_AGENTS.length)];
+  }
 
   /**
    * Download Facebook video in highest quality available
@@ -150,7 +160,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
       const page = await browser.newPage();
       
       // Set user agent and viewport
-      await page.setUserAgent(this.USER_AGENT);
+      await page.setUserAgent(this.getRandomUserAgent());
       await page.setViewport({ width: 1920, height: 1080 });
 
       // Block unnecessary resources for faster loading
@@ -275,30 +285,47 @@ Facebook has tightened security for video downloads. Only public videos from pag
     try {
       console.log('🔍 Trying alternative extraction method...');
 
-      // Convert to mobile URL for easier parsing
-      const mobileUrl = facebookUrl.replace('www.facebook.com', 'm.facebook.com');
+      // Try multiple URL variations with retry logic
+      const urlVariations = [
+        facebookUrl,
+        facebookUrl.replace('www.facebook.com', 'm.facebook.com'),
+        facebookUrl.replace('facebook.com', 'm.facebook.com'),
+        facebookUrl + '?_rdr',
+        facebookUrl.replace('/watch?v=', '/watch/?v='),
+        facebookUrl.replace('watch/?v=', 'videos/')
+      ];
 
-      const response = await axios.get(mobileUrl, {
-        headers: {
-          'User-Agent': this.USER_AGENT,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate',
-          'Connection': 'keep-alive',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        timeout: 20000,
-        maxRedirects: 5,
-        validateStatus: function (status) {
-          return status >= 200 && status < 400; // Accept redirects
-        }
-      });
+      // Try each URL variation with retry logic
+      for (const url of urlVariations) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`🔄 Trying URL variation ${urlVariations.indexOf(url) + 1}/${urlVariations.length}, attempt ${attempt}/3: ${url.substring(0, 50)}...`);
+            
+            const response = await axios.get(url, {
+              headers: {
+                'User-Agent': this.getRandomUserAgent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Cache-Control': 'max-age=0'
+              },
+              timeout: 15000,
+              maxRedirects: 3,
+              validateStatus: function (status) {
+                return status >= 200 && status < 400;
+              }
+            });
 
-      const html = response.data;
+            const html = response.data;
 
-      // Extract video URL using updated regex patterns for 2025
-      const videoUrlPatterns = [
+            // Extract video URL using updated regex patterns for 2025
+            const videoUrlPatterns = [
         // Latest Facebook video patterns (2025)
         /"hd_src":"([^"]+)"/,
         /"sd_src":"([^"]+)"/,
@@ -342,55 +369,35 @@ Facebook has tightened security for video downloads. Only public videos from pag
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
       const title = titleMatch ? titleMatch[1].trim() : 'Facebook Video';
 
-      if (!videoUrl) {
-        // Enhanced detection for access restrictions and error pages
-        const isLoginPage = html.includes('login') || html.includes('log in') || html.includes('sign in') || 
-                           html.includes('Log In') || html.includes('Sign Up') || html.includes('Create Account');
-        const isPrivateContent = html.includes('private') || html.includes('not available') || html.includes('access denied') ||
-                                html.includes('restricted') || html.includes('permission') || html.includes('unavailable');
-        const isError = html.includes('error') || html.includes('not found') || html.includes('404') || 
-                       html.includes('Content Not Found') || html.includes('Page Not Found');
-        const isBlocked = html.includes('blocked') || html.includes('suspended') || html.includes('removed') ||
-                         html.includes('violation') || html.includes('community standards');
-        const isMobilRedirect = html.includes('m.facebook.com') && html.length < 5000; // Very short mobile redirect
-        
-        let errorMsg = 'Facebook video is not accessible for download.';
-        if (isLoginPage) {
-          errorMsg = 'This Facebook video requires login to access. Please use a public video or check video privacy settings.';
-        } else if (isPrivateContent) {
-          errorMsg = 'This Facebook video is private or restricted. Only public videos can be downloaded.';
-        } else if (isError) {
-          errorMsg = 'Facebook video not found. The video may have been deleted or the URL is incorrect.';
-        } else if (isBlocked) {
-          errorMsg = 'This Facebook video has been removed due to policy violations or account suspension.';
-        } else if (isMobilRedirect) {
-          errorMsg = 'Facebook mobile redirect detected. The video URL may be invalid or require direct access.';
-        } else {
-          errorMsg = 'Unable to extract video URL. Facebook may have updated their security or this video requires special permissions.';
+            if (videoUrl) {
+              console.log('✅ Video URL extracted via network method');
+              return {
+                success: true,
+                videoUrl,
+                title
+              };
+            }
+
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.log(`❌ Attempt ${attempt}/3 failed for ${url.substring(0, 50)}...: ${errorMsg}`);
+            
+            if (attempt === 3) {
+              console.log(`🚫 All attempts failed for ${url.substring(0, 50)}...`);
+              break; // Move to next URL variation
+            } else {
+              // Wait before retry with exponential backoff
+              const delay = attempt * 2000; // 2s, 4s
+              console.log(`⏱️ Waiting ${delay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
         }
-        
-        console.log('🔍 Facebook video access analysis:', {
-          isLoginPage,
-          isPrivateContent, 
-          isError,
-          isBlocked,
-          isMobilRedirect,
-          htmlLength: html.length,
-          containsVideo: html.includes('video'),
-          containsScript: html.includes('<script>')
-        });
-        
-        return {
-          success: false,
-          error: errorMsg
-        };
       }
 
-      console.log('✅ Video URL extracted via network method');
       return {
-        success: true,
-        videoUrl,
-        title
+        success: false,
+        error: 'Could not extract video URL from Facebook page after trying all methods'
       };
 
     } catch (error) {
@@ -422,7 +429,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
         url: videoUrl,
         responseType: 'stream',
         headers: {
-          'User-Agent': this.USER_AGENT,
+          'User-Agent': this.getRandomUserAgent(),
           'Referer': 'https://www.facebook.com/',
           'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5'
         },
