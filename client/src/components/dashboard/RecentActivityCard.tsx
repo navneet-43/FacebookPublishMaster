@@ -3,10 +3,12 @@ import { Activity } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocation } from "wouter";
 
 
 
 export default function RecentActivityCard() {
+  const [, setLocation] = useLocation();
   const { data: activities, isLoading } = useQuery<Activity[]>({
     queryKey: ['/api/activities'],
     retry: 1,
@@ -151,7 +153,12 @@ export default function RecentActivityCard() {
         </ul>
         
         <div className="mt-4 text-center">
-          <Button variant="link" className="text-fb-blue">
+          <Button 
+            variant="link" 
+            className="text-fb-blue"
+            onClick={() => setLocation('/posts')}
+            data-testid="button-view-all-activity"
+          >
             View All Activity
             <i className="fa-solid fa-arrow-right ml-1"></i>
           </Button>
