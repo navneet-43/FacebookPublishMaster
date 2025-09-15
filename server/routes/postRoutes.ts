@@ -88,6 +88,21 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
     
     const validatedData = postSchema.parse(req.body);
     
+    // Validate scheduled time is not in the past
+    if (validatedData.scheduledFor) {
+      const now = new Date();
+      const scheduledTime = new Date(validatedData.scheduledFor);
+      if (scheduledTime <= now) {
+        const timeDiff = Math.floor((now.getTime() - scheduledTime.getTime()) / (1000 * 60));
+        console.log(`❌ CREATE VALIDATION ERROR: Scheduled time is ${timeDiff} minutes in the past`);
+        console.log(`❌ Requested: ${scheduledTime.toISOString()}, Current: ${now.toISOString()}`);
+        return res.status(400).json({ 
+          error: 'Scheduled time cannot be in the past',
+          details: `The scheduled time is ${timeDiff} minutes in the past. Please choose a future time.`
+        });
+      }
+    }
+    
     // Create post with default values
     const postData = {
       ...validatedData,
@@ -160,6 +175,21 @@ router.put('/:id', isAuthenticated, async (req: Request, res: Response) => {
     });
     
     const validatedData = updateSchema.parse(req.body);
+    
+    // Validate scheduled time is not in the past
+    if (validatedData.scheduledFor) {
+      const now = new Date();
+      const scheduledTime = new Date(validatedData.scheduledFor);
+      if (scheduledTime <= now) {
+        const timeDiff = Math.floor((now.getTime() - scheduledTime.getTime()) / (1000 * 60));
+        console.log(`❌ VALIDATION ERROR: Scheduled time is ${timeDiff} minutes in the past`);
+        console.log(`❌ Requested: ${scheduledTime.toISOString()}, Current: ${now.toISOString()}`);
+        return res.status(400).json({ 
+          error: 'Scheduled time cannot be in the past',
+          details: `The scheduled time is ${timeDiff} minutes in the past. Please choose a future time.`
+        });
+      }
+    }
     
     // Handle scheduling changes
     let wasScheduled = existingPost.status === 'scheduled';
