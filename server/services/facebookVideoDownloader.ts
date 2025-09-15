@@ -359,7 +359,8 @@ Facebook has tightened security for video downloads. Only public videos from pag
         const match = html.match(pattern);
         if (match && match[1]) {
           videoUrl = match[1].replace(/\\u0026/g, '&').replace(/\\/g, '');
-          if (videoUrl.startsWith('http')) {
+          // Prioritize .mp4 files over manifest files (similar to reel downloader)
+          if (videoUrl.startsWith('http') && videoUrl.includes('.mp4')) {
             break;
           }
         }
