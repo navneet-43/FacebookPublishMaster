@@ -296,8 +296,11 @@ export class ChunkedVideoUploadService {
         throw new Error(`Finish phase error: ${result.error.message || result.error}`);
       }
       
-      const videoId = result.id || result.video_id;
-      const facebookUrl = videoId ? `https://www.facebook.com/video.php?v=${videoId}` : 'Processing...';
+      const videoId = result.id || result.video_id || result.post_id;
+      // Use different URL formats for reels vs regular videos
+      const facebookUrl = videoId ? 
+        (options.isReel ? `https://www.facebook.com/${videoId}` : `https://www.facebook.com/video.php?v=${videoId}`) : 
+        'Processing...';
       
       console.log(`Upload completed successfully`);
       console.log(`Video ID: ${videoId}`);

@@ -291,6 +291,8 @@ export class CompleteVideoUploadService {
         return {
           success: true,
           facebookVideoId: uploadResult.videoId,
+          postId: uploadResult.videoId, // Add postId field for consistency
+          videoId: uploadResult.videoId, // Also add videoId field
           method: 'processed_video_file_upload',
           uploadedSizeMB: fileSizeMB
         };
