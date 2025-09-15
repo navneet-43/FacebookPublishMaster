@@ -66,8 +66,9 @@ export class MediaLinkDetector {
           };
 
         case 'facebook-reel':
-          console.log('🎬 Downloading Facebook reel...');
-          const reelResult = await FacebookReelDownloader.downloadReel(url);
+          console.log('🎬 Downloading Facebook reel with enhanced downloader...');
+          const { EnhancedFacebookReelDownloader } = await import('./enhancedFacebookReelDownloader');
+          const reelResult = await EnhancedFacebookReelDownloader.downloadReel(url);
           return {
             ...reelResult,
             mediaType: 'facebook-reel'

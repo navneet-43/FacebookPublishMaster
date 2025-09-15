@@ -2090,11 +2090,11 @@ Google Drive's security policies prevent external applications from downloading 
       console.log('🎬 FACEBOOK REEL URL: Downloading reel then uploading');
       
       try {
-        // Import and use FacebookReelDownloader to download the reel file
-        const { FacebookReelDownloader } = await import('./facebookReelDownloader');
+        // Import and use EnhancedFacebookReelDownloader for reliable downloads
+        const { EnhancedFacebookReelDownloader } = await import('./enhancedFacebookReelDownloader');
         
-        console.log('📥 DOWNLOADING FACEBOOK REEL:', videoUrl);
-        const downloadResult = await FacebookReelDownloader.downloadReel(videoUrl);
+        console.log('📥 DOWNLOADING FACEBOOK REEL (ENHANCED):', videoUrl);
+        const downloadResult = await EnhancedFacebookReelDownloader.downloadReel(videoUrl);
         
         if (!downloadResult.success || !downloadResult.filePath) {
           console.log('❌ FACEBOOK REEL DOWNLOAD FAILED:', downloadResult.error);
@@ -2136,7 +2136,7 @@ Google Drive's security policies prevent external applications from downloading 
         // Clean up downloaded file after upload
         if (downloadResult.filePath) {
           try {
-            await FacebookReelDownloader.cleanupFile(downloadResult.filePath);
+            await EnhancedFacebookReelDownloader.cleanupFile(downloadResult.filePath);
           } catch (cleanupError) {
             console.warn('Failed to cleanup downloaded reel file:', cleanupError);
           }
