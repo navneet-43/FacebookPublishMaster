@@ -280,13 +280,7 @@ export class CompleteVideoUploadService {
       if (uploadResult.success) {
         console.log('✅ Processed video file uploaded successfully');
         
-        // Clean up the processed file
-        try {
-          unlinkSync(options.videoFilePath);
-          console.log('✅ Temporary video file cleaned up');
-        } catch (cleanupError) {
-          console.warn('⚠️ Could not clean up temporary file:', cleanupError);
-        }
+        // File cleanup is now handled by TempFileManager - no manual cleanup needed
         
         return {
           success: true,

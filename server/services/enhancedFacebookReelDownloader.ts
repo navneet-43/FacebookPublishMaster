@@ -2,6 +2,7 @@ import axios from 'axios';
 import { promises as fs, statSync } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { tempFileManager } from '../utils/tempFileManager';
 
 interface EnhancedReelDownloadResult {
   success: boolean;
@@ -238,7 +239,7 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
       const downloadResult = await this.downloadVideoFile(
         videoUrl, 
         reelData.title || 'Facebook Reel',
-        this.extractReelId(reelUrl)
+        this.extractReelId(reelUrl) || undefined
       );
 
       if (downloadResult.success) {
@@ -317,6 +318,14 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
           
           const fileSize = statSync(filePath).size;
           console.log('✅ Enhanced reel download completed successfully:', Math.round(fileSize / 1024 / 1024) + 'MB');
+          
+          // Register file with TempFileManager for automatic cleanup
+          const { token, cleanup } = tempFileManager.register(filePath, {
+            owner: 'EnhancedFacebookReelDownloader',
+            ttlMs: 6 * 60 * 60 * 1000, // 6 hours
+            tags: ['facebook-reel', 'downloaded-media']
+          });
+          
           resolve({
             success: true,
             filePath,
@@ -447,15 +456,10 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
   }
 
   /**
-   * Clean up downloaded reel files
+   * Clean up downloaded reel files using TempFileManager
    */
   static async cleanupFile(filePath: string): Promise<void> {
-    try {
-      await fs.unlink(filePath);
-      console.log('🗑️ Cleaned up temporary enhanced reel file:', filePath);
-    } catch (error) {
-      console.error('Error cleaning up enhanced reel file:', error);
-    }
+    await tempFileManager.cleanup(filePath);
   }
 
   /**

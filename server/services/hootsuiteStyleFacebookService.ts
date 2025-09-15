@@ -2133,14 +2133,7 @@ Google Drive's security policies prevent external applications from downloading 
           isReel: true // Ensure it's uploaded as a Reel
         });
         
-        // Clean up downloaded file after upload
-        if (downloadResult.filePath) {
-          try {
-            await EnhancedFacebookReelDownloader.cleanupFile(downloadResult.filePath);
-          } catch (cleanupError) {
-            console.warn('Failed to cleanup downloaded reel file:', cleanupError);
-          }
-        }
+        // File cleanup is now handled automatically by TempFileManager
         
         if (uploadResult.success) {
           console.log('🎉 FACEBOOK REEL DOWNLOADED AND UPLOADED SUCCESSFULLY');
