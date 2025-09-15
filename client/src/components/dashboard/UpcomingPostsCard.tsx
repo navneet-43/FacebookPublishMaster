@@ -228,9 +228,9 @@ export default function UpcomingPostsCard() {
     console.log('Method 3 - Converted to UTC:', method3Utc.toISOString());
     console.log('Method 3 - Hours from now:', (method3Utc.getTime() - Date.now()) / (1000 * 60 * 60));
     
-    // Use Method 1 (the most explicit) 
-    const finalUtc = method1Utc;
-    console.log('🎯 FINAL CHOICE - Using Method 1:', finalUtc.toISOString());
+    // Use Method 3 (the correct one for IST→UTC conversion)
+    const finalUtc = method3Utc;
+    console.log('🎯 FINAL CHOICE - Using Method 3:', finalUtc.toISOString());
     
     updatePostMutation.mutate({
       id: postId,

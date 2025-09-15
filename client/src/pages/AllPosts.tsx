@@ -191,20 +191,15 @@ export default function AllPosts() {
     // Convert IST datetime input back to UTC for storage
     // editData.scheduledFor is in format "2025-09-09T21:30" (user entered IST time)
     
-    // Parse the datetime-local input explicitly as IST
-    const [datePart, timePart] = editData.scheduledFor.split('T');
-    const [year, month, day] = datePart.split('-').map(Number);
-    const [hours, minutes] = timePart.split(':').map(Number);
-    
-    // Create date treating input as IST (local system time)
-    const istDate = new Date(year, month - 1, day, hours, minutes);
-    
-    // Convert IST to UTC by subtracting 5.5 hours  
-    const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000));
+    // Parse the datetime-local input correctly as IST time
+    // Method 3: Parse as UTC string first, then convert to proper IST→UTC
+    const asUtcString = editData.scheduledFor + ':00.000Z';
+    const parseAsUtc = new Date(asUtcString);
+    const utcDate = new Date(parseAsUtc.getTime() - (5.5 * 60 * 60 * 1000));
     
     console.log('🔄 TIMEZONE CONVERSION (IST → UTC):');
     console.log('User input:', editData.scheduledFor);
-    console.log('Parsed as IST:', istDate.toString());
+    console.log('Parse as UTC:', parseAsUtc.toString());
     console.log('Converted to UTC:', utcDate.toISOString());
     console.log('Verify IST display:', utcDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
     console.log('Current time:', new Date().toISOString());
