@@ -22,7 +22,17 @@ interface EnhancedReelDownloadResult {
 
 export class EnhancedFacebookReelDownloader {
   private static readonly DOWNLOAD_DIR = path.join(process.cwd(), 'temp', 'fb_reels');
-  private static readonly USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0'
+  ];
+
+  private static getRandomUserAgent(): string {
+    return this.USER_AGENTS[Math.floor(Math.random() * this.USER_AGENTS.length)];
+  }
   
   // Apify API configuration - using free tier initially
   private static readonly APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
@@ -111,17 +121,27 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
         return { success: false, error: 'Could not extract reel ID from URL' };
       }
 
-      // Try simplified extraction with better headers
+      // Try multiple URL variations and access methods
       const urlVariations = [
+        reelUrl,
         reelUrl.replace('www.facebook.com', 'm.facebook.com'),
+        reelUrl.replace('facebook.com', 'm.facebook.com'),
         `https://m.facebook.com/reel/${reelId}`,
+        `https://www.facebook.com/reel/${reelId}`,
+        `https://facebook.com/reel/${reelId}`,
+        reelUrl.replace('reel/', 'watch/?v='),
+        reelUrl + '?_rdr'
       ];
 
+      // Try each URL variation with retry logic
       for (const url of urlVariations) {
-        try {
-          const response = await axios.get(url, {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`🔄 Trying URL variation ${urlVariations.indexOf(url) + 1}/${urlVariations.length}, attempt ${attempt}/3: ${url.substring(0, 50)}...`);
+            
+            const response = await axios.get(url, {
             headers: {
-              'User-Agent': this.USER_AGENT,
+              'User-Agent': this.getRandomUserAgent(),
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
               'Accept-Language': 'en-US,en;q=0.5',
               'Accept-Encoding': 'gzip, deflate, br',
@@ -142,16 +162,36 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
 
           const html = response.data;
 
-          // Updated extraction patterns for 2025
+          // Enhanced extraction patterns for 2025 Facebook security
           const videoUrlPatterns = [
+            // Standard Facebook video URL patterns
             /"playable_url":"([^"]+)"/,
             /"browser_native_hd_url":"([^"]+)"/,
             /"browser_native_sd_url":"([^"]+)"/,
-            /"src":"(https:\/\/[^"]*\.mp4[^"]*)"/,
             /"video_url":"([^"]+)"/,
             /playable_url:"([^"]+)"/,
             /hd_src:"([^"]+)"/,
             /sd_src:"([^"]+)"/,
+            
+            // Updated 2025 patterns
+            /"src":"(https:\/\/[^"]*\.mp4[^"]*)"/,
+            /videoUrl":"([^"]+)"/,
+            /"video":{[^}]*"src":"([^"]+)"/,
+            /"progressive_urls":\[{[^}]*"url":"([^"]+)"/,
+            /"dash_manifest":"([^"]+)"/,
+            /"playable_duration_in_ms":[^,]*,"src":"([^"]+)"/,
+            
+            // Alternative patterns for different Facebook layouts
+            /data-video-url="([^"]+)"/,
+            /videoSrc":"([^"]+)"/,
+            /video-src="([^"]+)"/,
+            /<video[^>]*src="([^"]+)"/,
+            /"url":"(https:\/\/[^"]*fbcdn[^"]*\.mp4[^"]*)"/,
+            
+            // Fallback patterns
+            /(https:\/\/[^"\s]*video[^"\s]*\.mp4[^"\s]*)/,
+            /(https:\/\/[^"\s]*fbcdn[^"\s]*\.mp4[^"\s]*)/,
+            /(https:\/\/[^"\s]*facebook[^"\s]*\.mp4[^"\s]*)/
           ];
 
           let videoUrl = '';
@@ -171,9 +211,20 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
             return downloadResult;
           }
 
-        } catch (error) {
-          console.log(`Direct extraction failed for ${url}:`, error instanceof Error ? error.message : 'Unknown error');
-          continue;
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.log(`❌ Attempt ${attempt}/3 failed for ${url.substring(0, 50)}...: ${errorMsg}`);
+            
+            if (attempt === 3) {
+              console.log(`🚫 All attempts failed for ${url.substring(0, 50)}...`);
+              break; // Move to next URL variation
+            } else {
+              // Wait before retry with exponential backoff
+              const delay = attempt * 2000; // 2s, 4s
+              console.log(`⏱️ Waiting ${delay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
         }
       }
 
@@ -279,9 +330,15 @@ Facebook has implemented stronger anti-scraping measures. Third-party APIs like 
         url: videoUrl,
         responseType: 'stream',
         headers: {
-          'User-Agent': this.USER_AGENT,
+          'User-Agent': this.getRandomUserAgent(),
           'Referer': 'https://www.facebook.com/',
-          'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5'
+          'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'identity',
+          'Connection': 'keep-alive',
+          'Sec-Fetch-Dest': 'video',
+          'Sec-Fetch-Mode': 'no-cors',
+          'Sec-Fetch-Site': 'cross-site'
         },
         timeout: 120000 // 2 minutes timeout for large reels
       });
