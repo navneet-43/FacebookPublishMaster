@@ -59,8 +59,12 @@ export class FacebookVideoDownloader {
         console.log('🔄 Network methods failed, trying browser extraction...');
         try {
           const browserResult = await this.extractVideoInfo(facebookUrl);
-          if (browserResult.success && browserResult.videoUrl) {
+          // Additional .mp4 validation for browser results
+          if (browserResult.success && browserResult.videoUrl && browserResult.videoUrl.includes('.mp4')) {
             videoInfo = browserResult;
+          } else if (browserResult.success && browserResult.videoUrl) {
+            console.log('⚠️ Browser result validation failed: URL does not contain .mp4');
+            videoInfo = { success: false, error: 'Browser method found non-MP4 URL, skipping' };
           }
         } catch (error) {
           console.log('❌ Browser extraction also failed:', error);
@@ -242,12 +246,20 @@ Facebook has tightened security for video downloads. Only public videos from pag
         // Get video duration if available
         const duration = videoElement?.duration ? Math.floor(videoElement.duration).toString() + 's' : undefined;
 
-        return {
-          videoUrl: videoSrc,
-          title: title || 'Facebook Video',
-          duration,
-          quality: 'HD' // Assume HD for Facebook videos
-        };
+        // Only return .mp4 URLs to ensure actual video downloads  
+        if (videoSrc && videoSrc.startsWith('http') && videoSrc.includes('.mp4')) {
+          console.log('✅ Browser method found valid .mp4 video URL');
+          return {
+            videoUrl: videoSrc,
+            title: title || 'Facebook Video',
+            duration,
+            quality: 'HD'
+          };
+        } else if (videoSrc && videoSrc.startsWith('http')) {
+          console.log(`⏭️ Browser method skipping non-MP4 URL: ${videoSrc.substring(0, 50)}...`);
+        }
+        
+        return { videoUrl: '', title: '', duration: '', quality: '' };
       });
 
       await browser.close();
@@ -358,12 +370,22 @@ Facebook has tightened security for video downloads. Only public videos from pag
       for (const pattern of videoUrlPatterns) {
         const match = html.match(pattern);
         if (match && match[1]) {
-          videoUrl = match[1].replace(/\\u0026/g, '&').replace(/\\/g, '');
-          // Prioritize .mp4 files over manifest files (similar to reel downloader)
-          if (videoUrl.startsWith('http') && videoUrl.includes('.mp4')) {
+          const candidateUrl = match[1].replace(/\\u0026/g, '&').replace(/\\/g, '');
+          // Only accept .mp4 files to ensure actual video downloads
+          if (candidateUrl.startsWith('http') && candidateUrl.includes('.mp4')) {
+            videoUrl = candidateUrl;
+            console.log('✅ Found valid .mp4 video URL');
             break;
+          } else if (candidateUrl.startsWith('http')) {
+            console.log(`⏭️ Skipping non-MP4 URL: ${candidateUrl.substring(0, 50)}...`);
           }
         }
+      }
+      
+      // Additional validation to ensure we have a valid .mp4 URL
+      if (videoUrl && !videoUrl.includes('.mp4')) {
+        console.log('⚠️ Final validation failed: URL does not contain .mp4, clearing');
+        videoUrl = '';
       }
 
       // Extract title
