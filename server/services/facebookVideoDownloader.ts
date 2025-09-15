@@ -538,9 +538,15 @@ Facebook has tightened security for video downloads. Only public videos from pag
   }
 
   /**
-   * Validate Facebook video URL
+   * Validate Facebook video URL (excludes reels - handled by FacebookReelDownloader)
    */
   private static isValidFacebookVideoUrl(url: string): boolean {
+    // Check if it's a reel URL (should be handled by FacebookReelDownloader)
+    const isReelUrl = /\/reel\/\d+/.test(url);
+    if (isReelUrl) {
+      return false; // Reels are handled by FacebookReelDownloader
+    }
+
     const facebookVideoPatterns = [
       /^https?:\/\/(www\.)?facebook\.com\/.*\/videos\/\d+/,
       /^https?:\/\/(www\.)?facebook\.com\/watch\/\?v=\d+/,

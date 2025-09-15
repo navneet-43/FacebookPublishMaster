@@ -1,8 +1,9 @@
 import { FacebookVideoDownloader } from './facebookVideoDownloader';
+import { FacebookReelDownloader } from './facebookReelDownloader';
 import { WorkingGoogleDriveService } from './workingGoogleDriveService';
 
 export interface MediaLinkInfo {
-  type: 'facebook' | 'google-drive' | 'unknown';
+  type: 'facebook' | 'facebook-reel' | 'google-drive' | 'unknown';
   url: string;
   isVideo: boolean;
 }
@@ -20,6 +21,11 @@ export class MediaLinkDetector {
   detectMediaLink(url: string): MediaLinkInfo {
     if (!url) {
       return { type: 'unknown', url, isVideo: false };
+    }
+
+    // Facebook reel detection (check reels first as they're more specific)
+    if (this.isFacebookReelUrl(url)) {
+      return { type: 'facebook-reel', url, isVideo: true };
     }
 
     // Facebook video detection
@@ -59,6 +65,14 @@ export class MediaLinkDetector {
             mediaType: 'facebook-video'
           };
 
+        case 'facebook-reel':
+          console.log('🎬 Downloading Facebook reel...');
+          const reelResult = await FacebookReelDownloader.downloadReel(url);
+          return {
+            ...reelResult,
+            mediaType: 'facebook-reel'
+          };
+
         case 'google-drive':
           console.log('📁 Downloading Google Drive file...');
           // Note: We'll implement a simple download method here
@@ -85,9 +99,28 @@ export class MediaLinkDetector {
   }
 
   /**
-   * Check if URL is a Facebook video
+   * Check if URL is a Facebook reel
+   */
+  private isFacebookReelUrl(url: string): boolean {
+    const facebookReelPatterns = [
+      /facebook\.com\/reel\/\d+/,
+      /facebook\.com\/.*\/reel\/\d+/,
+      /m\.facebook\.com\/reel\/\d+/,
+      /fb\.watch\/.*reel/i, // Some FB reels use fb.watch with reel indicator
+    ];
+
+    return facebookReelPatterns.some(pattern => pattern.test(url));
+  }
+
+  /**
+   * Check if URL is a Facebook video (excludes reels)
    */
   private isFacebookVideoUrl(url: string): boolean {
+    // Exclude reels from regular video detection
+    if (this.isFacebookReelUrl(url)) {
+      return false;
+    }
+
     const facebookVideoPatterns = [
       /facebook\.com\/.*\/videos\//,
       /fb\.watch\//,
@@ -127,7 +160,7 @@ export class MediaLinkDetector {
    * Get supported platforms
    */
   getSupportedPlatforms(): string[] {
-    return ['facebook', 'google-drive'];
+    return ['facebook', 'facebook-reel', 'google-drive'];
   }
 
   /**
