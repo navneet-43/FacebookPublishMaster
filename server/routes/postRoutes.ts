@@ -180,10 +180,25 @@ router.put('/:id', isAuthenticated, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Post not found after update' });
     }
     
-    // If scheduling changed, handle scheduling
+    // Handle scheduling changes
     if (!wasScheduled && isNowScheduled && updatedPost.scheduledFor) {
       // Post newly scheduled
+      console.log(`📅 SCHEDULING: Post ${updatedPost.id} newly scheduled for ${updatedPost.scheduledFor}`);
       await postService.schedulePostPublication(updatedPost);
+    } else if (wasScheduled && isNowScheduled && updatedPost.scheduledFor) {
+      // Post was already scheduled - check if time changed
+      const oldTime = existingPost.scheduledFor;
+      const newTime = updatedPost.scheduledFor;
+      
+      if (oldTime && newTime && oldTime.getTime() !== newTime.getTime()) {
+        // Scheduled time changed - reschedule
+        console.log(`🔄 RESCHEDULING: Post ${updatedPost.id} time changed from ${oldTime.toISOString()} to ${newTime.toISOString()}`);
+        await postService.schedulePostPublication(updatedPost);
+      }
+    } else if (wasScheduled && !isNowScheduled) {
+      // Post was unscheduled - cancel existing job
+      console.log(`❌ UNSCHEDULING: Post ${updatedPost.id} no longer scheduled`);
+      await postService.cancelScheduledPost(updatedPost.id);
     }
     
     // Log activity
