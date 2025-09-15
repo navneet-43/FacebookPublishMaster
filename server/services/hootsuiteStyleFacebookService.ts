@@ -2086,32 +2086,78 @@ Google Drive's security policies prevent external applications from downloading 
         }
       }
 
-      // For non-Google Drive URLs, try Reel upload with fallback to video
-      console.log('🎬 NON-GOOGLE DRIVE REEL: Attempting direct reel upload');
+      // For Facebook Reel URLs, download first then upload as reel
+      console.log('🎬 FACEBOOK REEL URL: Downloading reel then uploading');
       
       try {
-        // First try as a Reel using the chunked upload service
-        const { ChunkedVideoUploadService } = await import('./chunkedVideoUploadService');
-        const chunkedService = new ChunkedVideoUploadService();
+        // Import and use FacebookReelDownloader to download the reel file
+        const { FacebookReelDownloader } = await import('./facebookReelDownloader');
         
-        // For direct URLs, we need to download first or use a different approach
-        // For now, fallback to regular video upload for non-Google Drive Reels
-        console.log('📝 NON-GOOGLE DRIVE REEL: Using video upload method (Reel-specific upload requires file download)');
+        console.log('📥 DOWNLOADING FACEBOOK REEL:', videoUrl);
+        const downloadResult = await FacebookReelDownloader.downloadReel(videoUrl);
         
-        const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+        if (!downloadResult.success || !downloadResult.filePath) {
+          console.log('❌ FACEBOOK REEL DOWNLOAD FAILED:', downloadResult.error);
+          
+          // Fallback to regular video upload if reel download fails
+          console.log('🔄 FALLING BACK TO VIDEO UPLOAD METHOD');
+          const videoResult = await this.publishVideoPost(pageId, pageAccessToken, videoUrl, description, customLabels, language, uploadId);
+          
+          if (videoResult.success) {
+            return {
+              success: true,
+              postId: videoResult.postId
+            };
+          } else {
+            return {
+              success: false,
+              error: `Reel download failed: ${downloadResult.error}. Video fallback also failed: ${videoResult.error}`
+            };
+          }
+        }
         
-        if (videoResult.success) {
+        console.log('✅ FACEBOOK REEL DOWNLOADED:', downloadResult.filename);
+        console.log('🚀 UPLOADING DOWNLOADED REEL TO FACEBOOK');
+        
+        // Upload the downloaded reel file using CompleteVideoUploadService
+        const { CompleteVideoUploadService } = await import('./completeVideoUploadService');
+        const uploadService = new CompleteVideoUploadService();
+        
+        const uploadResult = await uploadService.uploadProcessedVideoFile({
+          videoFilePath: downloadResult.filePath,
+          pageId: pageId,
+          pageAccessToken: pageAccessToken,
+          description: description || 'Facebook reel upload',
+          customLabels: customLabels || [],
+          language: language || 'en',
+          isReel: true // Ensure it's uploaded as a Reel
+        });
+        
+        // Clean up downloaded file after upload
+        if (downloadResult.filePath) {
+          try {
+            await FacebookReelDownloader.cleanupFile(downloadResult.filePath);
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup downloaded reel file:', cleanupError);
+          }
+        }
+        
+        if (uploadResult.success) {
+          console.log('🎉 FACEBOOK REEL DOWNLOADED AND UPLOADED SUCCESSFULLY');
           return {
             success: true,
-            postId: videoResult.postId,
-            fallbackUsed: 'video' // Indicate fallback was used
+            postId: uploadResult.postId || uploadResult.videoId
           };
         } else {
-          return videoResult;
+          console.log('❌ FACEBOOK REEL UPLOAD FAILED:', uploadResult.error);
+          return {
+            success: false,
+            error: uploadResult.error || 'Facebook reel upload failed after successful download'
+          };
         }
         
       } catch (error) {
-        console.error('Non-Google Drive Reel upload error:', error);
+        console.error('Facebook reel download and upload error:', error);
         return {
           success: false,
           error: (error as Error).message
