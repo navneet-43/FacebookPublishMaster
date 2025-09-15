@@ -3,6 +3,8 @@ import axios from 'axios';
 import { promises as fs, statSync, createWriteStream } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { execSync } from 'child_process';
+import { tempFileManager } from '../utils/tempFileManager';
 
 interface VideoDownloadResult {
   success: boolean;
@@ -441,11 +443,28 @@ Facebook has tightened security for video downloads. Only public videos from pag
     filename?: string;
     error?: string;
   }> {
+    const filename = `fb_video_${randomUUID()}_${this.sanitizeFilename(title || 'video')}.mp4`;
+    const filePath = path.join(this.DOWNLOAD_DIR, filename);
+    const tempFilePath = filePath + '.part';
+    
+    // Register file with TempFileManager and get cleanup token
+    const { token, cleanup } = tempFileManager.register(tempFilePath, {
+      owner: 'FacebookVideoDownloader',
+      ttlMs: 1 * 60 * 60 * 1000, // 1 hour TTL
+      tags: ['facebook-video', 'downloading']
+    });
+    
+    // Mark as in-use during download
+    tempFileManager.markInUse(token);
+    
     try {
       console.log('⬇️ Downloading video file...');
-
-      const filename = `fb_video_${randomUUID()}_${this.sanitizeFilename(title || 'video')}.mp4`;
-      const filePath = path.join(this.DOWNLOAD_DIR, filename);
+      
+      // Preflight space check
+      const preflightResult = await this.checkAvailableSpace();
+      if (!preflightResult.hasSpace) {
+        throw new Error(`Insufficient disk space: ${preflightResult.error}`);
+      }
 
       const response = await axios({
         method: 'GET',
@@ -459,68 +478,133 @@ Facebook has tightened security for video downloads. Only public videos from pag
         timeout: 120000 // 2 minutes timeout for large videos
       });
 
-      const writer = await fs.open(filePath, 'w');
+      const writer = await fs.open(tempFilePath, 'w');
       const writeStream = writer.createWriteStream();
 
       response.data.pipe(writeStream);
 
-      return new Promise((resolve) => {
+      // Use await to ensure Promise resolves BEFORE cleanup in finally block
+      const result = await new Promise<{
+        success: boolean;
+        filePath?: string;
+        filename?: string;
+        error?: string;
+      }>((resolve) => {
         writeStream.on('finish', async () => {
           await writer.close();
           
-          // Check if the downloaded file is actually a video by reading file header
-          const fileBuffer = await fs.readFile(filePath, { encoding: null });
-          const isValidVideo = this.isValidVideoFile(fileBuffer);
-          
-          if (!isValidVideo) {
-            console.error('❌ Downloaded file is not a valid video: File header indicates HTML or text content');
+          try {
+            // Check if the downloaded file is actually a video by reading file header
+            const fileBuffer = await fs.readFile(tempFilePath, { encoding: null });
+            const isValidVideo = this.isValidVideoFile(fileBuffer);
             
-            // Check if it's HTML content
-            const textContent = fileBuffer.toString('utf8', 0, 500);
-            if (textContent.includes('<html') || textContent.includes('<!DOCTYPE')) {
-              console.error('🔍 Downloaded content is HTML page - likely access restricted or login required');
+            if (!isValidVideo) {
+              console.error('❌ Downloaded file is not a valid video: File header indicates HTML or text content');
+              
+              // Check if it's HTML content
+              const textContent = fileBuffer.toString('utf8', 0, 500);
+              if (textContent.includes('<html') || textContent.includes('<!DOCTYPE')) {
+                console.error('🔍 Downloaded content is HTML page - likely access restricted or login required');
+              }
+              
+              // Clean up the invalid .part file
+              try {
+                await fs.unlink(tempFilePath);
+                console.log('🧹 Cleaned up invalid .part file');
+              } catch (cleanupError) {
+                console.warn('⚠️ Failed to cleanup invalid .part file:', cleanupError);
+              }
+              
+              resolve({
+                success: false,
+                error: 'Downloaded content is not a video file. This usually means the Facebook video is private, requires login, or the URL extraction failed.'
+              });
+              return;
             }
             
-            // Clean up invalid file
+            // Atomically move temp file to final location
+            await fs.rename(tempFilePath, filePath);
+            
+            console.log('✅ Downloaded file validated as video content');
+            const fileSize = statSync(filePath).size;
+            console.log('✅ Video file downloaded and validated successfully');
+            
+            resolve({
+              success: true,
+              filePath,
+              filename
+            });
+          } catch (error: any) {
+            console.error('❌ Error processing downloaded file:', error);
+            
+            // Clean up the temp file on processing error
             try {
-              await fs.unlink(filePath);
-            } catch (e) {
-              console.warn('Failed to cleanup invalid file:', e);
+              await fs.unlink(tempFilePath);
+              console.log('🧹 Cleaned up .part file after processing error');
+            } catch (cleanupError) {
+              console.warn('⚠️ Failed to cleanup .part file after processing error:', cleanupError);
             }
             
             resolve({
               success: false,
-              error: 'Downloaded content is not a video file. This usually means the Facebook video is private, requires login, or the URL extraction failed.'
+              error: error.message
             });
-            return;
+          }
+        });
+
+        writeStream.on('error', async (error: any) => {
+          await writer.close();
+          
+          // Clean up the partial file immediately
+          try {
+            await fs.unlink(tempFilePath);
+            console.log('🧹 Cleaned up partial .part file after write error');
+          } catch (cleanupError) {
+            console.warn('⚠️ Failed to cleanup partial .part file:', cleanupError);
           }
           
-          console.log('✅ Downloaded file validated as video content');
-          const fileSize = statSync(filePath).size;
-          console.log('✅ Video file downloaded and validated successfully');
-          resolve({
-            success: true,
-            filePath,
-            filename
-          });
-        });
-
-        writeStream.on('error', async (error) => {
-          await writer.close();
-          console.error('❌ Error writing video file:', error);
-          resolve({
-            success: false,
-            error: error.message
-          });
+          // Handle ENOSPC errors specifically
+          if (error.code === 'ENOSPC' || error.message?.includes('ENOSPC') || error.message?.includes('space left')) {
+            console.error('💾 DISK SPACE ERROR: No space left on device');
+            
+            // Trigger immediate emergency cleanup
+            console.log('🧹 Triggering emergency cleanup...');
+            await tempFileManager.sweepTempDirs();
+            
+            resolve({
+              success: false,
+              error: 'No space left on device. Cleaned up temporary files. Please try again.'
+            });
+          } else {
+            console.error('❌ Error writing video file:', error);
+            resolve({
+              success: false,
+              error: error.message
+            });
+          }
         });
       });
+      
+      return result;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error downloading video file:', error);
+      
+      // Handle ENOSPC errors
+      if (error.code === 'ENOSPC' || error.message?.includes('ENOSPC') || error.message?.includes('space left')) {
+        console.log('🧹 Triggering emergency cleanup due to ENOSPC...');
+        await tempFileManager.sweepTempDirs();
+      }
+      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Download failed'
       };
+    } finally {
+      // Cleanup only executes AFTER the Promise resolves (due to await above)
+      console.log('🧹 Executing finally block cleanup after Promise resolution');
+      tempFileManager.release(token);
+      await cleanup();
     }
   }
 
@@ -609,14 +693,96 @@ Facebook has tightened security for video downloads. Only public videos from pag
   }
 
   /**
-   * Clean up downloaded files (optional cleanup method)
+   * Check available disk space before download using actual filesystem stats
+   */
+  private static async checkAvailableSpace(): Promise<{ hasSpace: boolean; error?: string }> {
+    try {
+      const fbVideoDir = path.join(process.cwd(), 'temp', 'fb_videos');
+      
+      // Check actual filesystem free space using statvfs-like approach
+      let actualFreeSpace = 0;
+      try {
+        // Use df command to get actual filesystem space (Linux/Unix)
+        const { execSync } = require('child_process');
+        const dfOutput = execSync(`df -B1 "${process.cwd()}" | tail -n 1`, { encoding: 'utf8' });
+        const dfParts = dfOutput.trim().split(/\s+/);
+        
+        if (dfParts.length >= 4) {
+          actualFreeSpace = parseInt(dfParts[3]); // Available space in bytes
+          console.log(`💾 Filesystem free space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
+        }
+      } catch (dfError) {
+        console.warn('⚠️ Could not get filesystem stats via df:', dfError.message);
+        // Fallback to simpler check
+        actualFreeSpace = 2 * 1024 * 1024 * 1024; // Assume 2GB if can't check
+      }
+      
+      // Require minimum 500MB free space for video downloads
+      const minRequiredSpace = 500 * 1024 * 1024; // 500MB
+      
+      if (actualFreeSpace < minRequiredSpace) {
+        console.log('⚠️ Low disk space detected, triggering cleanup...');
+        await tempFileManager.sweepTempDirs();
+        
+        // Recheck after cleanup
+        try {
+          const dfOutput = execSync(`df -B1 "${process.cwd()}" | tail -n 1`, { encoding: 'utf8' });
+          const dfParts = dfOutput.trim().split(/\s+/);
+          if (dfParts.length >= 4) {
+            actualFreeSpace = parseInt(dfParts[3]);
+            console.log(`💾 After cleanup, free space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
+          }
+        } catch (recheckError) {
+          console.warn('⚠️ Could not recheck space after cleanup:', recheckError.message);
+        }
+        
+        if (actualFreeSpace < minRequiredSpace) {
+          return {
+            hasSpace: false,
+            error: `Insufficient disk space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB free, need at least ${Math.round(minRequiredSpace / 1024 / 1024)}MB`
+          };
+        }
+      }
+      
+      // Additional directory-level safety check
+      const maxDirBytes = 5 * 1024 * 1024 * 1024; // 5GB
+      const safetyMargin = 0.8;
+      const safeDirLimit = maxDirBytes * safetyMargin;
+      
+      let currentDirUsage = 0;
+      try {
+        const files = await fs.readdir(fbVideoDir);
+        for (const file of files) {
+          try {
+            const stats = await fs.stat(path.join(fbVideoDir, file));
+            currentDirUsage += stats.size;
+          } catch (e) {
+            // Ignore files that can't be accessed
+          }
+        }
+      } catch (e) {
+        currentDirUsage = 0;
+      }
+      
+      if (currentDirUsage > safeDirLimit) {
+        return {
+          hasSpace: false,
+          error: `Directory usage (${Math.round(currentDirUsage / 1024 / 1024)}MB) exceeds safe limit (${Math.round(safeDirLimit / 1024 / 1024)}MB)`
+        };
+      }
+      
+      return { hasSpace: true };
+    } catch (error: any) {
+      console.warn('⚠️ Could not check disk space:', error.message);
+      // Continue anyway if we can't check
+      return { hasSpace: true };
+    }
+  }
+
+  /**
+   * Clean up downloaded files using TempFileManager
    */
   static async cleanupFile(filePath: string): Promise<void> {
-    try {
-      await fs.unlink(filePath);
-      console.log('🗑️ Cleaned up temporary file:', filePath);
-    } catch (error) {
-      console.error('Error cleaning up file:', error);
-    }
+    await tempFileManager.cleanup(filePath);
   }
 }

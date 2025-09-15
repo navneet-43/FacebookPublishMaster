@@ -13,7 +13,7 @@ interface TempFileEntry {
 
 interface TempFileOptions {
   owner: string;
-  ttlMs?: number; // Default 6 hours
+  ttlMs?: number; // Default 1 hour
   tags?: string[];
 }
 
@@ -34,8 +34,8 @@ class TempFileManager {
     'temp/downloads'
   ];
   private readonly maxTotalBytes = 5 * 1024 * 1024 * 1024; // 5GB limit
-  private readonly defaultTtlMs = 6 * 60 * 60 * 1000; // 6 hours
-  private readonly sweepIntervalMs = 10 * 60 * 1000; // 10 minutes
+  private readonly defaultTtlMs = 1 * 60 * 60 * 1000; // 1 hour (reduced from 6 hours for ENOSPC prevention)
+  private readonly sweepIntervalMs = 1 * 60 * 1000; // 1 minute (reduced from 10 minutes for aggressive cleanup)
 
   constructor() {
     this.startBackgroundSweeper();
@@ -249,23 +249,26 @@ class TempFileManager {
     // Determine which files to delete
     const filesToDelete: typeof fileInfos = [];
     
-    // Delete files older than 6 hours
-    const maxAge = 6 * 60 * 60 * 1000; // 6 hours
+    // Delete files older than 1 hour (reduced from 6 hours for ENOSPC prevention)
+    const maxAge = 1 * 60 * 60 * 1000; // 1 hour
     for (const info of fileInfos) {
       if (info.age > maxAge && !this.isFileInUse(info.path)) {
         filesToDelete.push(info);
       }
     }
 
-    // If directory is too large, delete oldest files first
+    // If directory is too large, delete oldest files until we reach low-water mark (70% of cap)
+    const lowWaterMark = this.maxTotalBytes * 0.7; // 70% of max capacity
     if (totalSize > this.maxTotalBytes) {
+      console.log(`🚨 Directory ${dirPath} over limit (${(totalSize/1024/1024).toFixed(1)}MB > ${(this.maxTotalBytes/1024/1024).toFixed(1)}MB), cleaning to low-water mark...`);
+      
       const sortedByAge = fileInfos
         .filter(info => !this.isFileInUse(info.path))
         .sort((a, b) => b.age - a.age); // Oldest first
       
       let currentSize = totalSize;
       for (const info of sortedByAge) {
-        if (currentSize <= this.maxTotalBytes) break;
+        if (currentSize <= lowWaterMark) break; // Clean to 70% instead of exact limit
         if (!filesToDelete.some(f => f.path === info.path)) {
           filesToDelete.push(info);
           currentSize -= info.stats.size;
