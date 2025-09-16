@@ -711,7 +711,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
           actualFreeSpace = parseInt(dfParts[3]); // Available space in bytes
           console.log(`💾 Filesystem free space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
         }
-      } catch (dfError) {
+      } catch (dfError: any) {
         console.warn('⚠️ Could not get filesystem stats via df:', dfError.message);
         // Fallback to simpler check
         actualFreeSpace = 2 * 1024 * 1024 * 1024; // Assume 2GB if can't check
@@ -732,7 +732,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
             actualFreeSpace = parseInt(dfParts[3]);
             console.log(`💾 After cleanup, free space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
           }
-        } catch (recheckError) {
+        } catch (recheckError: any) {
           console.warn('⚠️ Could not recheck space after cleanup:', recheckError.message);
         }
         
