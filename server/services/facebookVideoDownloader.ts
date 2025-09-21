@@ -694,6 +694,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
 
   /**
    * Check available disk space before download using actual filesystem stats
+   * Production-optimized with adaptive thresholds
    */
   private static async checkAvailableSpace(): Promise<{ hasSpace: boolean; error?: string }> {
     try {
@@ -701,6 +702,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
       
       // Check actual filesystem free space using statvfs-like approach
       let actualFreeSpace = 0;
+      let totalSpace = 0;
       try {
         // Use df command to get actual filesystem space (Linux/Unix)
         const { execSync } = require('child_process');
@@ -708,20 +710,49 @@ Facebook has tightened security for video downloads. Only public videos from pag
         const dfParts = dfOutput.trim().split(/\s+/);
         
         if (dfParts.length >= 4) {
+          totalSpace = parseInt(dfParts[1]); // Total space in bytes
           actualFreeSpace = parseInt(dfParts[3]); // Available space in bytes
-          console.log(`💾 Filesystem free space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
+          console.log(`💾 Disk space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB free / ${Math.round(totalSpace / 1024 / 1024)}MB total`);
         }
       } catch (dfError: any) {
         console.warn('⚠️ Could not get filesystem stats via df:', dfError.message);
         // Fallback to simpler check
         actualFreeSpace = 2 * 1024 * 1024 * 1024; // Assume 2GB if can't check
+        totalSpace = 10 * 1024 * 1024 * 1024; // Assume 10GB total
       }
       
-      // Require minimum 500MB free space for video downloads
-      const minRequiredSpace = 500 * 1024 * 1024; // 500MB
+      // Production-adaptive minimum space requirements
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_ENVIRONMENT === 'production';
+      let minRequiredSpace: number;
+      
+      if (isProduction) {
+        // More conservative requirements for production
+        const totalSpaceGB = totalSpace / (1024 * 1024 * 1024);
+        
+        if (totalSpaceGB < 5) {
+          // Very constrained environments (< 5GB total) - require only 50MB
+          minRequiredSpace = 50 * 1024 * 1024; // 50MB
+          console.log('🏭 Production: Using ultra-conservative space requirement (50MB) for constrained environment');
+        } else if (totalSpaceGB < 20) {
+          // Moderately constrained (< 20GB total) - require 150MB
+          minRequiredSpace = 150 * 1024 * 1024; // 150MB
+          console.log('🏭 Production: Using conservative space requirement (150MB)');
+        } else {
+          // More space available - require 300MB
+          minRequiredSpace = 300 * 1024 * 1024; // 300MB
+          console.log('🏭 Production: Using standard space requirement (300MB)');
+        }
+      } else {
+        // Development - use higher requirement since we usually have more space
+        minRequiredSpace = 500 * 1024 * 1024; // 500MB
+        console.log('🛠️ Development: Using development space requirement (500MB)');
+      }
       
       if (actualFreeSpace < minRequiredSpace) {
-        console.log('⚠️ Low disk space detected, triggering cleanup...');
+        console.log(`⚠️ Low disk space detected (${Math.round(actualFreeSpace / 1024 / 1024)}MB < ${Math.round(minRequiredSpace / 1024 / 1024)}MB), triggering progressive cleanup...`);
+        
+        // Progressive cleanup strategy
+        console.log('🧹 Stage 1: Standard temp file cleanup...');
         await tempFileManager.sweepTempDirs();
         
         // Recheck after cleanup
@@ -730,17 +761,67 @@ Facebook has tightened security for video downloads. Only public videos from pag
           const dfParts = dfOutput.trim().split(/\s+/);
           if (dfParts.length >= 4) {
             actualFreeSpace = parseInt(dfParts[3]);
-            console.log(`💾 After cleanup, free space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
+            console.log(`💾 After stage 1 cleanup: ${Math.round(actualFreeSpace / 1024 / 1024)}MB free`);
           }
         } catch (recheckError: any) {
           console.warn('⚠️ Could not recheck space after cleanup:', recheckError.message);
         }
         
+        // If still insufficient, try aggressive cleanup
         if (actualFreeSpace < minRequiredSpace) {
+          console.log('🧹 Stage 2: Aggressive cleanup (removing all temp files)...');
+          try {
+            // Remove all files from temp directories
+            const tempDirs = [
+              path.join(process.cwd(), 'temp', 'fb_videos'),
+              path.join(process.cwd(), 'temp', 'fb_reels'),
+              path.join(process.cwd(), 'temp')
+            ];
+            
+            for (const dir of tempDirs) {
+              try {
+                const files = await fs.readdir(dir);
+                for (const file of files) {
+                  if (file.endsWith('.mp4') || file.endsWith('.part') || file.startsWith('fb_')) {
+                    const filePath = path.join(dir, file);
+                    await fs.unlink(filePath);
+                    console.log(`🗑️ Removed: ${file}`);
+                  }
+                }
+              } catch (e) {
+                // Directory might not exist, continue
+              }
+            }
+            
+            // Final recheck
+            const dfOutput = execSync(`df -B1 "${process.cwd()}" | tail -n 1`, { encoding: 'utf8' });
+            const dfParts = dfOutput.trim().split(/\s+/);
+            if (dfParts.length >= 4) {
+              actualFreeSpace = parseInt(dfParts[3]);
+              console.log(`💾 After stage 2 cleanup: ${Math.round(actualFreeSpace / 1024 / 1024)}MB free`);
+            }
+          } catch (aggressiveError: any) {
+            console.warn('⚠️ Aggressive cleanup failed:', aggressiveError.message);
+          }
+        }
+        
+        // Final check with potentially lowered threshold for production
+        let finalThreshold = minRequiredSpace;
+        if (isProduction && actualFreeSpace < minRequiredSpace) {
+          // In production, if we're still short, try with emergency threshold
+          finalThreshold = 25 * 1024 * 1024; // 25MB emergency threshold
+          console.log('🚨 Using emergency threshold (25MB) for production');
+        }
+        
+        if (actualFreeSpace < finalThreshold) {
           return {
             hasSpace: false,
-            error: `Insufficient disk space: ${Math.round(actualFreeSpace / 1024 / 1024)}MB free, need at least ${Math.round(minRequiredSpace / 1024 / 1024)}MB`
+            error: `Critical disk space shortage: ${Math.round(actualFreeSpace / 1024 / 1024)}MB free, need at least ${Math.round(finalThreshold / 1024 / 1024)}MB. Consider manual cleanup or increasing disk space.`
           };
+        }
+        
+        if (actualFreeSpace < minRequiredSpace) {
+          console.log(`⚠️ Running with emergency space allocation: ${Math.round(actualFreeSpace / 1024 / 1024)}MB`);
         }
       }
       
