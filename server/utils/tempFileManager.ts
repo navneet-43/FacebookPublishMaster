@@ -27,10 +27,11 @@ interface CleanupResult {
 class TempFileManager {
   private files: Map<string, TempFileEntry> = new Map();
   private sweepInterval: NodeJS.Timeout | null = null;
+  // PRODUCTION FIX: Use /tmp instead of persistent storage
   private readonly tempDirs = [
-    'temp/fb_reels',
-    'temp/fb_videos', 
-    'temp/google_drive',
+    '/tmp/fb_reels',
+    '/tmp/fb_videos', 
+    '/tmp/google_drive',
     'temp/downloads'
   ];
   private readonly maxTotalBytes = 5 * 1024 * 1024 * 1024; // 5GB limit

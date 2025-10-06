@@ -19,7 +19,8 @@ interface VideoDownloadResult {
 }
 
 export class FacebookVideoDownloader {
-  private static readonly DOWNLOAD_DIR = path.join(process.cwd(), 'temp', 'fb_videos');
+  // PRODUCTION FIX: Use /tmp instead of persistent storage to avoid ENOSPC in production
+  private static readonly DOWNLOAD_DIR = '/tmp/fb_videos';
   private static readonly USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',

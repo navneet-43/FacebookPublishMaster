@@ -13,6 +13,7 @@ import { KeepAliveService } from "./services/keepAliveService";
 import { SystemMonitoringService } from "./services/systemMonitoringService";
 import { ReliableSchedulingService } from "./services/reliableSchedulingService";
 import { progressTracker } from "./services/progressTrackingService";
+import { objectStorageVideoHandler } from "./services/objectStorageVideoHandler";
 
 const PgSession = connectPgSimple(session);
 const app = express();
@@ -139,6 +140,17 @@ app.use((req, res, next) => {
         }
       });
       log('Progress tracking cleanup job scheduled');
+      
+      // Set up Object Storage cleanup for video files (production-critical)
+      const objectStorageCleanupJob = schedule.scheduleJob('0 * * * *', async () => { // Every hour
+        try {
+          await objectStorageVideoHandler.cleanupOldVideos(2); // Clean videos older than 2 hours
+          log('Object Storage cleanup complete');
+        } catch (error) {
+          console.error('Error in Object Storage cleanup:', error);
+        }
+      });
+      log('Object Storage cleanup job scheduled (hourly)');
       
       // Set up a daily job to retry failed posts
       const retryJob = schedule.scheduleJob('0 */4 * * *', async () => { // Every 4 hours
