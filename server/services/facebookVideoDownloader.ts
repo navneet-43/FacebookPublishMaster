@@ -699,7 +699,8 @@ Facebook has tightened security for video downloads. Only public videos from pag
    */
   private static async checkAvailableSpace(): Promise<{ hasSpace: boolean; error?: string }> {
     try {
-      const fbVideoDir = path.join(process.cwd(), 'temp', 'fb_videos');
+      // PRODUCTION FIX: Check /tmp instead of persistent storage
+      const fbVideoDir = this.DOWNLOAD_DIR; // Use /tmp/fb_videos
       
       // Check actual filesystem free space using statvfs-like approach
       let actualFreeSpace = 0;
@@ -707,7 +708,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
       try {
         // Use df command to get actual filesystem space (Linux/Unix)
         const { execSync } = require('child_process');
-        const dfOutput = execSync(`df -B1 "${process.cwd()}" | tail -n 1`, { encoding: 'utf8' });
+        const dfOutput = execSync(`df -B1 "/tmp" | tail -n 1`, { encoding: 'utf8' });
         const dfParts = dfOutput.trim().split(/\s+/);
         
         if (dfParts.length >= 4) {
@@ -758,7 +759,7 @@ Facebook has tightened security for video downloads. Only public videos from pag
         
         // Recheck after cleanup
         try {
-          const dfOutput = execSync(`df -B1 "${process.cwd()}" | tail -n 1`, { encoding: 'utf8' });
+          const dfOutput = execSync(`df -B1 "/tmp" | tail -n 1`, { encoding: 'utf8' });
           const dfParts = dfOutput.trim().split(/\s+/);
           if (dfParts.length >= 4) {
             actualFreeSpace = parseInt(dfParts[3]);

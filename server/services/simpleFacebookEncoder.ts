@@ -61,6 +61,17 @@ export class SimpleFacebookEncoder {
       
       const stats = statSync(outputPath);
       
+      // PRODUCTION FIX: Immediate cleanup of source file to free disk space
+      console.log('🧹 ENOSPC Prevention: Deleting source file to free disk space');
+      try {
+        if (existsSync(inputPath) && inputPath !== outputPath) {
+          unlinkSync(inputPath);
+          console.log(`✅ Deleted source file: ${inputPath}`);
+        }
+      } catch (cleanupError) {
+        console.log('⚠️ Could not delete source file:', cleanupError);
+      }
+      
       const cleanup = () => {
         if (existsSync(outputPath)) unlinkSync(outputPath);
       };

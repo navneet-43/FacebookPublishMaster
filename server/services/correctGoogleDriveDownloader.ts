@@ -14,6 +14,24 @@ interface GoogleDriveDownloadResult {
 
 export class CorrectGoogleDriveDownloader {
   
+  /**
+   * Check available disk space in /tmp before downloading
+   * Returns available space in MB
+   */
+  private async checkAvailableSpace(): Promise<number> {
+    try {
+      const { execSync } = await import('child_process');
+      const output = execSync('df -m /tmp | tail -1').toString();
+      const parts = output.trim().split(/\s+/);
+      const availableMB = parseInt(parts[3], 10);
+      console.log(`💾 Available /tmp space: ${availableMB}MB`);
+      return availableMB;
+    } catch (error) {
+      console.log('⚠️ Could not check disk space, assuming limited capacity');
+      return 100; // Assume very limited space if we can't check
+    }
+  }
+
   private extractFileId(url: string): string {
     // Handle multiple Google Drive URL formats
     console.log(`🔍 Extracting file ID from URL: ${url}`);
@@ -102,6 +120,19 @@ export class CorrectGoogleDriveDownloader {
   async downloadVideoFile(options: GoogleDriveDownloadOptions): Promise<GoogleDriveDownloadResult> {
     const fileId = this.extractFileId(options.googleDriveUrl);
     const outputPath = options.outputPath || `/tmp/google_drive_${Date.now()}.mp4`;
+    
+    // PRODUCTION FIX: Check available disk space before downloading
+    const availableSpaceMB = await this.checkAvailableSpace();
+    const requiredSpaceMB = 500; // Require at least 500MB free for safety
+    
+    if (availableSpaceMB < requiredSpaceMB) {
+      const errorMsg = `❌ INSUFFICIENT DISK SPACE: Only ${availableSpaceMB}MB available in /tmp (need ${requiredSpaceMB}MB). In production, disk space is limited. Please use smaller videos or contact support to enable Object Storage for large files.`;
+      console.log(errorMsg);
+      return {
+        success: false,
+        error: errorMsg
+      };
+    }
     
     console.log(`Starting correct Google Drive download for file: ${fileId}`);
     
