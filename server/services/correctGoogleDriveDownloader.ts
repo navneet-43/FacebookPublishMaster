@@ -16,20 +16,49 @@ export class CorrectGoogleDriveDownloader {
   
   /**
    * Check available disk space in /tmp before downloading
-   * Returns available space in MB
+   * Returns available space in MB and total disk size in MB
    */
-  private async checkAvailableSpace(): Promise<number> {
+  private async checkAvailableSpace(): Promise<{ available: number; total: number }> {
     try {
       const { execSync } = await import('child_process');
       const output = execSync('df -m /tmp | tail -1').toString();
       const parts = output.trim().split(/\s+/);
+      const totalMB = parseInt(parts[1], 10);
       const availableMB = parseInt(parts[3], 10);
-      console.log(`💾 Available /tmp space: ${availableMB}MB`);
-      return availableMB;
+      console.log(`💾 /tmp disk: ${availableMB}MB available / ${totalMB}MB total`);
+      return { available: availableMB, total: totalMB };
     } catch (error) {
       console.log('⚠️ Could not check disk space, assuming limited capacity');
-      return 100; // Assume very limited space if we can't check
+      return { available: 100, total: 1000 }; // Assume very limited space if we can't check
     }
+  }
+  
+  /**
+   * Get production-adaptive threshold based on total disk size
+   * Smaller deployments get lower thresholds
+   */
+  private getAdaptiveThreshold(totalDiskMB: number): number {
+    // For very constrained environments (< 5GB total), only require 50MB free
+    if (totalDiskMB < 5000) {
+      console.log(`📊 CONSTRAINED environment detected (${totalDiskMB}MB total) - requiring only 50MB free`);
+      return 50;
+    }
+    
+    // For medium environments (< 20GB total), require 150MB free
+    if (totalDiskMB < 20000) {
+      console.log(`📊 MEDIUM environment detected (${totalDiskMB}MB total) - requiring 150MB free`);
+      return 150;
+    }
+    
+    // For standard production environments, require 300MB free
+    if (process.env.NODE_ENV === 'production') {
+      console.log(`📊 STANDARD production environment (${totalDiskMB}MB total) - requiring 300MB free`);
+      return 300;
+    }
+    
+    // Development environment - require full 500MB for safety
+    console.log(`📊 DEVELOPMENT environment (${totalDiskMB}MB total) - requiring 500MB free`);
+    return 500;
   }
 
   private extractFileId(url: string): string {
@@ -121,18 +150,21 @@ export class CorrectGoogleDriveDownloader {
     const fileId = this.extractFileId(options.googleDriveUrl);
     const outputPath = options.outputPath || `/tmp/google_drive_${Date.now()}.mp4`;
     
-    // PRODUCTION FIX: Check available disk space before downloading
-    const availableSpaceMB = await this.checkAvailableSpace();
-    const requiredSpaceMB = 500; // Require at least 500MB free for safety
+    // PRODUCTION FIX: Check available disk space with adaptive thresholds
+    const { available, total } = await this.checkAvailableSpace();
+    const requiredSpaceMB = this.getAdaptiveThreshold(total);
     
-    if (availableSpaceMB < requiredSpaceMB) {
-      const errorMsg = `❌ INSUFFICIENT DISK SPACE: Only ${availableSpaceMB}MB available in /tmp (need ${requiredSpaceMB}MB). In production, disk space is limited. Please use smaller videos or contact support to enable Object Storage for large files.`;
+    if (available < requiredSpaceMB) {
+      const errorMsg = `❌ INSUFFICIENT DISK SPACE: Only ${available}MB available in /tmp (need ${requiredSpaceMB}MB). Your environment has ${total}MB total disk space. Please use smaller videos or contact Replit support to upgrade your deployment tier.`;
       console.log(errorMsg);
       return {
         success: false,
         error: errorMsg
       };
     }
+    
+    console.log(`✅ Disk space check passed: ${available}MB available (${requiredSpaceMB}MB required)`);
+    
     
     console.log(`Starting correct Google Drive download for file: ${fileId}`);
     
