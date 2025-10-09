@@ -1261,5 +1261,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Force cleanup endpoint for clearing temporary video files
+  app.post('/api/cleanup/force', async (req: Request, res: Response) => {
+    try {
+      const { tempFileManager } = await import('./utils/tempFileManager');
+      const { execSync } = await import('child_process');
+      
+      console.log('🧹 FORCE CLEANUP: Starting manual cleanup...');
+      
+      // Get disk space before cleanup
+      const beforeOutput = execSync('df -h /tmp | tail -1').toString();
+      const beforeParts = beforeOutput.trim().split(/\s+/);
+      const beforeUsed = beforeParts[2];
+      const beforeAvail = beforeParts[3];
+      
+      // Run temp file manager sweep
+      await tempFileManager.sweepTempDirs();
+      
+      // Force delete all video files in /tmp
+      const videoExtensions = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'];
+      let deletedCount = 0;
+      let freedSpace = 0;
+      
+      for (const ext of videoExtensions) {
+        try {
+          const findResult = execSync(`find /tmp -type f -name "*.${ext}" -exec ls -l {} \\; 2>/dev/null || true`).toString();
+          if (findResult) {
+            const files = findResult.trim().split('\n').filter(line => line);
+            for (const fileLine of files) {
+              const parts = fileLine.split(/\s+/);
+              const size = parseInt(parts[4] || '0');
+              const path = parts.slice(8).join(' ');
+              
+              if (path) {
+                try {
+                  execSync(`rm -f "${path}" 2>/dev/null || true`);
+                  deletedCount++;
+                  freedSpace += size;
+                  console.log(`🗑️ Deleted: ${path} (${(size / 1024 / 1024).toFixed(2)}MB)`);
+                } catch (e) {
+                  // Skip if can't delete
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Continue if extension search fails
+        }
+      }
+      
+      // Get disk space after cleanup
+      const afterOutput = execSync('df -h /tmp | tail -1').toString();
+      const afterParts = afterOutput.trim().split(/\s+/);
+      const afterUsed = afterParts[2];
+      const afterAvail = afterParts[3];
+      
+      const freedMB = (freedSpace / 1024 / 1024).toFixed(2);
+      
+      console.log(`✅ FORCE CLEANUP COMPLETE: ${deletedCount} files deleted, ${freedMB}MB freed`);
+      
+      res.json({
+        success: true,
+        filesDeleted: deletedCount,
+        spaceFeed: `${freedMB}MB`,
+        diskBefore: { used: beforeUsed, available: beforeAvail },
+        diskAfter: { used: afterUsed, available: afterAvail }
+      });
+    } catch (error) {
+      console.error('❌ Force cleanup error:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Cleanup failed'
+      });
+    }
+  });
+
   return httpServer;
 }

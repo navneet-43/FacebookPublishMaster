@@ -634,8 +634,17 @@ export class HootsuiteStyleFacebookService {
           } else {
             console.log('❌ FACEBOOK UPLOAD FAILED:', uploadResult.error);
             
-            // Keep files for debugging if upload fails
-            console.log('⚠️ Keeping temporary files for debugging');
+            // CRITICAL FIX: Always cleanup files even on failure to prevent disk space issues
+            // Log the file paths first for debugging, then delete
+            console.log('🧹 FORCE CLEANUP: Deleting temporary files to prevent disk space issues');
+            if (result.cleanup) {
+              console.log(`🧹 Cleaning up source file: ${result.filePath}`);
+              result.cleanup();
+            }
+            if (encodingCleanup) {
+              console.log(`🧹 Cleaning up encoded file`);
+              encodingCleanup();
+            }
             
             return {
               success: false,
@@ -678,12 +687,26 @@ export class HootsuiteStyleFacebookService {
             
             if (uploadResult.success) {
               console.log('✅ DOWNLOADED FACEBOOK VIDEO UPLOADED SUCCESSFULLY');
+              
+              // Clean up downloaded Facebook video after successful upload
+              if (downloadResult.cleanup) {
+                console.log('🧹 Cleaning up downloaded Facebook video');
+                downloadResult.cleanup();
+              }
+              
               return {
                 success: true,
                 postId: uploadResult.postId || uploadResult.videoId
               };
             } else {
               console.log('❌ DOWNLOADED FACEBOOK VIDEO UPLOAD FAILED:', uploadResult.error);
+              
+              // CRITICAL FIX: Always cleanup downloaded files even on failure
+              if (downloadResult.cleanup) {
+                console.log('🧹 FORCE CLEANUP: Deleting downloaded Facebook video to prevent disk space issues');
+                downloadResult.cleanup();
+              }
+              
               return {
                 success: false,
                 error: uploadResult.error || 'Downloaded Facebook video upload failed'
