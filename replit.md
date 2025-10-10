@@ -1,7 +1,7 @@
-# SocialFlow - Facebook Publishing Platform
+# SocialFlow - Social Media Publishing Platform
 
 ## Overview
-SocialFlow is an advanced social media publishing platform designed for Facebook business accounts. Its primary purpose is to offer intelligent content management and streamlined publishing workflows with an enhanced user experience. The project aims to provide comprehensive tools for Facebook account management, bulk post scheduling, real-time analytics, and robust media handling, focusing on efficient and reliable content delivery to Facebook.
+SocialFlow is an advanced social media publishing platform designed for Facebook and Instagram business accounts. Its primary purpose is to offer intelligent content management and streamlined publishing workflows with an enhanced user experience. The project aims to provide comprehensive tools for social media account management, bulk post scheduling, real-time analytics, and robust media handling, focusing on efficient and reliable content delivery to Facebook and Instagram.
 
 ## User Preferences
 - Direct dashboard access without login requirements
@@ -37,13 +37,14 @@ SocialFlow is an advanced social media publishing platform designed for Facebook
 - CRITICAL FIX (Aug 19, 2025): Resolved Reel posting issue where posts with media_type "reel" were incorrectly uploaded as regular videos. Added specific handling for local Facebook video files in publishReelPost method with proper isReel parameter propagation. System now correctly uses Facebook Reels endpoint (v23.0/video_reels) for Reel uploads. Post 419 validated as successful Reel upload with Facebook Post ID 1254849803005348.
 - NEW (Sep 10, 2025): Complete OpenAI-powered CSV format converter implementation - automatically transforms any CSV format into SocialFlow's expected structure using intelligent column mapping. Users can enable the "Smart CSV Converter" option during import to convert files with different column names or structures. System uses OpenAI GPT-5 to analyze CSV headers and data, providing seamless compatibility with various CSV formats while maintaining all existing functionality.
 - CRITICAL FIX (Oct 9, 2025): Production ENOSPC prevention system - all video downloads now use /tmp ephemeral storage with intelligent adaptive thresholds based on total disk size: <5GB=50MB required, <20GB=150MB required, >=20GB=300MB required (500MB in dev). System detects constrained environments and adjusts requirements automatically. Immediate cleanup of source files after FFmpeg encoding. **CRITICAL ENHANCEMENT**: Added force cleanup on ALL failures - videos are now deleted even when uploads fail, preventing disk space accumulation. Added manual cleanup API endpoint (POST /api/cleanup/force) for on-demand space recovery. Prevents "no space left on device" errors in production deployments.
+- NEW (Oct 10, 2025): Complete Instagram integration - Full Instagram Business account support with database schema (instagram_accounts table), backend services (InstagramService.ts with 2-step publishing API), storage layer CRUD operations, API routes, and frontend UI. Users can connect Instagram Business accounts via Facebook Page access tokens and publish images/videos/reels/stories/carousels to Instagram. Instagram Accounts page added to navigation with comprehensive account management (connect, activate/deactivate, delete).
 
 ## System Architecture
 The platform is built with a React frontend (TypeScript, shadcn/ui, Wouter), a Node.js Express backend, and a PostgreSQL database utilizing Drizzle ORM. Core functionalities include:
 - **UI/UX**: Clean, production-ready design using shadcn/ui components.
 - **Authentication**: Simplified authentication for Facebook account management.
 - **Data Management**: PostgreSQL with Drizzle ORM for robust data handling.
-- **Facebook Integration**: Deep integration with Meta Graph API for publishing, account management, and real-time analytics.
+- **Social Media Integration**: Deep integration with Meta Graph API for Facebook and Instagram publishing, account management, and real-time analytics. Instagram Business accounts connect via Facebook Page tokens with support for images, videos, reels, stories, and carousel posts using 2-step publishing flow (create container → publish).
 - **Content Scheduling**: Supports bulk post scheduling via Excel/CSV import with advanced date/time parsing and timezone management (IST to UTC conversion).
 - **Timezone Architecture**: CRITICAL - Frontend always displays IST times for user convenience, backend automatically converts to UTC for storage and processing. This ensures consistent user experience while maintaining database integrity.
 - **Media Handling**: Comprehensive system for media upload (images, videos), including:
