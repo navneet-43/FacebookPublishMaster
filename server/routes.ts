@@ -410,6 +410,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Instagram account routes
+  app.get("/api/instagram-accounts", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const accounts = await storage.getInstagramAccounts(user.id);
+      res.json(accounts);
+    } catch (error) {
+      console.error("Error fetching Instagram accounts:", error);
+      res.status(500).json({ message: "Failed to fetch Instagram accounts" });
+    }
+  });
+
+  app.post("/api/instagram-accounts/connect", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { pageAccessToken } = req.body;
+      
+      if (!pageAccessToken) {
+        return res.status(400).json({ message: "Page access token is required" });
+      }
+
+      const { InstagramService } = await import('./services/instagramService');
+      const result = await InstagramService.getInstagramAccountsFromPages(pageAccessToken);
+      
+      if (!result.success || !result.accounts || result.accounts.length === 0) {
+        return res.status(400).json({ 
+          message: result.error || "No Instagram Business accounts found connected to your Facebook Pages" 
+        });
+      }
+
+      let connectedCount = 0;
+      
+      for (const igAccount of result.accounts) {
+        const existingAccount = await storage.getInstagramAccounts(user.id);
+        const exists = existingAccount.find(acc => acc.businessAccountId === igAccount.id);
+        
+        if (!exists) {
+          await storage.createInstagramAccount({
+            userId: user.id,
+            username: igAccount.username,
+            businessAccountId: igAccount.id,
+            connectedPageId: '', // This will be updated when we have page context
+            accessToken: pageAccessToken,
+            profilePictureUrl: igAccount.profile_picture_url,
+            followersCount: igAccount.followers_count || 0,
+            isActive: true
+          });
+          connectedCount++;
+        }
+      }
+
+      await storage.createActivity({
+        userId: user.id,
+        type: 'instagram_accounts_connected',
+        description: `Connected ${connectedCount} Instagram Business account(s)`,
+        metadata: { count: connectedCount }
+      });
+
+      res.json({ 
+        success: true, 
+        message: `Successfully connected ${connectedCount} Instagram account(s)`,
+        accounts: result.accounts
+      });
+    } catch (error) {
+      console.error("Error connecting Instagram accounts:", error);
+      res.status(500).json({ message: "Failed to connect Instagram accounts" });
+    }
+  });
+
+  app.post("/api/instagram/publish", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { accountId, imageUrl, videoUrl, caption, mediaType } = req.body;
+      
+      if (!accountId) {
+        return res.status(400).json({ message: "Instagram account ID is required" });
+      }
+
+      const account = await storage.getInstagramAccount(accountId);
+      if (!account) {
+        return res.status(404).json({ message: "Instagram account not found" });
+      }
+
+      const { InstagramService } = await import('./services/instagramService');
+      const result = await InstagramService.publishPost(
+        account.businessAccountId,
+        account.accessToken,
+        {
+          imageUrl,
+          videoUrl,
+          caption,
+          mediaType: mediaType || (videoUrl ? 'VIDEO' : 'IMAGE')
+        }
+      );
+
+      if (result.success) {
+        await storage.createActivity({
+          userId: user.id,
+          type: 'instagram_post_published',
+          description: `Published ${mediaType || 'post'} to Instagram @${account.username}`,
+          metadata: { accountId, postId: result.postId }
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error publishing to Instagram:", error);
+      res.status(500).json({ message: "Failed to publish to Instagram" });
+    }
+  });
+
+  app.delete("/api/instagram-accounts/:id", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateUser(req);
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const accountId = parseInt(req.params.id);
+      const account = await storage.getInstagramAccount(accountId);
+      
+      if (!account) {
+        return res.status(404).json({ message: "Instagram account not found" });
+      }
+
+      if (account.userId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized to delete this account" });
+      }
+
+      await storage.deleteInstagramAccount(accountId);
+      
+      await storage.createActivity({
+        userId: user.id,
+        type: 'instagram_account_removed',
+        description: `Removed Instagram account @${account.username}`,
+        metadata: { accountId }
+      });
+
+      res.json({ success: true, message: "Instagram account removed successfully" });
+    } catch (error) {
+      console.error("Error deleting Instagram account:", error);
+      res.status(500).json({ message: "Failed to delete Instagram account" });
+    }
+  });
+
   app.get("/api/custom-labels", async (req: Request, res: Response) => {
     try {
       const user = await authenticateUser(req);
