@@ -2,11 +2,15 @@ import {
   User, InsertUser, users,
   PlatformUser, InsertPlatformUser, platformUsers,
   FacebookAccount, InsertFacebookAccount, facebookAccounts,
+  InstagramAccount, insertInstagramAccountSchema, instagramAccounts,
   GoogleSheetsIntegration, InsertGoogleSheetsIntegration, googleSheetsIntegrations,
   CustomLabel, InsertCustomLabel, customLabels,
   Post, InsertPost, posts,
   Activity, InsertActivity, activities
 } from "@shared/schema";
+import { z } from "zod";
+
+type InsertInstagramAccount = z.infer<typeof insertInstagramAccountSchema>;
 import { db } from "./db";
 import { eq, and, desc, sql, lt, gt, isNull } from "drizzle-orm";
 
@@ -35,6 +39,13 @@ export interface IStorage {
   createFacebookAccount(account: InsertFacebookAccount): Promise<FacebookAccount>;
   updateFacebookAccount(id: number, data: Partial<FacebookAccount>): Promise<FacebookAccount | undefined>;
   deleteFacebookAccount(id: number): Promise<boolean>;
+
+  // Instagram account operations
+  getInstagramAccounts(userId: number): Promise<InstagramAccount[]>;
+  getInstagramAccount(id: number): Promise<InstagramAccount | undefined>;
+  createInstagramAccount(account: InsertInstagramAccount): Promise<InstagramAccount>;
+  updateInstagramAccount(id: number, data: Partial<InstagramAccount>): Promise<InstagramAccount | undefined>;
+  deleteInstagramAccount(id: number): Promise<boolean>;
 
   // Google Sheets integration operations
   getGoogleSheetsIntegration(userId: number): Promise<GoogleSheetsIntegration | undefined>;
@@ -184,6 +195,38 @@ export class DatabaseStorage implements IStorage {
       .delete(facebookAccounts)
       .where(eq(facebookAccounts.id, id))
       .returning({ id: facebookAccounts.id });
+    return !!deleted;
+  }
+
+  // Instagram account operations
+  async getInstagramAccounts(userId: number): Promise<InstagramAccount[]> {
+    return db.select().from(instagramAccounts).where(eq(instagramAccounts.userId, userId));
+  }
+
+  async getInstagramAccount(id: number): Promise<InstagramAccount | undefined> {
+    const [account] = await db.select().from(instagramAccounts).where(eq(instagramAccounts.id, id));
+    return account;
+  }
+
+  async createInstagramAccount(account: InsertInstagramAccount): Promise<InstagramAccount> {
+    const [newAccount] = await db.insert(instagramAccounts).values(account).returning();
+    return newAccount;
+  }
+
+  async updateInstagramAccount(id: number, data: Partial<InstagramAccount>): Promise<InstagramAccount | undefined> {
+    const [updatedAccount] = await db
+      .update(instagramAccounts)
+      .set(data)
+      .where(eq(instagramAccounts.id, id))
+      .returning();
+    return updatedAccount;
+  }
+
+  async deleteInstagramAccount(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(instagramAccounts)
+      .where(eq(instagramAccounts.id, id))
+      .returning({ id: instagramAccounts.id });
     return !!deleted;
   }
 
@@ -399,6 +442,7 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private platformUsers: Map<number, PlatformUser>;
   private facebookAccounts: Map<number, FacebookAccount>;
+  private instagramAccounts: Map<number, InstagramAccount>;
   private googleSheetsIntegrations: Map<number, GoogleSheetsIntegration>;
   private customLabels: Map<number, CustomLabel>;
   private posts: Map<number, Post>;
@@ -407,6 +451,7 @@ export class MemStorage implements IStorage {
     users: number;
     platformUsers: number;
     facebookAccounts: number;
+    instagramAccounts: number;
     googleSheetsIntegrations: number;
     customLabels: number;
     posts: number;
@@ -417,6 +462,7 @@ export class MemStorage implements IStorage {
     this.users = new Map();
     this.platformUsers = new Map();
     this.facebookAccounts = new Map();
+    this.instagramAccounts = new Map();
     this.googleSheetsIntegrations = new Map();
     this.customLabels = new Map();
     this.posts = new Map();
@@ -425,6 +471,7 @@ export class MemStorage implements IStorage {
       users: 1,
       platformUsers: 1,
       facebookAccounts: 1,
+      instagramAccounts: 1,
       googleSheetsIntegrations: 1,
       customLabels: 1,
       posts: 1,
@@ -582,6 +629,44 @@ export class MemStorage implements IStorage {
 
   async deleteFacebookAccount(id: number): Promise<boolean> {
     return this.facebookAccounts.delete(id);
+  }
+
+  // Instagram account operations
+  async getInstagramAccounts(userId: number): Promise<InstagramAccount[]> {
+    return Array.from(this.instagramAccounts.values()).filter(
+      (account) => account.userId === userId
+    );
+  }
+
+  async getInstagramAccount(id: number): Promise<InstagramAccount | undefined> {
+    return this.instagramAccounts.get(id);
+  }
+
+  async createInstagramAccount(account: InsertInstagramAccount): Promise<InstagramAccount> {
+    const id = this.currentIds.instagramAccounts++;
+    const now = new Date();
+    const newAccount: InstagramAccount = { 
+      ...account, 
+      id, 
+      createdAt: now,
+      userId: account.userId || null,
+      isActive: account.isActive !== false
+    };
+    this.instagramAccounts.set(id, newAccount);
+    return newAccount;
+  }
+
+  async updateInstagramAccount(id: number, data: Partial<InstagramAccount>): Promise<InstagramAccount | undefined> {
+    const account = this.instagramAccounts.get(id);
+    if (!account) return undefined;
+    
+    const updatedAccount = { ...account, ...data };
+    this.instagramAccounts.set(id, updatedAccount);
+    return updatedAccount;
+  }
+
+  async deleteInstagramAccount(id: number): Promise<boolean> {
+    return this.instagramAccounts.delete(id);
   }
 
   // Asana integration operations
