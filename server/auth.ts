@@ -64,6 +64,37 @@ export function setupAuth() {
       const { HootsuiteStyleFacebookService } = await import('./services/hootsuiteStyleFacebookService');
       await HootsuiteStyleFacebookService.refreshUserPageTokens(user.id, tokenToStore);
       
+      // Discover and connect Instagram Business accounts linked to Facebook Pages
+      try {
+        const { InstagramService } = await import('./services/instagramService');
+        const igResult = await InstagramService.getInstagramAccountsFromPages(tokenToStore);
+        
+        if (igResult.success && igResult.accounts && igResult.accounts.length > 0) {
+          for (const igAccount of igResult.accounts) {
+            // Check if Instagram account already exists
+            const existingAccounts = await storage.getInstagramAccounts(user.id);
+            const exists = existingAccounts.find(acc => acc.businessAccountId === igAccount.id);
+            
+            if (!exists) {
+              await storage.createInstagramAccount({
+                userId: user.id,
+                username: igAccount.username,
+                businessAccountId: igAccount.id,
+                connectedPageId: '',
+                accessToken: tokenToStore,
+                profilePictureUrl: igAccount.profile_picture_url,
+                followersCount: igAccount.followers_count || 0,
+                isActive: true
+              });
+              console.log(`✅ Auto-discovered Instagram account: @${igAccount.username}`);
+            }
+          }
+        }
+      } catch (igError) {
+        console.error('Error auto-discovering Instagram accounts:', igError);
+        // Don't fail the login if Instagram discovery fails
+      }
+      
       return done(null, user);
     } catch (error) {
       return done(error as Error);

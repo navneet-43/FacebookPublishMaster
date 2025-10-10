@@ -30,6 +30,14 @@ export default function InstagramAccounts() {
   const [isConnectDialogOpen, setIsConnectDialogOpen] = useState(false);
   const [pageAccessToken, setPageAccessToken] = useState("");
 
+  // Check authentication status
+  const { data: authStatus } = useQuery({
+    queryKey: ['/api/auth/status'],
+    refetchOnWindowFocus: true
+  });
+
+  const isLoggedIn = (authStatus as any)?.isLoggedIn || false;
+
   const { data: accounts = [], isLoading } = useQuery<InstagramAccount[]>({
     queryKey: ['/api/instagram-accounts'],
     staleTime: 60000
@@ -121,32 +129,70 @@ export default function InstagramAccounts() {
       <DashboardHeader 
         title="Instagram Accounts" 
         subtitle="Manage your Instagram Business accounts" 
-        importLabel="Connect Instagram"
+        importLabel={isLoggedIn ? "Manual Connect" : "Login with Facebook"}
         showImport={true}
-        onImport={() => setIsConnectDialogOpen(true)}
+        onImport={() => {
+          if (isLoggedIn) {
+            setIsConnectDialogOpen(true);
+          } else {
+            window.location.href = '/auth/facebook';
+          }
+        }}
       />
       
       <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Card className="mb-6 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/20 dark:to-purple-950/20 border-pink-200 dark:border-pink-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Instagram className="h-5 w-5 text-pink-600" />
-              How to Connect Instagram Business Account
-            </CardTitle>
-            <CardDescription>
-              Follow these steps to connect your Instagram Business account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ol className="list-decimal list-inside space-y-2 text-sm">
-              <li>Make sure you have an Instagram Business or Creator account</li>
-              <li>Link your Instagram account to a Facebook Page (in Instagram settings)</li>
-              <li>Get your Facebook Page access token from <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Graph API Explorer</a></li>
-              <li>Grant these permissions: <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">instagram_basic</code>, <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">instagram_content_publish</code>, <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">pages_read_engagement</code></li>
-              <li>Click "Connect Instagram" button above and paste your Page access token</li>
-            </ol>
-          </CardContent>
-        </Card>
+        {!isLoggedIn ? (
+          <Card className="mb-6 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/20 dark:to-purple-950/20 border-pink-200 dark:border-pink-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Instagram className="h-5 w-5 text-pink-600" />
+                Connect Instagram with Facebook
+              </CardTitle>
+              <CardDescription>
+                Login with Facebook to automatically discover your Instagram Business accounts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  We'll automatically discover all Instagram Business accounts linked to your Facebook Pages
+                </p>
+                <Button 
+                  onClick={() => window.location.href = '/auth/facebook'}
+                  className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700"
+                  data-testid="button-facebook-login"
+                >
+                  <Instagram className="h-4 w-4 mr-2" />
+                  Login with Facebook
+                </Button>
+                <p className="text-xs text-gray-500">
+                  Make sure your Instagram Business account is linked to a Facebook Page
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="mb-6 bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-950/20 dark:to-purple-950/20 border-pink-200 dark:border-pink-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Instagram className="h-5 w-5 text-pink-600" />
+                Instagram Business Accounts
+              </CardTitle>
+              <CardDescription>
+                Your Instagram accounts are automatically synced from Facebook
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                <p>✅ Instagram accounts are automatically discovered when you login with Facebook</p>
+                <p>✅ Make sure your Instagram Business account is linked to a Facebook Page</p>
+                <p className="text-xs">
+                  Don't see your account? <Button variant="link" onClick={() => window.location.href = '/auth/facebook'} className="p-0 h-auto text-pink-600 hover:text-pink-700">Refresh Facebook connection</Button>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -165,15 +211,25 @@ export default function InstagramAccounts() {
                 <div className="text-center">
                   <Instagram className="h-12 w-12 mx-auto mb-4 text-pink-600" />
                   <p className="font-medium">No Instagram accounts connected</p>
-                  <p className="text-sm mt-2">Connect your Instagram Business account to start posting</p>
+                  <p className="text-sm mt-2">
+                    {isLoggedIn 
+                      ? "Your Instagram accounts are automatically synced from Facebook" 
+                      : "Login with Facebook to automatically discover your Instagram accounts"}
+                  </p>
                   <Button 
                     variant="default" 
                     className="mt-4 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700"
-                    onClick={() => setIsConnectDialogOpen(true)}
+                    onClick={() => {
+                      if (isLoggedIn) {
+                        window.location.href = '/auth/facebook';
+                      } else {
+                        window.location.href = '/auth/facebook';
+                      }
+                    }}
                     data-testid="button-connect-instagram"
                   >
                     <Instagram className="h-4 w-4 mr-2" />
-                    Connect Instagram
+                    {isLoggedIn ? "Refresh Facebook Connection" : "Login with Facebook"}
                   </Button>
                 </div>
               </div>
