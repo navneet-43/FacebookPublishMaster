@@ -84,6 +84,33 @@ export const insertFacebookAccountSchema = createInsertSchema(facebookAccounts).
   isActive: true,
 });
 
+// Instagram accounts model
+export const instagramAccounts = pgTable("instagram_accounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  username: text("username").notNull(),
+  businessAccountId: text("business_account_id").notNull().unique(),
+  connectedPageId: text("connected_page_id").notNull(), // Facebook Page ID it's connected to
+  accessToken: text("access_token").notNull(),
+  profilePictureUrl: text("profile_picture_url"),
+  followersCount: integer("followers_count").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertInstagramAccountSchema = createInsertSchema(instagramAccounts).pick({
+  userId: true,
+  username: true,
+  businessAccountId: true,
+  connectedPageId: true,
+  accessToken: true,
+  profilePictureUrl: true,
+  followersCount: true,
+  isActive: true,
+});
+
+export type InstagramAccount = typeof instagramAccounts.$inferSelect;
+
 // Google Sheets integration model
 export const googleSheetsIntegrations = pgTable("google_sheets_integrations", {
   id: serial("id").primaryKey(),
