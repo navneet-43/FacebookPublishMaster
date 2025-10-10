@@ -9,6 +9,7 @@ import AllPosts from "@/pages/AllPosts";
 import PublishingCalendar from "@/pages/PublishingCalendar";
 import PublishingHistory from "@/pages/PublishingHistory";
 import FacebookAccounts from "@/pages/FacebookAccounts";
+import InstagramAccounts from "@/pages/InstagramAccounts";
 import GoogleSheetsIntegration from "@/pages/GoogleSheetsIntegration";
 import ExcelImport from "@/pages/ExcelImport";
 import CustomLabels from "@/pages/CustomLabels";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/publishing-calendar" component={PublishingCalendar} />
       <Route path="/history" component={PublishingHistory} />
       <Route path="/facebook-accounts" component={FacebookAccounts} />
+      <Route path="/instagram-accounts" component={InstagramAccounts} />
       <Route path="/google-sheets" component={GoogleSheetsIntegration} />
       <Route path="/excel-import" component={ExcelImport} />
       <Route path="/custom-labels" component={CustomLabels} />

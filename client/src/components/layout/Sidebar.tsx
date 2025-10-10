@@ -46,6 +46,10 @@ export default function Sidebar() {
           <i className="fa-brands fa-facebook w-5"></i>
           <span className="ml-3">Facebook Accounts</span>
         </Link>
+        <Link href="/instagram-accounts" className={`flex items-center px-4 py-3 ${isActive('/instagram-accounts') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
+          <i className="fa-brands fa-instagram w-5"></i>
+          <span className="ml-3">Instagram Accounts</span>
+        </Link>
         <Link href="/google-sheets-integration" className={`flex items-center px-4 py-3 ${isActive('/google-sheets-integration') ? 'text-fb-blue bg-fb-light-gray border-l-4 border-fb-blue' : 'text-gray-600 hover:bg-fb-light-gray'}`}>
           <i className="fa-solid fa-table w-5"></i>
           <span className="ml-3">Google Sheets Integration</span>
