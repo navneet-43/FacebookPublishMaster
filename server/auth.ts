@@ -34,7 +34,16 @@ export function setupAuth() {
     clientSecret: process.env.FACEBOOK_APP_SECRET || '',
     callbackURL: getCallbackURL(),
     profileFields: ['id', 'displayName', 'email'],
-    scope: ['pages_manage_posts', 'pages_read_engagement', 'pages_manage_metadata', 'pages_show_list', 'business_management']
+    scope: [
+      'pages_manage_posts', 
+      'pages_read_engagement', 
+      'pages_manage_metadata', 
+      'pages_show_list', 
+      'business_management',
+      'instagram_basic',
+      'instagram_content_publish',
+      'instagram_manage_insights'
+    ]
   }, async (accessToken: string, refreshToken: string, profile: FacebookProfile, done: Function) => {
     try {
       // Check if user exists in database

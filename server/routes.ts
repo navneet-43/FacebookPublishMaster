@@ -71,7 +71,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Facebook authentication routes
   app.get('/auth/facebook', 
     passport.authenticate('facebook', { 
-      scope: ['email', 'pages_show_list', 'pages_manage_posts', 'pages_read_engagement']
+      scope: [
+        'email', 
+        'pages_show_list', 
+        'pages_manage_posts', 
+        'pages_read_engagement',
+        'pages_manage_metadata',
+        'business_management',
+        'instagram_basic',
+        'instagram_content_publish',
+        'instagram_manage_insights'
+      ]
     })
   );
   
