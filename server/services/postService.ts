@@ -576,9 +576,129 @@ export async function getUpcomingPostsForDays(userId: number, days: number = 7):
   });
 }
 
+/**
+ * Publish a post to Instagram
+ * @param post The post to publish
+ * @returns Result of the operation
+ */
+export async function publishPostToInstagram(post: Post): Promise<{success: boolean, data?: any, error?: string}> {
+  try {
+    const { InstagramService } = await import('./instagramService');
+    
+    // Verify post has Instagram data
+    if (!post.instagramAccountId) {
+      return { success: false, error: 'No Instagram account selected for this post' };
+    }
+    
+    if (!post.content && !post.mediaUrl) {
+      return { success: false, error: 'Post must have content or media' };
+    }
+    
+    // Get the Instagram account
+    const instagramAccount = await storage.getInstagramAccount(post.instagramAccountId);
+    if (!instagramAccount) {
+      return { success: false, error: 'Instagram account not found' };
+    }
+    
+    if (!instagramAccount.accessToken) {
+      return { success: false, error: 'Instagram account is not properly authenticated' };
+    }
+    
+    console.log(`📸 Publishing post ${post.id} to Instagram: @${instagramAccount.username}`);
+    console.log(`📝 Post mediaType: "${post.mediaType}" | mediaUrl: ${post.mediaUrl ? 'present' : 'none'}`);
+    
+    // Determine media type for Instagram
+    let instagramMediaType: 'IMAGE' | 'VIDEO' | 'REELS' | 'CAROUSEL_ALBUM' | 'STORIES' = 'IMAGE';
+    const options: any = {
+      caption: post.content,
+    };
+    
+    if (post.mediaType === 'photo' && post.mediaUrl) {
+      instagramMediaType = 'IMAGE';
+      options.imageUrl = post.mediaUrl;
+    } else if (post.mediaType === 'video' && post.mediaUrl) {
+      instagramMediaType = 'VIDEO';
+      options.videoUrl = post.mediaUrl;
+    } else if (post.mediaType === 'reel' && post.mediaUrl) {
+      instagramMediaType = 'REELS';
+      options.videoUrl = post.mediaUrl;
+    }
+    
+    options.mediaType = instagramMediaType;
+    
+    // Step 1: Create media container
+    console.log('📸 Step 1: Creating Instagram media container...');
+    const containerResult = await InstagramService.createMediaContainer(
+      instagramAccount.businessAccountId,
+      instagramAccount.accessToken,
+      options
+    );
+    
+    if (!containerResult.success || !containerResult.containerId) {
+      console.error('❌ Failed to create Instagram media container:', containerResult.error);
+      return { 
+        success: false, 
+        error: containerResult.error || 'Failed to create Instagram media container' 
+      };
+    }
+    
+    console.log(`✅ Media container created: ${containerResult.containerId}`);
+    
+    // Step 2: Wait for video processing if needed
+    if (instagramMediaType === 'VIDEO' || instagramMediaType === 'REELS') {
+      console.log('⏳ Waiting for video processing...');
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for processing
+      
+      const statusCheck = await InstagramService.checkContainerStatus(
+        containerResult.containerId,
+        instagramAccount.accessToken
+      );
+      
+      if (!statusCheck.ready) {
+        console.log('⚠️ Video still processing, waiting longer...');
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait another 5 seconds
+      }
+    }
+    
+    // Step 3: Publish the container
+    console.log('📸 Step 2: Publishing Instagram media...');
+    const publishResult = await InstagramService.publishMediaContainer(
+      instagramAccount.businessAccountId,
+      containerResult.containerId,
+      instagramAccount.accessToken
+    );
+    
+    if (!publishResult.success) {
+      console.error('❌ Failed to publish Instagram media:', publishResult.error);
+      return { 
+        success: false, 
+        error: publishResult.error || 'Failed to publish to Instagram' 
+      };
+    }
+    
+    console.log(`✅ Successfully published to Instagram! Post ID: ${publishResult.postId}`);
+    
+    return {
+      success: true,
+      data: {
+        instagramPostId: publishResult.postId,
+        containerId: containerResult.containerId
+      }
+    };
+    
+  } catch (error) {
+    console.error('Error publishing to Instagram:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown Instagram publishing error'
+    };
+  }
+}
+
 // Export as a service object for use in other modules
 export const postService = {
   publishPostToFacebook,
+  publishPostToInstagram,
   schedulePostPublication,
   initializeScheduledPosts,
   retryFailedPosts,

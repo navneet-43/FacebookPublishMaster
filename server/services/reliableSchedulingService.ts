@@ -114,8 +114,24 @@ export class ReliableSchedulingService {
               continue;
             }
             
-            // Publish the post
+            // Publish to Facebook
             const result = await publishPostToFacebook(post);
+            
+            // Also publish to Instagram if enabled
+            let instagramResult = null;
+            if (post.postToInstagram && post.instagramAccountId) {
+              const { publishPostToInstagram } = await import('./postService');
+              instagramResult = await publishPostToInstagram(post);
+              
+              if (instagramResult.success) {
+                console.log(`📸 INSTAGRAM: Post ${post.id} also published to Instagram`);
+                await storage.updatePost(post.id, {
+                  instagramPostId: instagramResult.data?.instagramPostId
+                });
+              } else {
+                console.error(`❌ INSTAGRAM: Failed to publish post ${post.id} to Instagram: ${instagramResult.error}`);
+              }
+            }
             
             if (result.success) {
               await storage.updatePost(post.id, {
@@ -123,15 +139,20 @@ export class ReliableSchedulingService {
                 publishedAt: new Date()
               });
               
+              const instagramStatus = post.postToInstagram 
+                ? (instagramResult?.success ? ' and Instagram' : ' (Instagram failed)')
+                : '';
+              
               await storage.createActivity({
                 userId: post.userId || null,
                 type: 'post_published',
-                description: `Overdue post published (${delayMinutes} minutes late)`,
+                description: `Overdue post published to Facebook${instagramStatus} (${delayMinutes} minutes late)`,
                 metadata: { 
                   postId: post.id, 
                   wasOverdue: true,
                   delayMinutes: delayMinutes,
-                  originalScheduledTime: post.scheduledFor
+                  originalScheduledTime: post.scheduledFor,
+                  instagramPublished: instagramResult?.success || false
                 }
               });
               

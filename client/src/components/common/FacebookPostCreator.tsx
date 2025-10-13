@@ -15,7 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { FacebookAccount, CustomLabel } from "@shared/schema";
+import { FacebookAccount, CustomLabel, InstagramAccount } from "@shared/schema";
 import MediaUpload from "@/components/common/MediaUpload";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -42,6 +42,8 @@ const formSchema = z.object({
   boost: z.boolean().default(false),
   crosspost: z.boolean().default(false),
   crosspostTo: z.array(z.string()).default([]),
+  postToInstagram: z.boolean().default(false),
+  instagramAccountId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -60,6 +62,12 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   // Fetch Facebook accounts
   const { data: accounts = [] } = useQuery<FacebookAccount[]>({
     queryKey: ['/api/facebook-accounts'],
+    staleTime: 60000,
+  });
+
+  // Fetch Instagram accounts
+  const { data: instagramAccounts = [] } = useQuery<InstagramAccount[]>({
+    queryKey: ['/api/instagram-accounts'],
     staleTime: 60000,
   });
 
@@ -85,12 +93,15 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       boost: false,
       crosspost: false,
       crosspostTo: [],
+      postToInstagram: false,
+      instagramAccountId: "",
       scheduledFor: new Date(),
       scheduledTime: "14:00",
     },
   });
 
   const watchCrosspost = form.watch("crosspost");
+  const watchPostToInstagram = form.watch("postToInstagram");
 
   const createPostMutation = useMutation({
     mutationFn: (postData: any) => {
@@ -145,6 +156,8 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       boost: values.boost,
       crosspost: values.crosspost,
       crosspostTo: values.crosspostTo,
+      postToInstagram: values.postToInstagram,
+      instagramAccountId: values.instagramAccountId ? parseInt(values.instagramAccountId) : undefined,
     };
 
     // Determine action based on schedule toggle
@@ -841,6 +854,70 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           </Command>
                         </PopoverContent>
                       </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
+
+            <Separator className="bg-gray-200" />
+
+            {/* Post to Instagram */}
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Post to Instagram</h3>
+              <p className="text-gray-600 text-sm mb-4">Publish this post to your Instagram account.</p>
+              
+              <FormField
+                control={form.control}
+                name="postToInstagram"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-sm font-medium">
+                        Also post to Instagram
+                      </FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              {watchPostToInstagram && (
+                <FormField
+                  control={form.control}
+                  name="instagramAccountId"
+                  render={({ field }) => (
+                    <FormItem className="mt-4">
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-full h-12">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">IG</span>
+                              </div>
+                              <SelectValue placeholder="Select an Instagram account" />
+                            </div>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {instagramAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id.toString()}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-6 h-6 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">IG</span>
+                                </div>
+                                @{account.username}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

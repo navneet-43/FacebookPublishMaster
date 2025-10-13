@@ -161,6 +161,9 @@ export const posts = pgTable("posts", {
   status: text("status").notNull(),
   sheetRowId: text("sheet_row_id"),
   errorMessage: text("error_message"),
+  postToInstagram: boolean("post_to_instagram").default(false),
+  instagramAccountId: integer("instagram_account_id").references(() => instagramAccounts.id),
+  instagramPostId: text("instagram_post_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -178,6 +181,9 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   status: true,
   sheetRowId: true,
   errorMessage: true,
+  postToInstagram: true,
+  instagramAccountId: true,
+  instagramPostId: true,
 }).extend({
   scheduledFor: z.union([z.string(), z.date()]).optional().transform((val) => {
     if (val instanceof Date) return val;

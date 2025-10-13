@@ -209,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const uploadId = req.body.uploadId || `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           console.log(`🔍 Using upload tracking ID: ${uploadId} with extended timeout (deployment: ${deploymentConfig.isDeployment()})`);
           
-          const { publishPostToFacebook } = await import('./services/postService');
+          const { publishPostToFacebook, publishPostToInstagram } = await import('./services/postService');
           const publishResult = await publishPostToFacebook({
             ...result.data,
             userId: user.id,
@@ -218,21 +218,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
             uploadId
           } as any);
 
+          // Also publish to Instagram if enabled
+          let instagramResult = null;
+          if (result.data.postToInstagram && result.data.instagramAccountId) {
+            instagramResult = await publishPostToInstagram({
+              ...result.data,
+              userId: user.id,
+              id: 0,
+              createdAt: new Date()
+            } as any);
+            
+            if (instagramResult.success) {
+              console.log(`📸 INSTAGRAM: Also published to Instagram`);
+            } else {
+              console.error(`❌ INSTAGRAM: Failed to publish to Instagram: ${instagramResult.error}`);
+            }
+          }
+
           if (publishResult.success) {
             const post = await storage.createPost({
               ...result.data,
               userId: user.id,
-              status: "published"
+              status: "published",
+              instagramPostId: instagramResult?.data?.instagramPostId
             } as any);
+
+            const instagramStatus = result.data.postToInstagram 
+              ? (instagramResult?.success ? ' and Instagram' : ' (Instagram failed)')
+              : '';
 
             await storage.createActivity({
               userId: user.id,
               type: "post_published",
-              description: `Post published immediately: ${result.data.content.substring(0, 50)}...`,
-              metadata: { postId: post.id, facebookResponse: publishResult.data }
+              description: `Post published immediately to Facebook${instagramStatus}: ${result.data.content.substring(0, 50)}...`,
+              metadata: { 
+                postId: post.id, 
+                facebookResponse: publishResult.data,
+                instagramPublished: instagramResult?.success || false
+              }
             });
 
-            console.log(`✅ PUBLISHED: Post ${post.id} published to Facebook`);
+            console.log(`✅ PUBLISHED: Post ${post.id} published to Facebook${instagramStatus}`);
             return res.status(201).json(post);
           } else {
             const post = await storage.createPost({
