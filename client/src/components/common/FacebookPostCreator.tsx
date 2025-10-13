@@ -690,7 +690,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           <CommandInput placeholder="Search labels..." />
                           <CommandEmpty>No labels found.</CommandEmpty>
                           <CommandGroup>
-                            {customLabels.map((label) => (
+                            {(customLabels || []).map((label) => (
                               <CommandItem
                                 key={label.id}
                                 value={label.name}
