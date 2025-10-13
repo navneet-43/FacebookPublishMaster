@@ -66,10 +66,14 @@ export function setupAuth() {
       
       // Discover and connect Instagram Business accounts linked to Facebook Pages
       try {
+        console.log('🔍 Starting Instagram account auto-discovery...');
         const { InstagramService } = await import('./services/instagramService');
         const igResult = await InstagramService.getInstagramAccountsFromPages(tokenToStore);
         
+        console.log('📸 Instagram discovery result:', JSON.stringify(igResult, null, 2));
+        
         if (igResult.success && igResult.accounts && igResult.accounts.length > 0) {
+          console.log(`📸 Found ${igResult.accounts.length} Instagram accounts`);
           for (const igAccount of igResult.accounts) {
             // Check if Instagram account already exists
             const existingAccounts = await storage.getInstagramAccounts(user.id);
@@ -87,11 +91,15 @@ export function setupAuth() {
                 isActive: true
               });
               console.log(`✅ Auto-discovered Instagram account: @${igAccount.username}`);
+            } else {
+              console.log(`📸 Instagram account @${igAccount.username} already exists, skipping`);
             }
           }
+        } else {
+          console.log('⚠️ No Instagram accounts found or discovery failed:', igResult.error || 'No accounts linked');
         }
       } catch (igError) {
-        console.error('Error auto-discovering Instagram accounts:', igError);
+        console.error('❌ Error auto-discovering Instagram accounts:', igError);
         // Don't fail the login if Instagram discovery fails
       }
       
