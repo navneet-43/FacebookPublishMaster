@@ -185,18 +185,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Handle three different actions based on status
       if (result.data.status === "immediate") {
-        // PUBLISH NOW - Publish immediately to Facebook
-        console.log(`🚀 PUBLISH NOW: Publishing immediately`);
+        // PUBLISH NOW - Publish immediately to selected platform
+        const platform = result.data.platform || 'facebook';
+        console.log(`🚀 PUBLISH NOW: Publishing immediately to ${platform.toUpperCase()}`);
         
-        if (!result.data.accountId) {
-          return res.status(400).json({ message: "No Facebook account selected" });
-        }
-        
-        const account = await storage.getFacebookAccount(result.data.accountId as number);
-        if (!account) {
-          return res.status(404).json({ message: "Facebook account not found" });
-        }
-
         try {
           // Import deployment configuration
           const { deploymentConfig } = await import('./config/deploymentConfig');
@@ -210,60 +202,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`🔍 Using upload tracking ID: ${uploadId} with extended timeout (deployment: ${deploymentConfig.isDeployment()})`);
           
           const { publishPostToFacebook, publishPostToInstagram } = await import('./services/postService');
-          const publishResult = await publishPostToFacebook({
-            ...result.data,
-            userId: user.id,
-            id: 0,
-            createdAt: new Date(),
-            uploadId
-          } as any);
-
-          // Also publish to Instagram if enabled
-          let instagramResult = null;
-          if (result.data.postToInstagram && result.data.instagramAccountId) {
-            instagramResult = await publishPostToInstagram({
+          
+          let publishResult;
+          let platformName;
+          
+          if (platform === 'instagram') {
+            // Publish to Instagram
+            if (!result.data.instagramAccountId) {
+              return res.status(400).json({ message: "No Instagram account selected" });
+            }
+            
+            const instagramAccountId = typeof result.data.instagramAccountId === 'number' 
+              ? result.data.instagramAccountId 
+              : parseInt(result.data.instagramAccountId as string);
+            const instagramAccount = await storage.getInstagramAccount(instagramAccountId);
+            if (!instagramAccount) {
+              return res.status(404).json({ message: "Instagram account not found" });
+            }
+            
+            publishResult = await publishPostToInstagram({
               ...result.data,
               userId: user.id,
               id: 0,
               createdAt: new Date()
             } as any);
-            
-            if (instagramResult.success) {
-              console.log(`📸 INSTAGRAM: Also published to Instagram`);
-            } else {
-              console.error(`❌ INSTAGRAM: Failed to publish to Instagram: ${instagramResult.error}`);
+            platformName = 'Instagram';
+          } else {
+            // Publish to Facebook
+            if (!result.data.accountId) {
+              return res.status(400).json({ message: "No Facebook account selected" });
             }
+            
+            const account = await storage.getFacebookAccount(result.data.accountId as number);
+            if (!account) {
+              return res.status(404).json({ message: "Facebook account not found" });
+            }
+            
+            publishResult = await publishPostToFacebook({
+              ...result.data,
+              userId: user.id,
+              id: 0,
+              createdAt: new Date(),
+              uploadId
+            } as any);
+            platformName = 'Facebook';
           }
 
           if (publishResult.success) {
             const post = await storage.createPost({
               ...result.data,
               userId: user.id,
+              platform,
               status: "published",
-              instagramPostId: instagramResult?.data?.instagramPostId
+              facebookPostId: platform === 'facebook' ? publishResult.data?.postId : undefined,
+              instagramPostId: platform === 'instagram' ? publishResult.data?.instagramPostId : undefined
             } as any);
-
-            const instagramStatus = result.data.postToInstagram 
-              ? (instagramResult?.success ? ' and Instagram' : ' (Instagram failed)')
-              : '';
 
             await storage.createActivity({
               userId: user.id,
               type: "post_published",
-              description: `Post published immediately to Facebook${instagramStatus}: ${result.data.content.substring(0, 50)}...`,
+              description: `Post published immediately to ${platformName}: ${result.data.content.substring(0, 50)}...`,
               metadata: { 
                 postId: post.id, 
-                facebookResponse: publishResult.data,
-                instagramPublished: instagramResult?.success || false
+                platform,
+                platformResponse: publishResult.data
               }
             });
 
-            console.log(`✅ PUBLISHED: Post ${post.id} published to Facebook${instagramStatus}`);
+            console.log(`✅ PUBLISHED: Post ${post.id} published to ${platformName}`);
             return res.status(201).json(post);
           } else {
             const post = await storage.createPost({
               ...result.data,
               userId: user.id,
+              platform,
               status: "failed",
               errorMessage: publishResult.error || "Failed to publish"
             } as any);
@@ -271,9 +283,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(500).json({ message: "Failed to publish", error: publishResult.error, post });
           }
         } catch (error) {
+          const platform = result.data.platform || 'facebook';
           const post = await storage.createPost({
             ...result.data,
             userId: user.id,
+            platform,
             status: "failed",
             errorMessage: error instanceof Error ? error.message : "Unknown error"
           } as any);
@@ -282,7 +296,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (result.data.status === "scheduled") {
         // SCHEDULE - Save for future publication
-        console.log(`📅 SCHEDULE: Saving for future publication`);
+        const platform = result.data.platform || 'facebook';
+        console.log(`📅 SCHEDULE: Saving for future publication to ${platform.toUpperCase()}`);
         
         if (!result.data.scheduledFor) {
           return res.status(400).json({ message: "Scheduled date is required for scheduled posts" });
@@ -292,11 +307,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { parseISTDateToUTC } = await import('./utils/timezoneUtils');
         
         // Convert scheduledFor from IST to UTC for consistent storage
-        const scheduledForUTC = parseISTDateToUTC(result.data.scheduledFor, 'API scheduled post');
+        const scheduledForInput = result.data.scheduledFor instanceof Date 
+          ? result.data.scheduledFor.toISOString() 
+          : result.data.scheduledFor;
+        const scheduledForUTC = parseISTDateToUTC(scheduledForInput, 'API scheduled post');
         
         const post = await storage.createPost({
           ...result.data,
           userId: user.id,
+          platform,
           scheduledFor: scheduledForUTC
         } as any);
 
@@ -307,30 +326,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.createActivity({
           userId: user.id,
           type: "post_scheduled",
-          description: `Post scheduled for ${result.data.scheduledFor}: ${result.data.content.substring(0, 50)}...`,
-          metadata: { postId: post.id }
+          description: `Post scheduled for ${platform === 'instagram' ? 'Instagram' : 'Facebook'} at ${result.data.scheduledFor}: ${result.data.content.substring(0, 50)}...`,
+          metadata: { postId: post.id, platform }
         });
 
-        console.log(`✅ SCHEDULED: Post ${post.id} scheduled for ${post.scheduledFor}`);
+        console.log(`✅ SCHEDULED: Post ${post.id} scheduled for ${platform.toUpperCase()} at ${post.scheduledFor}`);
         return res.status(201).json(post);
       } else {
         // PUBLISH LATER - Save as draft
-        console.log(`📝 PUBLISH LATER: Saving as draft`);
+        const platform = result.data.platform || 'facebook';
+        console.log(`📝 PUBLISH LATER: Saving as draft for ${platform.toUpperCase()}`);
         
         const post = await storage.createPost({
           ...result.data,
           userId: user.id,
+          platform,
           status: "draft"
         } as any);
 
         await storage.createActivity({
           userId: user.id,
           type: "post_drafted",
-          description: `Post saved as draft: ${result.data.content.substring(0, 50)}...`,
-          metadata: { postId: post.id }
+          description: `Post saved as draft for ${platform === 'instagram' ? 'Instagram' : 'Facebook'}: ${result.data.content.substring(0, 50)}...`,
+          metadata: { postId: post.id, platform }
         });
 
-        console.log(`✅ DRAFT: Post ${post.id} saved as draft`);
+        console.log(`✅ DRAFT: Post ${post.id} saved as draft for ${platform.toUpperCase()}`);
         return res.status(201).json(post);
       }
     } catch (error) {
@@ -1284,7 +1305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const raceConditionActivities = activities.filter(activity => 
         activity.type === 'system_race_condition_prevented' && 
-        new Date(activity.createdAt) > twentyFourHoursAgo
+        activity.createdAt && new Date(activity.createdAt) > twentyFourHoursAgo
       );
       
       // Get duplicate posts prevention count
@@ -1293,7 +1314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get successful publications in last 24 hours
       const successfulPublications = activities.filter(activity => 
         activity.type === 'post_published' && 
-        new Date(activity.createdAt) > twentyFourHoursAgo
+        activity.createdAt && new Date(activity.createdAt) > twentyFourHoursAgo
       ).length;
       
       res.json({
@@ -1302,12 +1323,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           successful_publications_24h: successfulPublications,
           protection_active: true,
           last_prevention: raceConditionActivities.length > 0 ? raceConditionActivities[0].createdAt : null,
-          prevented_posts: raceConditionActivities.map(activity => ({
-            postId: activity.metadata?.postId,
-            preventedBy: activity.metadata?.preventedBy,
-            scheduledTime: activity.metadata?.originalScheduledTime,
-            preventedAt: activity.createdAt
-          }))
+          prevented_posts: raceConditionActivities.map(activity => {
+            const metadata = activity.metadata as any;
+            return {
+              postId: metadata?.postId,
+              preventedBy: metadata?.preventedBy,
+              scheduledTime: metadata?.originalScheduledTime,
+              preventedAt: activity.createdAt
+            };
+          })
         },
         system_health: {
           dual_scheduler_protection: 'ACTIVE',

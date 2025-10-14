@@ -114,49 +114,49 @@ export class ReliableSchedulingService {
               continue;
             }
             
-            // Publish to Facebook
-            const result = await publishPostToFacebook(post);
+            // Platform-specific publishing
+            const platform = (post as any).platform || 'facebook';
+            const platformName = platform === 'instagram' ? 'Instagram' : 'Facebook';
             
-            // Also publish to Instagram if enabled
-            let instagramResult = null;
-            if (post.postToInstagram && post.instagramAccountId) {
+            let result;
+            if (platform === 'instagram') {
+              // Publish to Instagram
               const { publishPostToInstagram } = await import('./postService');
-              instagramResult = await publishPostToInstagram(post);
-              
-              if (instagramResult.success) {
-                console.log(`📸 INSTAGRAM: Post ${post.id} also published to Instagram`);
-                await storage.updatePost(post.id, {
-                  instagramPostId: instagramResult.data?.instagramPostId
-                });
-              } else {
-                console.error(`❌ INSTAGRAM: Failed to publish post ${post.id} to Instagram: ${instagramResult.error}`);
-              }
+              result = await publishPostToInstagram(post);
+            } else {
+              // Publish to Facebook
+              result = await publishPostToFacebook(post);
             }
             
             if (result.success) {
-              await storage.updatePost(post.id, {
+              const updateData: any = {
                 status: 'published',
                 publishedAt: new Date()
-              });
+              };
               
-              const instagramStatus = post.postToInstagram 
-                ? (instagramResult?.success ? ' and Instagram' : ' (Instagram failed)')
-                : '';
+              // Store platform-specific post ID
+              if (platform === 'facebook') {
+                updateData.facebookPostId = result.data?.postId;
+              } else if (platform === 'instagram') {
+                updateData.instagramPostId = result.data?.instagramPostId;
+              }
+              
+              await storage.updatePost(post.id, updateData);
               
               await storage.createActivity({
                 userId: post.userId || null,
                 type: 'post_published',
-                description: `Overdue post published to Facebook${instagramStatus} (${delayMinutes} minutes late)`,
+                description: `Overdue post published to ${platformName} (${delayMinutes} minutes late)`,
                 metadata: { 
                   postId: post.id, 
+                  platform,
                   wasOverdue: true,
                   delayMinutes: delayMinutes,
-                  originalScheduledTime: post.scheduledFor,
-                  instagramPublished: instagramResult?.success || false
+                  originalScheduledTime: post.scheduledFor
                 }
               });
               
-              console.log(`✅ OVERDUE POST ${post.id} PUBLISHED SUCCESSFULLY`);
+              console.log(`✅ OVERDUE POST ${post.id} PUBLISHED SUCCESSFULLY TO ${platformName.toUpperCase()}`);
             } else {
               await storage.updatePost(post.id, {
                 status: 'failed',
@@ -166,15 +166,16 @@ export class ReliableSchedulingService {
               await storage.createActivity({
                 userId: post.userId || null,
                 type: 'post_failed',
-                description: `Overdue post failed to publish: ${result.error}`,
+                description: `Overdue post failed to publish to ${platformName}: ${result.error}`,
                 metadata: { 
-                  postId: post.id, 
+                  postId: post.id,
+                  platform,
                   wasOverdue: true,
                   error: result.error
                 }
               });
               
-              console.error(`❌ OVERDUE POST ${post.id} FAILED: ${result.error}`);
+              console.error(`❌ OVERDUE POST ${post.id} FAILED TO PUBLISH TO ${platformName.toUpperCase()}: ${result.error}`);
             }
           } catch (error) {
             console.error(`💥 ERROR PROCESSING OVERDUE POST ${post.id}:`, error);

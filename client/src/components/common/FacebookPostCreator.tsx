@@ -140,13 +140,14 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
 
   const onSubmit = (values: FormValues) => {
     console.log('🔍 FORM SUBMIT DEBUG:');
+    console.log('🔍 Platform:', values.platform);
     console.log('🔍 isScheduleEnabled:', isScheduleEnabled);
     console.log('🔍 values.scheduledFor:', values.scheduledFor);
     console.log('🔍 values.scheduledTime:', values.scheduledTime);
     
-    // Clean base data
-    const baseData = {
-      accountId: parseInt(values.accountId),
+    // Clean base data with platform-specific account handling
+    const baseData: any = {
+      platform: values.platform,
       content: values.content,
       mediaUrl: values.mediaUrl || "",
       mediaType: values.mediaType,
@@ -158,9 +159,31 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
       boost: values.boost,
       crosspost: values.crosspost,
       crosspostTo: values.crosspostTo,
-      postToInstagram: values.postToInstagram,
-      instagramAccountId: values.instagramAccountId ? parseInt(values.instagramAccountId) : undefined,
     };
+    
+    // Set account ID based on platform
+    if (values.platform === 'instagram') {
+      baseData.instagramAccountId = values.instagramAccountId ? parseInt(values.instagramAccountId) : undefined;
+      // For Instagram, accountId might not be set, so we need to handle validation differently
+      if (!baseData.instagramAccountId) {
+        toast({
+          title: "Missing Instagram Account",
+          description: "Please select an Instagram account.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      baseData.accountId = parseInt(values.accountId);
+      if (!baseData.accountId || isNaN(baseData.accountId)) {
+        toast({
+          title: "Missing Facebook Account",
+          description: "Please select a Facebook page.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     // Determine action based on schedule toggle
     if (isScheduleEnabled) {
