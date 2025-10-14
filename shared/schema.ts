@@ -149,6 +149,7 @@ export const insertCustomLabelSchema = createInsertSchema(customLabels).pick({
 export const posts = pgTable("posts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
+  platform: text("platform").notNull().default("facebook"), // facebook or instagram
   accountId: integer("account_id").references(() => facebookAccounts.id),
   content: text("content").notNull(),
   mediaUrl: text("media_url"),
@@ -159,9 +160,10 @@ export const posts = pgTable("posts", {
   scheduledFor: timestamp("scheduled_for", { withTimezone: false }),
   publishedAt: timestamp("published_at"),
   status: text("status").notNull(),
+  facebookPostId: text("facebook_post_id"), // Facebook post ID
   sheetRowId: text("sheet_row_id"),
   errorMessage: text("error_message"),
-  postToInstagram: boolean("post_to_instagram").default(false),
+  postToInstagram: boolean("post_to_instagram").default(false), // Legacy field, kept for backward compatibility
   instagramAccountId: integer("instagram_account_id").references(() => instagramAccounts.id),
   instagramPostId: text("instagram_post_id"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -169,6 +171,7 @@ export const posts = pgTable("posts", {
 
 export const insertPostSchema = createInsertSchema(posts).pick({
   userId: true,
+  platform: true,
   accountId: true,
   content: true,
   mediaUrl: true,
@@ -179,6 +182,7 @@ export const insertPostSchema = createInsertSchema(posts).pick({
   scheduledFor: true,
   publishedAt: true,
   status: true,
+  facebookPostId: true,
   sheetRowId: true,
   errorMessage: true,
   postToInstagram: true,
