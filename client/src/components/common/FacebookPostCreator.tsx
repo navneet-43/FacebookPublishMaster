@@ -27,7 +27,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const formSchema = z.object({
-  accountId: z.string().min(1, "Please select a Facebook page"),
+  platform: z.enum(["facebook", "instagram"]).default("facebook"),
+  accountId: z.string().min(1, "Please select an account"),
+  instagramAccountId: z.string().optional(),
   content: z.string().min(1, "Content is required"),
   mediaUrl: z.string().optional(),
   mediaType: z.enum(["none", "photo", "video", "reel"]).default("none"),
@@ -43,7 +45,6 @@ const formSchema = z.object({
   crosspost: z.boolean().default(false),
   crosspostTo: z.array(z.string()).default([]),
   postToInstagram: z.boolean().default(false),
-  instagramAccountId: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -80,6 +81,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      platform: "facebook",
       accountId: "",
       content: "",
       mediaUrl: "",
@@ -101,7 +103,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
   });
 
   const watchCrosspost = form.watch("crosspost");
-  const watchPostToInstagram = form.watch("postToInstagram");
+  const watchPlatform = form.watch("platform");
 
   const createPostMutation = useMutation({
     mutationFn: (postData: any) => {
@@ -221,42 +223,126 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 px-6 pb-6">
-            {/* Post to Section */}
+            {/* Platform Selection */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">Post to</h3>
+              <h3 className="text-lg font-semibold mb-3">Select Platform</h3>
               <FormField
                 control={form.control}
-                name="accountId"
+                name="platform"
                 render={({ field }) => (
                   <FormItem>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="w-full h-12">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                              <span className="text-white text-sm font-bold">f</span>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          // Reset account selection when platform changes
+                          form.setValue("accountId", "");
+                          form.setValue("instagramAccountId", "");
+                        }}
+                        value={field.value}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2 flex-1">
+                          <RadioGroupItem value="facebook" id="facebook" />
+                          <Label htmlFor="facebook" className="flex items-center gap-2 cursor-pointer">
+                            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">f</span>
                             </div>
-                            <SelectValue placeholder="Select a Facebook page" />
-                          </div>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {accounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id.toString()}>
-                            <div className="flex items-center gap-3">
-                              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                                <span className="text-white text-xs font-bold">f</span>
-                              </div>
-                              {account.name}
+                            <span>Facebook</span>
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2 flex-1">
+                          <RadioGroupItem value="instagram" id="instagram" />
+                          <Label htmlFor="instagram" className="flex items-center gap-2 cursor-pointer">
+                            <div className="w-6 h-6 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-lg flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">📷</span>
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                            <span>Instagram</span>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Account Selection - Dynamic based on platform */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3">
+                {watchPlatform === "facebook" ? "Select Facebook Page" : "Select Instagram Account"}
+              </h3>
+              
+              {watchPlatform === "facebook" ? (
+                <FormField
+                  control={form.control}
+                  name="accountId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-full h-12">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">f</span>
+                              </div>
+                              <SelectValue placeholder="Select a Facebook page" />
+                            </div>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id.toString()}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">f</span>
+                                </div>
+                                {account.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="instagramAccountId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-full h-12">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-lg flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">📷</span>
+                              </div>
+                              <SelectValue placeholder="Select an Instagram account" />
+                            </div>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {instagramAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id.toString()}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-6 h-6 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-lg flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">📷</span>
+                                </div>
+                                @{account.username}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <Separator className="bg-gray-200" />
@@ -854,70 +940,6 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </div>
-
-            <Separator className="bg-gray-200" />
-
-            {/* Post to Instagram */}
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Post to Instagram</h3>
-              <p className="text-gray-600 text-sm mb-4">Publish this post to your Instagram account.</p>
-              
-              <FormField
-                control={form.control}
-                name="postToInstagram"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="text-sm font-medium">
-                        Also post to Instagram
-                      </FormLabel>
-                    </div>
-                  </FormItem>
-                )}
-              />
-              
-              {watchPostToInstagram && (
-                <FormField
-                  control={form.control}
-                  name="instagramAccountId"
-                  render={({ field }) => (
-                    <FormItem className="mt-4">
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="w-full h-12">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center">
-                                <span className="text-white text-sm font-bold">IG</span>
-                              </div>
-                              <SelectValue placeholder="Select an Instagram account" />
-                            </div>
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {instagramAccounts.map((account) => (
-                            <SelectItem key={account.id} value={account.id.toString()}>
-                              <div className="flex items-center gap-3">
-                                <div className="w-6 h-6 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">IG</span>
-                                </div>
-                                @{account.username}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
