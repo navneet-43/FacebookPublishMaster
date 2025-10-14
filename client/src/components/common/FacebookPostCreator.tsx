@@ -840,7 +840,7 @@ export function FacebookPostCreator({ isOpen, onClose }: FacebookPostCreatorProp
               {form.watch("labels")?.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {form.watch("labels")?.map((labelId) => {
-                    const label = customLabels.find(l => l.id.toString() === labelId);
+                    const label = (customLabels || []).find(l => l.id.toString() === labelId);
                     if (!label) return null;
                     return (
                       <Badge 
