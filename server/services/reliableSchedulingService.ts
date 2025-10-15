@@ -175,6 +175,15 @@ export class ReliableSchedulingService {
                 }
               });
               
+              // CRITICAL: Force cleanup of temp files after failed upload to prevent disk space accumulation
+              try {
+                const { tempFileManager } = await import('../utils/tempFileManager');
+                await tempFileManager.sweepTempDirs();
+                console.log('🧹 Forced temp file cleanup after failed upload');
+              } catch (cleanupError) {
+                console.error('❌ Failed to cleanup temp files:', cleanupError);
+              }
+              
               console.error(`❌ OVERDUE POST ${post.id} FAILED TO PUBLISH TO ${platformName.toUpperCase()}: ${result.error}`);
             }
           } catch (error) {
@@ -184,6 +193,15 @@ export class ReliableSchedulingService {
               status: 'failed',
               errorMessage: error instanceof Error ? error.message : 'Unknown error'
             });
+            
+            // CRITICAL: Force cleanup of temp files after error to prevent disk space accumulation
+            try {
+              const { tempFileManager } = await import('../utils/tempFileManager');
+              await tempFileManager.sweepTempDirs();
+              console.log('🧹 Forced temp file cleanup after error');
+            } catch (cleanupError) {
+              console.error('❌ Failed to cleanup temp files:', cleanupError);
+            }
           }
         }
       }
