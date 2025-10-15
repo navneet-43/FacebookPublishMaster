@@ -44,10 +44,10 @@ export class CorrectGoogleDriveDownloader {
       return 50;
     }
     
-    // For medium environments (< 20GB total), require 150MB free
+    // For medium environments (< 20GB total), require 100MB free (reduced for production stability)
     if (totalDiskMB < 20000) {
-      console.log(`📊 MEDIUM environment detected (${totalDiskMB}MB total) - requiring 150MB free`);
-      return 150;
+      console.log(`📊 MEDIUM environment detected (${totalDiskMB}MB total) - requiring 100MB free`);
+      return 100;
     }
     
     // For standard production environments, require 300MB free
