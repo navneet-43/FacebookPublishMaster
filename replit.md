@@ -4,7 +4,7 @@
 SocialFlow is an advanced social media publishing platform designed for Facebook and Instagram business accounts. Its primary purpose is to offer intelligent content management and streamlined publishing workflows with an enhanced user experience. The project aims to provide comprehensive tools for social media account management, bulk post scheduling, real-time analytics, and robust media handling, focusing on efficient and reliable content delivery to Facebook and Instagram.
 
 ## User Preferences
-- Direct dashboard access without login requirements
+- **Authentication required** - Dashboard and all features now protected with login/register functionality
 - Simplified Excel import workflow with frontend page selection
 - Clean, production-ready UI design
 - Comprehensive error handling and user feedback
