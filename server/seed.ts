@@ -20,7 +20,7 @@ export async function seedDefaultAdmin() {
       await db.insert(platformUsers).values({
         username: "admin",
         password: hashedPassword,
-        email: "admin@socialflow.com",
+        email: "socialplus@ruskmedia.com",
         fullName: "Admin User",
         role: "admin",
         isActive: true,
@@ -29,7 +29,7 @@ export async function seedDefaultAdmin() {
       console.log("\n✅ DEFAULT ADMIN USER CREATED");
       console.log("   Username: admin");
       console.log("   Password: Rusk@123");
-      console.log("   Email: admin@socialflow.com\n");
+      console.log("   Email: socialplus@ruskmedia.com\n");
     }
     // No message if admin already exists to avoid log noise
   } catch (error) {
