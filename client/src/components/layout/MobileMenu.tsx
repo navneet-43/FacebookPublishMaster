@@ -1,4 +1,9 @@
 import { Link, useLocation } from "wouter";
+import { usePlatformAuth } from "@/hooks/usePlatformAuth";
+import { LogOut } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -7,6 +12,29 @@ interface MobileMenuProps {
 
 export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
   const [location] = useLocation();
+  const { user } = usePlatformAuth();
+  const { toast } = useToast();
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/platform/auth/logout', {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Logout failed');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/platform/auth/status'] });
+      window.location.href = '/login';
+    },
+    onError: () => {
+      toast({
+        title: "Logout failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
 
   const isActive = (path: string) => {
     return location === path;
@@ -78,6 +106,34 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             <i className="fa-solid fa-gear w-5"></i>
             <span className="ml-3">Settings</span>
           </Link>
+
+          {/* User section with logout */}
+          <div className="absolute bottom-0 left-0 right-0 border-t border-fb-gray p-4 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center flex-1 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-blue-600 font-semibold text-sm">
+                    {user?.fullName?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                </div>
+                <div className="ml-3 min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{user?.fullName || 'User'}</p>
+                  <p className="text-xs text-gray-500 truncate">{user?.email || ''}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  logoutMutation.mutate();
+                  onClose();
+                }}
+                disabled={logoutMutation.isPending}
+                className="text-gray-500 hover:text-red-600 p-2 rounded-md hover:bg-red-50 transition-colors flex-shrink-0"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </nav>
       </div>
     </div>

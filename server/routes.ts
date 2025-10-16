@@ -24,8 +24,13 @@ import { progressTracker } from "./services/progressTrackingService";
 import { reportsRouter } from "./routes/reports";
 
 const authenticateUser = async (req: Request) => {
-  // Use default Facebook OAuth user (ID 3) without authentication
-  return { id: 3 };
+  // Get authenticated user from session
+  if (req.session && (req.session as any).userId) {
+    return { id: (req.session as any).userId };
+  }
+  
+  // Return null if no authenticated user
+  return null;
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
