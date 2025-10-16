@@ -14,6 +14,7 @@ import { SystemMonitoringService } from "./services/systemMonitoringService";
 import { ReliableSchedulingService } from "./services/reliableSchedulingService";
 import { progressTracker } from "./services/progressTrackingService";
 import { objectStorageVideoHandler } from "./services/objectStorageVideoHandler";
+import { seedDefaultAdmin } from "./seed";
 
 const PgSession = connectPgSimple(session);
 const app = express();
@@ -121,6 +122,9 @@ app.use((req, res, next) => {
     }
     
     try {
+      // Seed default admin user
+      await seedDefaultAdmin();
+      
       // Initialize keep-alive service first to prevent sleep
       await KeepAliveService.initialize();
       
