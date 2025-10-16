@@ -35,8 +35,8 @@ class TempFileManager {
     'temp/downloads'
   ];
   private readonly maxTotalBytes = 5 * 1024 * 1024 * 1024; // 5GB limit
-  private readonly defaultTtlMs = 1 * 60 * 60 * 1000; // 1 hour (reduced from 6 hours for ENOSPC prevention)
-  private readonly sweepIntervalMs = 1 * 60 * 1000; // 1 minute (reduced from 10 minutes for aggressive cleanup)
+  private readonly defaultTtlMs = 15 * 60 * 1000; // 15 minutes (reduced from 1 hour for production ENOSPC prevention)
+  private readonly sweepIntervalMs = 1 * 60 * 1000; // 1 minute (aggressive cleanup for production)
 
   constructor() {
     this.startBackgroundSweeper();
@@ -250,8 +250,8 @@ class TempFileManager {
     // Determine which files to delete
     const filesToDelete: typeof fileInfos = [];
     
-    // Delete files older than 1 hour (reduced from 6 hours for ENOSPC prevention)
-    const maxAge = 1 * 60 * 60 * 1000; // 1 hour
+    // Delete files older than 15 minutes (reduced from 1 hour for production ENOSPC prevention)
+    const maxAge = 15 * 60 * 1000; // 15 minutes
     for (const info of fileInfos) {
       if (info.age > maxAge && !this.isFileInUse(info.path)) {
         filesToDelete.push(info);

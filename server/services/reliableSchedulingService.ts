@@ -68,6 +68,15 @@ export class ReliableSchedulingService {
       if (validOverduePosts.length > 0) {
         console.log(`🚨 FOUND ${validOverduePosts.length} OVERDUE POSTS - Processing immediately`);
         
+        // CRITICAL: Proactive cleanup before processing to ensure disk space is available
+        try {
+          const { tempFileManager } = await import('../utils/tempFileManager');
+          await tempFileManager.sweepTempDirs();
+          console.log('🧹 Proactive cleanup completed before processing overdue posts');
+        } catch (cleanupError) {
+          console.error('❌ Proactive cleanup failed:', cleanupError);
+        }
+        
         for (const post of validOverduePosts) {
           // Double-check post is still in 'scheduled' status to prevent race conditions
           const currentPost = await storage.getPost(post.id);
