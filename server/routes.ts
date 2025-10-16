@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import bcrypt from "bcrypt";
 import {
   insertUserSchema,
   insertFacebookAccountSchema,
@@ -97,22 +98,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // User authentication routes
+  // User authentication routes (platform users - email/password)
   app.post('/api/auth/login', async (req: Request, res: Response) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
     
-    if (!username || !password) {
-      return res.status(400).json({ message: "Username and password are required" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
     }
     
     try {
-      const user = await storage.getUserByUsername(username);
+      // Find platform user by email
+      const user = await storage.getPlatformUserByEmail(email);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
       
-      (req.session as any).userId = user.id;
-      res.json({ message: "Login successful", user: { id: user.id, username: user.username } });
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      // Update last login
+      await storage.updatePlatformUserLastLogin(user.id);
+      
+      (req.session as any).platformUserId = user.id;
+      res.json({ 
+        message: "Login successful", 
+        user: { 
+          id: user.id, 
+          username: user.username, 
+          email: user.email,
+          fullName: user.fullName 
+        } 
+      });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Internal server error" });
