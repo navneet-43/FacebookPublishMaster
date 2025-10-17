@@ -101,7 +101,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = await seedDefaultAdmin();
       res.json({ 
-        success: true, 
         message: "Admin credentials synced successfully",
         ...result
       });
