@@ -30,14 +30,15 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     secure: false, // Set to false for development to allow HTTP
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days for persistent login
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days for persistent login - extended for production
     httpOnly: true,
     sameSite: 'lax'
   },
   store: new PgSession({
     pool: pool,
     tableName: 'sessions',
-    createTableIfMissing: true
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 60 // Clean up expired sessions every hour (keep DB lean)
   })
 }));
 
