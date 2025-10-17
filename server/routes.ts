@@ -122,14 +122,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update last login
       await storage.updatePlatformUserLastLogin(user.id);
       
-      (req.session as any).platformUserId = user.id;
+      // Set session variables to match what the platform auth status expects
+      (req.session as any).userId = user.id;
+      (req.session as any).user = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role
+      };
+      
       res.json({ 
         message: "Login successful", 
         user: { 
           id: user.id, 
           username: user.username, 
           email: user.email,
-          fullName: user.fullName 
+          fullName: user.fullName,
+          role: user.role
         } 
       });
     } catch (error) {
