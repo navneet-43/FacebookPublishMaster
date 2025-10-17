@@ -23,6 +23,7 @@ import { setupGoogleOAuthRoutes } from "./routes/googleOAuth";
 import { ExcelImportService } from "./services/excelImportService";
 import { progressTracker } from "./services/progressTrackingService";
 import { reportsRouter } from "./routes/reports";
+import { seedDefaultAdmin } from "./seed";
 
 const authenticateUser = async (req: Request) => {
   // Get authenticated user from session
@@ -94,6 +95,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.redirect('/');
     }
   );
+
+  // Manual seed endpoint for production (no auth required for initial setup)
+  app.post('/api/admin/seed', async (req: Request, res: Response) => {
+    try {
+      const result = await seedDefaultAdmin();
+      res.json({ 
+        success: true, 
+        message: "Admin credentials synced successfully",
+        ...result
+      });
+    } catch (error) {
+      console.error("Manual seed error:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to seed admin credentials",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
 
   // User authentication routes (platform users - email/password)
   app.post('/api/auth/login', async (req: Request, res: Response) => {
