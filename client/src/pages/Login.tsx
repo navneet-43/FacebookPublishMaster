@@ -64,7 +64,7 @@ export default function Login() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/platform/auth/status'] });
       toast({
         title: "Welcome back!",
         description: "You have been logged in successfully.",
@@ -96,7 +96,7 @@ export default function Login() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/platform/auth/status'] });
       toast({
         title: "Account created!",
         description: "Your account has been created and you're now logged in.",
