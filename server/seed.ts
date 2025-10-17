@@ -5,33 +5,53 @@ import { eq } from "drizzle-orm";
 
 export async function seedDefaultAdmin() {
   try {
+    const targetEmail = "socialplus@ruskmedia.com";
+    const targetPassword = "Rusk@123";
+    const targetUsername = "admin";
+    
     // Check if admin user already exists
     const existingAdmin = await db
       .select()
       .from(platformUsers)
-      .where(eq(platformUsers.username, "admin"))
+      .where(eq(platformUsers.username, targetUsername))
       .limit(1);
 
-    if (existingAdmin.length === 0) {
-      // Hash the default password
-      const hashedPassword = await bcrypt.hash("Rusk@123", 10);
+    // Hash the default password
+    const hashedPassword = await bcrypt.hash(targetPassword, 10);
 
+    if (existingAdmin.length === 0) {
       // Create default admin user
       await db.insert(platformUsers).values({
-        username: "admin",
+        username: targetUsername,
         password: hashedPassword,
-        email: "socialplus@ruskmedia.com",
+        email: targetEmail,
         fullName: "Admin User",
         role: "admin",
         isActive: true,
       });
 
       console.log("\n✅ DEFAULT ADMIN USER CREATED");
-      console.log("   Username: admin");
-      console.log("   Password: Rusk@123");
-      console.log("   Email: socialplus@ruskmedia.com\n");
+      console.log(`   Username: ${targetUsername}`);
+      console.log(`   Email: ${targetEmail}`);
+      console.log(`   Password: ${targetPassword}\n`);
+    } else {
+      // Update existing admin to ensure consistent credentials across all environments
+      await db
+        .update(platformUsers)
+        .set({
+          password: hashedPassword,
+          email: targetEmail,
+          fullName: "Admin User",
+          role: "admin",
+          isActive: true,
+        })
+        .where(eq(platformUsers.username, targetUsername));
+
+      console.log("\n✅ DEFAULT ADMIN CREDENTIALS SYNCED");
+      console.log(`   Username: ${targetUsername}`);
+      console.log(`   Email: ${targetEmail}`);
+      console.log(`   Password: ${targetPassword}\n`);
     }
-    // No message if admin already exists to avoid log noise
   } catch (error) {
     console.error("\n❌ ERROR SEEDING DEFAULT ADMIN:", error, "\n");
   }
