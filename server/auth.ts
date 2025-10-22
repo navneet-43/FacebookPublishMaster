@@ -14,6 +14,12 @@ interface FacebookProfile {
 export function setupAuth() {
   // Dynamically determine the callback URL based on environment
   const getCallbackURL = () => {
+    // Check for explicit callback URL first (Railway deployment)
+    if (process.env.FACEBOOK_CALLBACK_URL) {
+      console.log(`🔧 Facebook OAuth Callback URL (explicit): ${process.env.FACEBOOK_CALLBACK_URL}`);
+      return process.env.FACEBOOK_CALLBACK_URL;
+    }
+    
     // Check if we're in production vs development
     const replitDomains = process.env.REPLIT_DOMAINS;
     if (replitDomains) {
@@ -23,8 +29,17 @@ export function setupAuth() {
       console.log(`🔧 Facebook OAuth Callback URL: ${callbackURL}`);
       return callbackURL;
     }
+    
+    // Check for Railway deployment URL
+    const railwayUrl = process.env.RAILWAY_PUBLIC_DOMAIN;
+    if (railwayUrl) {
+      const callbackURL = `https://${railwayUrl}/auth/facebook/callback`;
+      console.log(`🔧 Facebook OAuth Callback URL (Railway): ${callbackURL}`);
+      return callbackURL;
+    }
+    
     // Fallback to localhost for local development
-    const fallbackURL = 'https://localhost:5000/auth/facebook/callback';
+    const fallbackURL = 'http://localhost:3001/auth/facebook/callback';
     console.log(`🔧 Facebook OAuth Callback URL (localhost fallback): ${fallbackURL}`);
     return fallbackURL;
   };

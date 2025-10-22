@@ -99,20 +99,29 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, async () => {
+  // Use Railway's PORT environment variable or fallback to 3001
+  const port = process.env.PORT || 3001;
+  server.listen(port, async () => {
     log(`serving on port ${port}`);
     
     // Log Facebook OAuth callback URL for configuration
     const replitDomain = process.env.REPLIT_DOMAINS;
-    if (replitDomain) {
+    const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+    const explicitCallback = process.env.FACEBOOK_CALLBACK_URL;
+    
+    if (explicitCallback) {
+      console.log('\n=== FACEBOOK OAUTH CONFIGURATION ===');
+      console.log(`Valid OAuth Redirect URI: ${explicitCallback}`);
+      console.log('====================================\n');
+    } else if (railwayDomain) {
+      const baseUrl = `https://${railwayDomain}`;
+      const callbackUrl = `${baseUrl}/auth/facebook/callback`;
+      console.log('\n=== FACEBOOK OAUTH CONFIGURATION ===');
+      console.log(`Railway Domain: ${railwayDomain}`);
+      console.log(`Site URL: ${baseUrl}`);
+      console.log(`Valid OAuth Redirect URI: ${callbackUrl}`);
+      console.log('====================================\n');
+    } else if (replitDomain) {
       const baseUrl = `https://${replitDomain}`;
       const callbackUrl = `${baseUrl}/auth/facebook/callback`;
       console.log('\n=== FACEBOOK OAUTH CONFIGURATION ===');
