@@ -71,6 +71,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Setup Google OAuth routes
   setupGoogleOAuthRoutes(app);
+
+  // Comment scraper routes (register early)
+  const commentScraperRoutes = await import('./routes/commentScraper');
+  app.use('/api/comments', commentScraperRoutes.default);
   
   // Facebook authentication routes
   app.get('/auth/facebook', 

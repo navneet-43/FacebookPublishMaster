@@ -53,6 +53,7 @@
     "@types/node-schedule": "^2.1.7",
     "@types/papaparse": "^5.3.16",
     "@types/passport-facebook": "^3.0.3",
+    "@types/xlsx": "^0.0.35",
     "@uppy/aws-s3": "^4.3.2",
     "@uppy/core": "^4.5.2",
     "@uppy/dashboard": "^4.4.3",
