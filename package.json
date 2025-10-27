@@ -13,7 +13,6 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "@google-cloud/storage": "^7.16.0",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
@@ -109,8 +108,12 @@
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
     "xlsx": "^0.18.5",
+    "ytdl-core": "^4.11.5",
     "zod": "^3.24.2",
     "zod-validation-error": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=20.18.0"
   },
   "devDependencies": {
     "@replit/vite-plugin-cartographer": "^0.2.8",
