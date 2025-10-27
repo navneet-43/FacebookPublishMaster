@@ -1,4 +1,4 @@
-import ytdl from '@distube/ytdl-core';
+import ytdl from 'ytdl-core';
 import { createWriteStream, createReadStream, unlinkSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';

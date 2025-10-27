@@ -61,10 +61,6 @@ typings/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
-.env.test
-.env.local
-.env.production
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -148,7 +144,6 @@ ehthumbs.db
 Thumbs.db
 
 # IDE files
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -165,5 +160,5 @@ out/
 *.sqlite3
 
 # Environment files
-.env*
 !.env.example
+config.bat

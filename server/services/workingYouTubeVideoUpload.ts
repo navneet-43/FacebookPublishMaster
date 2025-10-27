@@ -29,7 +29,7 @@ export class WorkingYouTubeVideoUpload {
   async downloadYouTubeVideo(youtubeUrl: string): Promise<string> {
     console.log('Downloading YouTube video: ' + youtubeUrl);
     
-    const ytdl = require('@distube/ytdl-core');
+    const ytdl = require('ytdl-core');
     
     const info = await ytdl.getInfo(youtubeUrl);
     console.log('Video: ' + info.videoDetails.title);

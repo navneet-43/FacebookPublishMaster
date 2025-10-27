@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm run railway:start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+
+[build.environment]
+NODE_VERSION = "20.18.0"

@@ -54,7 +54,7 @@ export class QualityPreservingVideoService {
       const { VideoProcessor } = await import('./videoProcessor');
       
       // Get video info first
-      const ytdl = await import('@distube/ytdl-core');
+      const ytdl = await import('ytdl-core');
       const info = await ytdl.default.getInfo(videoUrl);
       
       // Find highest quality video format

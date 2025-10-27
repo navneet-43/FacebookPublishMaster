@@ -54,7 +54,7 @@ export class HighQualityVideoService {
     cleanup?: () => void;
   }> {
     try {
-      const ytdl = await import('@distube/ytdl-core');
+      const ytdl = await import('ytdl-core');
       const info = await ytdl.default.getInfo(videoUrl);
       
       // Get all available formats for analysis
@@ -146,7 +146,7 @@ export class HighQualityVideoService {
       const audioPath = `/tmp/hq_audio_${videoId}_${timestamp}.m4a`;
       const outputPath = `/tmp/hq_merged_${videoId}_${timestamp}.mp4`;
       
-      const ytdl = await import('@distube/ytdl-core');
+      const ytdl = await import('ytdl-core');
       const { createWriteStream } = await import('fs');
       const { pipeline } = await import('stream/promises');
       
@@ -219,7 +219,7 @@ export class HighQualityVideoService {
       const videoId = this.extractVideoId(videoUrl);
       const outputPath = `/tmp/hq_combined_${videoId}_${Date.now()}.mp4`;
       
-      const ytdl = await import('@distube/ytdl-core');
+      const ytdl = await import('ytdl-core');
       const { createWriteStream } = await import('fs');
       const { pipeline } = await import('stream/promises');
       
