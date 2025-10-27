@@ -1888,22 +1888,6 @@ Google Drive's security policies prevent external applications from downloading 
     }
   }
 
-  static async getPagePermissions(pageId: string, pageAccessToken: string): Promise<string[]> {
-    try {
-      const response = await fetch(`https://graph.facebook.com/v20.0/${pageId}?fields=perms&access_token=${pageAccessToken}`);
-      const result = await response.json() as any;
-      
-      if (!response.ok || result.error) {
-        console.error('Failed to get page permissions:', result.error?.message || 'Unknown error');
-        return [];
-      }
-      
-      return result.perms || [];
-    } catch (error) {
-      console.error('Error getting page permissions:', error);
-      return [];
-    }
-  }
 
   /**
    * Publish Reel post to Facebook page

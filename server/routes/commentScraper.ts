@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { eq } from 'drizzle-orm';
 import { InstagramCommentService } from '../services/instagramCommentService';
 import { db } from '../db';
-import { platformUsers } from '../shared/schema';
+import { platformUsers } from '../../shared/schema';
 
 const router = Router();
 
